@@ -1,0 +1,488 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../constants.dart';
+import 'product_details_screen.dart';
+import 'add_product_screen.dart';
+import '../services/permission_service.dart';
+
+class ProductsScreen extends StatefulWidget {
+  final int userId;
+  final String username;
+  
+  const ProductsScreen({
+    Key? key, 
+    required this.userId,
+    required this.username,
+  }) : super(key: key);
+
+  @override
+  State<ProductsScreen> createState() => _ProductsScreenState();
+}
+
+class _ProductsScreenState extends State<ProductsScreen> {
+  List<dynamic> products = [];
+  List<dynamic> productGroups = [];
+  bool loading = true;
+  
+  // للبحث والفلتر
+  final TextEditingController _searchController = TextEditingController();
+  int? selectedGroupId;
+  String searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchProductGroups();
+    fetchProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // جلب مجموعات المنتجات
+  Future<void> fetchProductGroups() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/product-groups'));
+      if (res.statusCode == 200) {
+        setState(() {
+          productGroups = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      print('Error fetching groups: $e');
+    }
+  }
+
+  // جلب المنتجات
+  Future<void> fetchProducts() async {
+    setState(() => loading = true);
+    
+    try {
+      String url = '$baseUrl/api/products?';
+      
+      if (searchQuery.isNotEmpty) {
+        url += 'search=${Uri.encodeComponent(searchQuery)}&';
+      }
+      if (selectedGroupId != null) {
+        url += 'groupId=$selectedGroupId';
+      }
+      
+      final res = await http.get(Uri.parse(url));
+      
+      if (res.statusCode == 200) {
+        setState(() {
+          products = jsonDecode(res.body);
+          loading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching products: $e');
+      setState(() => loading = false);
+    }
+  }
+
+  // البحث
+  void _onSearch(String value) {
+    setState(() => searchQuery = value);
+    fetchProducts();
+  }
+
+  // تغيير الفلتر
+  void _onFilterChanged(int? groupId) {
+    setState(() => selectedGroupId = groupId);
+    fetchProducts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F0F),
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          // شريط البحث والفلتر
+          _buildSearchAndFilter(),
+          
+          // قائمة المنتجات
+          Expanded(
+            child: loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFFD700)),
+                  )
+                : products.isEmpty
+                    ? _buildEmptyState()
+                    : _buildProductsList(),
+          ),
+        ],
+      ),
+      floatingActionButton: _buildFAB(),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(
+        'المنتجات',
+        style: GoogleFonts.cairo(
+          fontWeight: FontWeight.bold,
+          color: Colors.black,
+        ),
+      ),
+      backgroundColor: const Color(0xFFE8B923),
+      centerTitle: true,
+      iconTheme: const IconThemeData(color: Colors.black),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: fetchProducts,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchAndFilter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFFFFD700).withOpacity(0.3),
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // حقل البحث
+          TextField(
+            controller: _searchController,
+            style: GoogleFonts.cairo(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'بحث بالاسم أو العميل...',
+              hintStyle: GoogleFonts.cairo(color: Colors.white54),
+              prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.white54),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearch('');
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.1),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+            onChanged: _onSearch,
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // فلتر المجموعات
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int?>(
+                value: selectedGroupId,
+                isExpanded: true,
+                hint: Text(
+                  'كل المجموعات',
+                  style: GoogleFonts.cairo(color: Colors.white70),
+                ),
+                dropdownColor: const Color(0xFF1A1A1A),
+                icon: const Icon(Icons.filter_list, color: Color(0xFFFFD700)),
+                items: [
+                  DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text(
+                      'كل المجموعات',
+                      style: GoogleFonts.cairo(color: Colors.white),
+                    ),
+                  ),
+                  ...productGroups.map((group) => DropdownMenuItem<int?>(
+                    value: group['ProductGroupID'],
+                    child: Text(
+                      group['GroupName'],
+                      style: GoogleFonts.cairo(color: Colors.white),
+                    ),
+                  )),
+                ],
+                onChanged: _onFilterChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0);
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 80,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'لا توجد منتجات',
+            style: GoogleFonts.cairo(
+              fontSize: 18,
+              color: Colors.grey[400],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'اضغط + لإضافة منتج جديد',
+            style: GoogleFonts.cairo(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductsList() {
+    return RefreshIndicator(
+      onRefresh: fetchProducts,
+      color: const Color(0xFFE8B923),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return _buildProductCard(product, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildProductCard(Map<String, dynamic> product, int index) {
+    return Card(
+      color: Colors.white.withOpacity(0.08),
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: const Color(0xFFFFD700).withOpacity(0.2),
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailsScreen(
+                productId: product['ProductID'],
+                username: widget.username,
+              ),
+            ),
+          ).then((_) => fetchProducts());
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // صورة المنتج
+              _buildProductImage(product),
+              
+              const SizedBox(width: 16),
+              
+              // تفاصيل المنتج
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // اسم المنتج
+                    Text(
+                      product['ProductName'] ?? 'بدون اسم',
+                      style: GoogleFonts.cairo(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    const SizedBox(height: 6),
+                    
+                    // العميل
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 16,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            product['CustomerName'] ?? 'منتج عام',
+                            style: GoogleFonts.cairo(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    // المجموعة
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.category_outlined,
+                          size: 16,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          product['GroupName'] ?? '',
+                          style: GoogleFonts.cairo(
+                            color: const Color(0xFFFFD700),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // السعر
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_formatNumber(product['SuggestedSalePrice'] ?? 0)} ج.م',
+                        style: GoogleFonts.cairo(
+                          color: const Color(0xFFFFD700),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // سهم
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white24,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: 50 * index), duration: 400.ms)
+        .slideX(begin: 0.1, end: 0);
+  }
+
+  Widget _buildProductImage(Map<String, dynamic> product) {
+    return Container(
+      width: 90,
+      height: 90,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFFFD700).withOpacity(0.3),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: product['ProductImage'] != null
+            ? Image.memory(
+                base64Decode(product['ProductImage']),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+              )
+            : _buildPlaceholder(),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.white.withOpacity(0.05),
+      child: Icon(
+        Icons.image_outlined,
+        size: 40,
+        color: Colors.grey[600],
+      ),
+    );
+  }
+
+  // ✅ تم التعديل - إضافة الصلاحيات
+  Widget _buildFAB() {
+    // ✅ لو مش عنده صلاحية الإضافة، ما يظهرش الزر
+    if (!PermissionService().canAdd(FormNames.productsAdd)) {
+      return const SizedBox.shrink();
+    }
+    
+    return FloatingActionButton.extended(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddProductScreen(
+              username: widget.username,
+            ),
+          ),
+        ).then((_) => fetchProducts());
+      },
+      backgroundColor: const Color(0xFFE8B923),
+      icon: const Icon(Icons.add, color: Colors.black),
+      label: Text(
+        'إضافة منتج',
+        style: GoogleFonts.cairo(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: 500.ms)
+        .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1));
+  }
+
+  String _formatNumber(dynamic number) {
+    if (number == null) return '0';
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+  }
+}
