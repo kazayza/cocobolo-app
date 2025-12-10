@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'screens/login_screen.dart';
-import 'services/notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
+import 'constants.dart';
+import 'screens/login_screen.dart';
+import 'services/notification_service.dart';
 
 // إعداد الإشعارات المحلية
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
+// استقبال الإشعارات في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   print('تم استقبال إشعار في الخلفية: ${message.messageId}');
@@ -17,18 +21,20 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // تهيئة Firebase
   await Firebase.initializeApp();
 
-  // إعداد الإشعارات المحلية
-  const AndroidInitializationSettings initializationSettingsAndroid =
+  // تهيئة الإشعارات المحلية
+  const AndroidInitializationSettings androidSettings =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  final DarwinInitializationSettings initializationSettingsIOS =
-      DarwinInitializationSettings();
-  final InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-    iOS: initializationSettingsIOS,
-  );
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
+  const InitializationSettings initSettings =
+      InitializationSettings(android: androidSettings, iOS: iosSettings);
+  await flutterLocalNotificationsPlugin.initialize(initSettings);
+
+  // طلب إذن الإشعارات
+  await FirebaseMessaging.instance.requestPermission();
 
   // استقبال الإشعارات في الخلفية
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -50,6 +56,7 @@ Future<void> main() async {
             channelDescription: 'قناة الإشعارات المهمة',
             importance: Importance.max,
             priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('notification'),
             icon: '@mipmap/ic_launcher',
           ),
         ),
@@ -57,28 +64,9 @@ Future<void> main() async {
     }
   });
 
-  // جلب الـ Token وإرساله للـ Backend
-  String? token = await FirebaseMessaging.instance.getToken();
-  if (token != null) {
-    await http.post(
-      Uri.parse('$baseUrl/api/users/save-token'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userId': currentUserId, // هنجيبه من اللوجن
-        'fcmToken': token,
-      }),
-    );
-  }
-
-  runApp(const MyApp());
-}
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // تهيئة خدمة الإشعارات
+  // تهيئة خدمة الإشعارات الخاصة بيك (NotificationService)
   await NotificationService().initialize();
-  
+
   runApp(const MyApp());
 }
 
