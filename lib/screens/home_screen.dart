@@ -40,10 +40,16 @@ class _HomeScreenState extends State<HomeScreen> {
   bool loading = true;
   String greeting = '';
   int _currentNavIndex = 0;
+  
+  // ✅ المتغيرات الجديدة
+  bool isConnected = true;
+  DateTime lastUpdate = DateTime.now();
+  late final NotificationService _notificationService;
 
   @override
   void initState() {
     super.initState();
+    _notificationService = NotificationService();
     _setGreeting();
     fetchDashboard();
     _startNotificationService();
@@ -51,16 +57,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    NotificationService().stopPolling();
+    _notificationService.stopPolling();
     super.dispose();
   }
 
   void _startNotificationService() {
-    final notificationService = NotificationService();
+    _notificationService.startPolling(widget.username);
     
-    notificationService.startPolling(widget.username);
-    
-    notificationService.onNotificationTap = (payload) {
+    _notificationService.onNotificationTap = (payload) {
       if (payload != null) {
         Navigator.push(
           context,
@@ -86,56 +90,54 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ✅ دالة جلب آخر النشاطات
-// ✅ دالة جلب آخر النشاطات - النسخة الصحيحة
-Future<void> fetchRecentActivities() async {
-  try {
-    final res = await http.get(Uri.parse('$baseUrl/api/activities/recent'));
-    
-    print('Activities Response: ${res.body}'); // ← للتشخيص
-    
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
+  Future<void> fetchRecentActivities() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/activities/recent?username=${widget.username}'),
+      );
       
-      setState(() {
-        // ✅ التعامل مع الـ format الجديد
-        if (data is Map && data['activities'] != null) {
-          recentActivities = data['activities'];
-        } else if (data is List) {
-          recentActivities = data;
-        } else {
-          recentActivities = [];
-        }
-      });
-      
-      print('Activities loaded: ${recentActivities.length}'); // ← للتشخيص
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        
+        setState(() {
+          if (data is Map && data['activities'] != null) {
+            recentActivities = List<Map<String, dynamic>>.from(data['activities']);
+          } else if (data is List) {
+            recentActivities = List<Map<String, dynamic>>.from(data);
+          } else {
+            recentActivities = [];
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching activities: $e');
     }
-  } catch (e) {
-    print('Error fetching activities: $e');
-    setState(() {
-      recentActivities = [];
-    });
   }
-}
 
   Future<void> fetchDashboard() async {
     try {
+      setState(() => isConnected = true);
+      
       final res = await http.get(
         Uri.parse('$baseUrl/api/dashboard?userId=${widget.userId}&username=${widget.username}'),
       );
+      
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
           summary = data['summary'] ?? {};
           unreadCount = data['unreadCount'] ?? 0;
           loading = false;
+          lastUpdate = DateTime.now();
         });
         
-        // ✅ جلب آخر النشاطات
         await fetchRecentActivities();
       }
     } catch (e) {
-      setState(() => loading = false);
+      setState(() {
+        loading = false;
+        isConnected = false;
+      });
     }
   }
 
@@ -231,13 +233,13 @@ Future<void> fetchRecentActivities() async {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ الـ HEADER الجديد
+  // ═══════════════════════════════════════════════════════════════
+
   Widget _buildSliverAppBar() {
-    final now = DateTime.now();
-    final dayName = _getArabicDayName(now.weekday);
-    final date = '${now.day}/${now.month}/${now.year}';
-    
     return SliverAppBar(
-      expandedHeight: 155,
+      expandedHeight: 140,
       floating: true,
       pinned: true,
       automaticallyImplyLeading: false,
@@ -253,81 +255,13 @@ Future<void> fetchRecentActivities() async {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _buildNotificationButton(),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFD700), Color(0xFFE8B923)],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFFD700).withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            _getInitials(),
-                            style: GoogleFonts.cairo(
-                              color: Colors.black,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$greeting 👋',
-                              style: GoogleFonts.cairo(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              widget.fullName ?? widget.username,
-                              style: GoogleFonts.cairo(
-                                color: const Color(0xFFFFD700),
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '$dayName، $date',
-                              style: GoogleFonts.cairo(
-                                color: Colors.grey[500],
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0),
+                  _buildTopRow(),
+                  const SizedBox(height: 12),
+                  _buildUserInfoRow(),
                 ],
               ),
             ),
@@ -337,9 +271,210 @@ Future<void> fetchRecentActivities() async {
     );
   }
 
+  Widget _buildTopRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            _buildTimeIcon(),
+            const SizedBox(width: 8),
+            Text(
+              greeting,
+              style: GoogleFonts.cairo(
+                color: Colors.grey[300],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        _buildNotificationButton(),
+      ],
+    ).animate().fadeIn(duration: 500.ms);
+  }
+
+  Widget _buildTimeIcon() {
+    final hour = DateTime.now().hour;
+    IconData icon;
+    Color color;
+    
+    if (hour >= 6 && hour < 12) {
+      icon = Icons.wb_sunny_rounded;
+      color = Colors.orange;
+    } else if (hour >= 12 && hour < 18) {
+      icon = Icons.wb_cloudy_rounded;
+      color = Colors.amber;
+    } else {
+      icon = Icons.nightlight_round;
+      color = Colors.indigo[300]!;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: color, size: 20),
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .fade(begin: 0.7, end: 1, duration: 2.seconds);
+  }
+
+  Widget _buildUserInfoRow() {
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD700), Color(0xFFE8B923)],
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFD700).withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              _getInitials(),
+              style: GoogleFonts.cairo(
+                color: Colors.black,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.fullName ?? widget.username,
+                style: GoogleFonts.cairo(
+                  color: const Color(0xFFFFD700),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                _getFormattedDate(),
+                style: GoogleFonts.cairo(
+                  color: Colors.grey[500],
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _buildConnectionStatus(),
+      ],
+    ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0);
+  }
+
+  Widget _buildConnectionStatus() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: isConnected ? Colors.green : Colors.grey,
+                shape: BoxShape.circle,
+                boxShadow: isConnected
+                    ? [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.5),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              isConnected ? 'متصل' : 'غير متصل',
+              style: GoogleFonts.cairo(
+                color: isConnected ? Colors.green : Colors.grey,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.sync,
+              color: Colors.grey[600],
+              size: 12,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              _getLastUpdateText(),
+              style: GoogleFonts.cairo(
+                color: Colors.grey[600],
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    final dayName = _getArabicDayName(now.weekday);
+    final monthName = _getArabicMonthName(now.month);
+    return '$dayName، ${now.day} $monthName';
+  }
+
   String _getArabicDayName(int weekday) {
     const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
     return days[weekday - 1];
+  }
+
+  String _getArabicMonthName(int month) {
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    return months[month - 1];
+  }
+
+  String _getLastUpdateText() {
+    final difference = DateTime.now().difference(lastUpdate);
+    
+    if (difference.inSeconds < 30) {
+      return 'الآن';
+    } else if (difference.inMinutes < 1) {
+      return '${difference.inSeconds} ث';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} د';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} س';
+    } else {
+      return '${difference.inDays} ي';
+    }
   }
 
   Widget _buildNotificationButton() {
@@ -377,7 +512,7 @@ Future<void> fetchRecentActivities() async {
               ),
               constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
               child: Text(
-                '$unreadCount',
+                unreadCount > 99 ? '99+' : '$unreadCount',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 10,
@@ -390,6 +525,10 @@ Future<void> fetchRecentActivities() async {
       ],
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ قسم الإحصائيات
+  // ═══════════════════════════════════════════════════════════════
 
   Widget _buildStatsSection() {
     return Column(
@@ -413,11 +552,23 @@ Future<void> fetchRecentActivities() async {
         Row(
           children: [
             Expanded(
-              child: _buildStatCard('عملاء جدد', '${summary['newClientsToday'] ?? 0}', Icons.person_add_outlined, const Color(0xFF4CAF50), 0),
+              child: _buildStatCard(
+                'عملاء جدد',
+                '${summary['newClientsToday'] ?? 0}',
+                Icons.person_add_outlined,
+                const Color(0xFF4CAF50),
+                0,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard('فرص مفتوحة', '${summary['openOpportunities'] ?? 0}', Icons.lightbulb_outline, const Color(0xFFFF9800), 1),
+              child: _buildStatCard(
+                'فرص مفتوحة',
+                '${summary['openOpportunities'] ?? 0}',
+                Icons.lightbulb_outline,
+                const Color(0xFFFF9800),
+                1,
+              ),
             ),
           ],
         ),
@@ -425,11 +576,23 @@ Future<void> fetchRecentActivities() async {
         Row(
           children: [
             Expanded(
-              child: _buildStatCard('مهام اليوم', '${summary['tasksToday'] ?? 0}', Icons.task_alt_outlined, const Color(0xFF9C27B0), 2),
+              child: _buildStatCard(
+                'مهام اليوم',
+                '${summary['tasksToday'] ?? 0}',
+                Icons.task_alt_outlined,
+                const Color(0xFF9C27B0),
+                2,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard('مبيعات اليوم', _formatCurrency(summary['salesToday']), Icons.payments_outlined, const Color(0xFF2196F3), 3),
+              child: _buildStatCard(
+                'مبيعات اليوم',
+                _formatCurrency(summary['salesToday']),
+                Icons.payments_outlined,
+                const Color(0xFF2196F3),
+                3,
+              ),
             ),
           ],
         ),
@@ -461,12 +624,27 @@ Future<void> fetchRecentActivities() async {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 12),
-          Text(value, style: GoogleFonts.cairo(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: GoogleFonts.cairo(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(title, style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 13)),
+          Text(
+            title,
+            style: GoogleFonts.cairo(
+              color: Colors.grey[400],
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
-    ).animate().fadeIn(delay: Duration(milliseconds: 100 * index), duration: 500.ms).slideY(begin: 0.2, end: 0);
+    ).animate()
+        .fadeIn(delay: Duration(milliseconds: 100 * index), duration: 500.ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
   String _formatCurrency(dynamic amount) {
@@ -477,6 +655,10 @@ Future<void> fetchRecentActivities() async {
     return '${num.toInt()} ج.م';
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ قسم الإجراءات السريعة
+  // ═══════════════════════════════════════════════════════════════
+
   Widget _buildQuickActionsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +667,14 @@ Future<void> fetchRecentActivities() async {
           children: [
             const Icon(Icons.flash_on, color: Color(0xFFFFD700), size: 22),
             const SizedBox(width: 8),
-            Text('إجراءات سريعة', style: GoogleFonts.cairo(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              'إجراءات سريعة',
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -533,6 +722,7 @@ Future<void> fetchRecentActivities() async {
         content: Text('$feature - قريباً! 🚀', style: GoogleFonts.cairo()),
         backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -554,13 +744,24 @@ Future<void> fetchRecentActivities() async {
             children: [
               Icon(icon, color: color, size: 22),
               const SizedBox(width: 8),
-              Text(label, style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+              Text(
+                label,
+                style: GoogleFonts.cairo(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ قسم الأزرار الرئيسية
+  // ═══════════════════════════════════════════════════════════════
 
   Widget _buildMainButtonsSection() {
     return Column(
@@ -570,7 +771,14 @@ Future<void> fetchRecentActivities() async {
           children: [
             const Icon(Icons.apps, color: Color(0xFFFFD700), size: 22),
             const SizedBox(width: 8),
-            Text('الأقسام الرئيسية', style: GoogleFonts.cairo(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              'الأقسام الرئيسية',
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -582,26 +790,66 @@ Future<void> fetchRecentActivities() async {
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           children: [
-            _buildMainButton('المنتجات', Icons.inventory_2_outlined, const Color(0xFFE8B923), () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => ProductsScreen(userId: widget.userId, username: widget.username)));
-            }, 0),
-            _buildMainButton('المصروفات', Icons.money_off, Colors.red, () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesScreen(userId: widget.userId, username: widget.username)));
-            }, 1),
-            _buildMainButton('العملاء', Icons.people_outline, const Color(0xFF4CAF50), () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ClientsScreen(
-                    userId: widget.userId,
-                    username: widget.username,
+            _buildMainButton(
+              'المنتجات',
+              Icons.inventory_2_outlined,
+              const Color(0xFFE8B923),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProductsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
                   ),
-                ),
-              );
-            }, 2),
-            _buildMainButton('الفرص', Icons.trending_up, const Color(0xFFFF9800), () {
-              _showComingSoon('الفرص');
-            }, 3),
+                );
+              },
+              0,
+            ),
+            _buildMainButton(
+              'المصروفات',
+              Icons.money_off,
+              Colors.red,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ExpensesScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+              1,
+            ),
+            _buildMainButton(
+              'العملاء',
+              Icons.people_outline,
+              const Color(0xFF4CAF50),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ClientsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+              2,
+            ),
+            _buildMainButton(
+              'الفرص',
+              Icons.trending_up,
+              const Color(0xFFFF9800),
+              () {
+                _showComingSoon('الفرص');
+              },
+              3,
+            ),
           ],
         ),
       ],
@@ -627,18 +875,33 @@ Future<void> fetchRecentActivities() async {
           children: [
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: color.withOpacity(0.2), shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
               child: Icon(icon, color: color, size: 32),
             ),
             const SizedBox(height: 12),
-            Text(label, style: GoogleFonts.cairo(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
-    ).animate().fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1));
+    ).animate()
+        .fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms)
+        .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1));
   }
 
+  // ═══════════════════════════════════════════════════════════════
   // ✅ قسم آخر النشاطات
+  // ═══════════════════════════════════════════════════════════════
+
   Widget _buildRecentActivitiesSection() {
     if (recentActivities.isEmpty) {
       return const SizedBox.shrink();
@@ -679,7 +942,6 @@ Future<void> fetchRecentActivities() async {
           ],
         ),
         const SizedBox(height: 12),
-        
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -694,10 +956,15 @@ Future<void> fetchRecentActivities() async {
   }
 
   Widget _buildActivityItem(Map<String, dynamic> activity, int index) {
+    final String type = activity['type']?.toString() ?? 'info';
+    final String title = activity['title']?.toString() ?? 'نشاط';
+    final String description = activity['description']?.toString() ?? '';
+    final String timeAgo = activity['timeAgo']?.toString() ?? '';
+    
     Color color;
     IconData icon;
     
-    switch (activity['type']) {
+    switch (type) {
       case 'client':
         color = const Color(0xFF4CAF50);
         icon = Icons.person_add;
@@ -709,6 +976,14 @@ Future<void> fetchRecentActivities() async {
       case 'opportunity':
         color = const Color(0xFFFF9800);
         icon = Icons.lightbulb;
+        break;
+      case 'task':
+        color = const Color(0xFF9C27B0);
+        icon = Icons.task_alt;
+        break;
+      case 'sale':
+        color = const Color(0xFF2196F3);
+        icon = Icons.shopping_cart;
         break;
       default:
         color = Colors.grey;
@@ -740,27 +1015,28 @@ Future<void> fetchRecentActivities() async {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  activity['title'] ?? '',
+                  title,
                   style: GoogleFonts.cairo(
                     color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  activity['description'] ?? '',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 11,
+                if (description.isNotEmpty)
+                  Text(
+                    description,
+                    style: GoogleFonts.cairo(
+                      color: Colors.grey[400],
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
               ],
             ),
           ),
           Text(
-            activity['timeAgo'] ?? '',
+            timeAgo,
             style: GoogleFonts.cairo(
               color: Colors.grey[500],
               fontSize: 10,
@@ -768,17 +1044,26 @@ Future<void> fetchRecentActivities() async {
           ),
         ],
       ),
-    ).animate().fadeIn(
-      delay: Duration(milliseconds: 100 * index),
-      duration: 400.ms,
-    ).slideX(begin: 0.1, end: 0);
+    ).animate()
+        .fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms)
+        .slideX(begin: 0.1, end: 0);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ شريط التنقل السفلي
+  // ═══════════════════════════════════════════════════════════════
 
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: SafeArea(
         child: Padding(
@@ -832,6 +1117,58 @@ Future<void> fetchRecentActivities() async {
       ),
     );
   }
+
+  Widget _buildNavItem(IconData icon, String label, bool isActive, VoidCallback onTap, {bool isCenter = false}) {
+    if (isCenter) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD700), Color(0xFFE8B923)],
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFD700).withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.add, color: Colors.black, size: 32),
+        ),
+      );
+    }
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isActive ? const Color(0xFFFFD700) : Colors.grey[600],
+            size: 26,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.cairo(
+              color: isActive ? const Color(0xFFFFD700) : Colors.grey[600],
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ قائمة الإضافة السريعة
+  // ═══════════════════════════════════════════════════════════════
 
   void _showQuickAddMenu() {
     showModalBottomSheet(
@@ -941,35 +1278,6 @@ Future<void> fetchRecentActivities() async {
       ),
       trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
       onTap: onTap,
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive, VoidCallback onTap, {bool isCenter = false}) {
-    if (isCenter) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFE8B923)]),
-            shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
-          ),
-          child: const Icon(Icons.add, color: Colors.black, size: 32),
-        ),
-      );
-    }
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: isActive ? const Color(0xFFFFD700) : Colors.grey[600], size: 26),
-          const SizedBox(height: 4),
-          Text(label, style: GoogleFonts.cairo(color: isActive ? const Color(0xFFFFD700) : Colors.grey[600], fontSize: 11)),
-        ],
-      ),
     );
   }
 }
