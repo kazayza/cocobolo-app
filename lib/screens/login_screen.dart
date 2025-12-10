@@ -7,6 +7,7 @@ import 'package:animated_text_kit/animated_text_kit.dart';
 import '../constants.dart';
 import 'home_screen.dart';
 import '../services/permission_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
