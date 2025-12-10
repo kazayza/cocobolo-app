@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;  // ✅ أضف ده
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'constants.dart';
 import 'screens/login_screen.dart';
@@ -22,50 +21,57 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة Firebase
-  await Firebase.initializeApp();
+  // ✅ Firebase والإشعارات للموبايل فقط
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+      
+      // تهيئة الإشعارات المحلية
+      const AndroidInitializationSettings androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
+      const InitializationSettings initSettings =
+          InitializationSettings(android: androidSettings, iOS: iosSettings);
+      await flutterLocalNotificationsPlugin.initialize(initSettings);
 
-  // تهيئة الإشعارات المحلية
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
-  const InitializationSettings initSettings =
-      InitializationSettings(android: androidSettings, iOS: iosSettings);
-  await flutterLocalNotificationsPlugin.initialize(initSettings);
+      // طلب إذن الإشعارات
+      await FirebaseMessaging.instance.requestPermission();
 
-  // طلب إذن الإشعارات
-  await FirebaseMessaging.instance.requestPermission();
+      // استقبال الإشعارات في الخلفية
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // استقبال الإشعارات في الخلفية
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      // استقبال الإشعارات في المقدمة
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        RemoteNotification? notification = message.notification;
+        AndroidNotification? android = message.notification?.android;
 
-  // استقبال الإشعارات في المقدمة
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
+        if (notification != null && android != null) {
+          flutterLocalNotificationsPlugin.show(
+            notification.hashCode,
+            notification.title,
+            notification.body,
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'high_importance_channel',
+                'إشعارات مهمة',
+                channelDescription: 'قناة الإشعارات المهمة',
+                importance: Importance.max,
+                priority: Priority.high,
+                icon: '@mipmap/ic_launcher',
+              ),
+            ),
+          );
+        }
+      });
 
-    if (notification != null && android != null) {
-      flutterLocalNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'high_importance_channel',
-            'إشعارات مهمة',
-            channelDescription: 'قناة الإشعارات المهمة',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('notification'),
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
-      );
+      // تهيئة خدمة الإشعارات
+      await NotificationService().initialize();
+      
+      print('✅ Firebase initialized successfully');
+    } catch (e) {
+      print('❌ Firebase initialization error: $e');
     }
-  });
-
-  // تهيئة خدمة الإشعارات الخاصة بيك (NotificationService)
-  await NotificationService().initialize();
+  }
 
   runApp(const MyApp());
 }

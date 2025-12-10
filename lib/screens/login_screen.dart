@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;  // ✅ أضف ده
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
@@ -51,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ✅ دالة تسجيل الدخول المعدّلة مع الصلاحيات
+  // ✅ دالة تسجيل الدخول المعدّلة
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -70,26 +71,34 @@ class _LoginScreenState extends State<LoginScreen>
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        // جلب FCM Token وإرساله للسيرفر
-String? token = await FirebaseMessaging.instance.getToken();
-if (token != null) {
-  await http.post(
-    Uri.parse('$baseUrl/api/users/save-token'),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({
-      'userId': data['user']['UserID'],
-      'fcmToken': token,
-    }),
-  );
-  print('تم إرسال FCM Token للسيرفر');
-}
+        
+        // ✅ جلب FCM Token للموبايل فقط
+        if (!kIsWeb) {
+          try {
+            String? token = await FirebaseMessaging.instance.getToken();
+            if (token != null) {
+              await http.post(
+                Uri.parse('$baseUrl/api/users/save-token'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({
+                  'userId': data['user']['UserID'],
+                  'fcmToken': token,
+                }),
+              );
+              print('✅ تم إرسال FCM Token للسيرفر');
+            }
+          } catch (e) {
+            print('⚠️ خطأ في FCM Token: $e');
+          }
+        }
+
         // ✅ حفظ الصلاحيات في الـ PermissionService
         PermissionService().initialize(
           user: data['user'] as Map<String, dynamic>,
           permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
         );
         
-        // طباعة الصلاحيات للتأكد (يمكن حذفها لاحقاً)
+        // طباعة الصلاحيات للتأكد
         PermissionService().printPermissions();
 
         // Success Animation
@@ -101,7 +110,7 @@ if (token != null) {
           // إغلاق الـ Dialog
           Navigator.pop(context);
           
-          // الانتقال للشاشة الرئيسية مع بيانات المستخدم
+          // الانتقال للشاشة الرئيسية
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -158,7 +167,6 @@ if (token != null) {
                 ),
               ),
               const SizedBox(height: 10),
-              // ✅ عرض اسم المستخدم
               Text(
                 'مرحباً ${_username.text}',
                 style: GoogleFonts.cairo(
@@ -283,6 +291,21 @@ if (token != null) {
                   width: 140,
                   height: 140,
                   fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.diamond,
+                        color: Color(0xFFFFD700),
+                        size: 80,
+                      ),
+                    );
+                  },
                 ),
               ),
             );
