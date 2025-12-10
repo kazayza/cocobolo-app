@@ -11,6 +11,7 @@ import 'expenses_screen.dart';
 import 'login_screen.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
+import 'clients_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -565,7 +566,17 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildMainButton('المصروفات', Icons.money_off, Colors.red, () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesScreen(userId: widget.userId, username: widget.username)));
             }, 1),
-            _buildMainButton('العملاء', Icons.people_outline, const Color(0xFF4CAF50), () {}, 2),
+            _buildMainButton('العملاء', Icons.people_outline, const Color(0xFF4CAF50), () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ClientsScreen(
+        userId: widget.userId,
+        username: widget.username,
+      ),
+    ),
+  );
+}, 2),
             _buildMainButton('الفرص', Icons.trending_up, const Color(0xFFFF9800), () {}, 3),
           ],
         ),
