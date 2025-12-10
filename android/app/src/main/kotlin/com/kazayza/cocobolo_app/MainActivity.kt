@@ -1,4 +1,4 @@
-package com.example.cocobolo_app
+package com.kazayza.cocobolo_app
 
 import io.flutter.embedding.android.FlutterActivity
 
