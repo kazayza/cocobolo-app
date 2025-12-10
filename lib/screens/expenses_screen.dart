@@ -116,13 +116,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          // ملخص المصروفات
           _buildSummarySection(),
-
-          // البحث والفلتر
           _buildSearchAndFilter(),
-
-          // قائمة المصروفات
           Expanded(
             child: loading
                 ? const Center(
@@ -156,10 +151,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
+  // ✅ Summary Section معدل
   Widget _buildSummarySection() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -167,56 +163,71 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Colors.red.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.red.withOpacity(0.3)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildSummaryItem(
-              'مصروفات اليوم',
-              _formatCurrency(summary['todayAmount']),
-              Icons.today,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildSummaryItem(
+                'مصروفات اليوم',
+                _formatCurrency(summary['todayAmount']),
+                Icons.today,
+              ),
             ),
-          ),
-          Container(
-            width: 1,
-            height: 50,
-            color: Colors.white24,
-          ),
-          Expanded(
-            child: _buildSummaryItem(
-              'إجمالي المصروفات',
-              _formatCurrency(summary['totalAmount']),
-              Icons.account_balance_wallet,
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: Colors.white24,
             ),
-          ),
-        ],
+            Expanded(
+              child: _buildSummaryItem(
+                'إجمالي المصروفات',
+                _formatCurrency(summary['totalAmount']),
+                Icons.account_balance_wallet,
+              ),
+            ),
+          ],
+        ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
   }
 
+  // ✅ Summary Item معدل مع FittedBox
   Widget _buildSummaryItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.red[300], size: 28),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.red[300], size: 20),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
-            fontSize: 12,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: GoogleFonts.cairo(
+                color: Colors.grey[400],
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -225,7 +236,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          // حقل البحث
           TextField(
             controller: _searchController,
             style: GoogleFonts.cairo(color: Colors.white),
@@ -251,10 +261,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             ),
             onChanged: _onSearch,
           ),
-
           const SizedBox(height: 12),
-
-          // فلتر المجموعات
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
@@ -332,6 +339,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
+  // ✅ Expense Card معدل
   Widget _buildExpenseCard(Map<String, dynamic> expense, int index) {
     final date = DateTime.tryParse(expense['ExpenseDate'] ?? '');
     final formattedDate = date != null
@@ -350,26 +358,25 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         onTap: () => _showExpenseDetails(expense),
         onLongPress: () => _showExpenseOptions(expense),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // أيقونة
+              // الأيقونة
               Container(
-                width: 50,
-                height: 50,
+                width: 45,
+                height: 45,
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.arrow_upward,
                   color: Colors.red,
-                  size: 24,
+                  size: 22,
                 ),
               ),
-
-              const SizedBox(width: 16),
-
+              const SizedBox(width: 12),
+              
               // التفاصيل
               Expanded(
                 child: Column(
@@ -379,23 +386,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       expense['ExpenseName'] ?? '',
                       style: GoogleFonts.cairo(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         Icon(Icons.category_outlined,
-                            size: 14, color: Colors.grey[500]),
+                            size: 12, color: Colors.grey[500]),
                         const SizedBox(width: 4),
-                        Text(
-                          expense['ExpenseGroupName'] ?? '',
-                          style: GoogleFonts.cairo(
-                            color: Colors.grey[400],
-                            fontSize: 12,
+                        Expanded(
+                          child: Text(
+                            expense['ExpenseGroupName'] ?? '',
+                            style: GoogleFonts.cairo(
+                              color: Colors.grey[400],
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -405,13 +416,17 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       Row(
                         children: [
                           Icon(Icons.person_outline,
-                              size: 14, color: Colors.grey[500]),
+                              size: 12, color: Colors.grey[500]),
                           const SizedBox(width: 4),
-                          Text(
-                            expense['Torecipient'],
-                            style: GoogleFonts.cairo(
-                              color: Colors.grey[400],
-                              fontSize: 12,
+                          Expanded(
+                            child: Text(
+                              expense['Torecipient'],
+                              style: GoogleFonts.cairo(
+                                color: Colors.grey[400],
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -419,25 +434,31 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   ],
                 ),
               ),
-
+              
+              const SizedBox(width: 8),
+              
               // المبلغ والتاريخ
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '${_formatNumber(expense['Amount'])} ج.م',
-                    style: GoogleFonts.cairo(
-                      color: Colors.red[300],
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${_formatNumber(expense['Amount'])} ج.م',
+                      style: GoogleFonts.cairo(
+                        color: Colors.red[300],
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     formattedDate,
                     style: GoogleFonts.cairo(
                       color: Colors.grey[500],
-                      fontSize: 11,
+                      fontSize: 10,
                     ),
                   ),
                 ],
@@ -520,6 +541,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             child: Text(
               value,
               style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+              textAlign: TextAlign.end,
             ),
           ),
         ],
@@ -527,7 +549,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  // ✅ تم التعديل - إضافة الصلاحيات
   void _showExpenseOptions(Map<String, dynamic> expense) {
     final permissions = PermissionService();
     
@@ -542,7 +563,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ✅ تعديل - لو عنده صلاحية
             if (permissions.canEdit(FormNames.expensesAdd))
               ListTile(
                 leading: const Icon(Icons.edit, color: Color(0xFFFFD700)),
@@ -560,8 +580,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   ).then((_) => _refreshAll());
                 },
               ),
-            
-            // ✅ حذف - لو عنده صلاحية
             if (permissions.canDelete(FormNames.expensesAdd))
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
@@ -571,8 +589,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   _confirmDelete(expense);
                 },
               ),
-            
-            // ✅ لو مفيش صلاحيات
             if (!permissions.canEdit(FormNames.expensesAdd) && 
                 !permissions.canDelete(FormNames.expensesAdd))
               Padding(
@@ -642,9 +658,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
-  // ✅ تم التعديل - إضافة الصلاحيات
   Widget _buildFAB() {
-    // ✅ إخفاء الزر لو مفيش صلاحية إضافة
     if (!PermissionService().canAdd(FormNames.expensesAdd)) {
       return const SizedBox.shrink();
     }

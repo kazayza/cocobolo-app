@@ -8,7 +8,10 @@ import '../constants.dart';
 import 'notifications_screen.dart';
 import 'products_screen.dart';
 import 'expenses_screen.dart';
+import 'add_expense_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
+import 'reports_screen.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import 'clients_screen.dart';
@@ -35,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic> summary = {};
   bool loading = true;
   String greeting = '';
+  int _currentNavIndex = 0;
 
   @override
   void initState() {
@@ -99,53 +103,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.logout, color: Color(0xFFFFD700)),
-            const SizedBox(width: 10),
-            Text(
-              'تسجيل الخروج',
-              style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Text(
-          'هل تريد تسجيل الخروج من التطبيق؟',
-          style: GoogleFonts.cairo(color: Colors.grey[300]),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              PermissionService().clear();
-              NotificationService().stopPolling();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text('خروج', style: GoogleFonts.cairo(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<bool> _onWillPop() async {
     final shouldPop = await showDialog<bool>(
       context: context,
@@ -186,6 +143,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     return shouldPop ?? false;
+  }
+
+  // ✅ الحصول على الحرف الأول من الاسم
+  String _getInitials() {
+    final name = widget.fullName ?? widget.username;
+    if (name.isEmpty) return 'م';
+    return name[0].toUpperCase();
   }
 
   @override
@@ -230,108 +194,121 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ AppBar المعدل - التحية فوق والتاريخ تحتها
-  Widget _buildSliverAppBar() {
-    final now = DateTime.now();
-    final dayName = _getArabicDayName(now.weekday);
-    final date = '${now.day}/${now.month}/${now.year}';
-    
-    return SliverAppBar(
-      expandedHeight: 160,
-      floating: true,
-      pinned: true,
-      automaticallyImplyLeading: false,
-      backgroundColor: const Color(0xFF1A1A1A),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2D2006), Color(0xFF1A1A1A)],
-            ),
+  // ✅ AppBar الجديد - محسّن
+  // ✅ AppBar الجديد - محسّن
+Widget _buildSliverAppBar() {
+  final now = DateTime.now();
+  final dayName = _getArabicDayName(now.weekday);
+  final date = '${now.day}/${now.month}/${now.year}';
+  
+  return SliverAppBar(
+    expandedHeight: 155, // ✅ تم زيادة الارتفاع من 140 إلى 155
+    floating: true,
+    pinned: true,
+    automaticallyImplyLeading: false,
+    backgroundColor: const Color(0xFF1A1A1A),
+    flexibleSpace: FlexibleSpaceBar(
+      background: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2D2006), Color(0xFF1A1A1A)],
           ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ===== الصف العلوي: الإشعارات وتسجيل الخروج =====
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _buildNotificationButton(),
-                      const SizedBox(width: 8),
-                      _buildLogoutButton(),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // ===== التحية واسم المستخدم =====
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD700).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(14),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // ✅ إضافة هذا السطر
+              children: [
+                // ===== الصف العلوي: الإشعارات فقط =====
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _buildNotificationButton(),
+                  ],
+                ),
+                
+                const SizedBox(height: 8), // ✅ تقليل المسافة من 12 إلى 8
+                
+                // ===== صورة اليوزر + التحية + التاريخ =====
+                Row(
+                  children: [
+                    // صورة اليوزر (الحرف الأول)
+                    Container(
+                      width: 50, // ✅ تقليل من 55 إلى 50
+                      height: 50, // ✅ تقليل من 55 إلى 50
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD700), Color(0xFFE8B923)],
                         ),
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          width: 36,
-                          height: 36,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.diamond,
-                            color: Color(0xFFFFD700),
-                            size: 28,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFD700).withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _getInitials(),
+                          style: GoogleFonts.cairo(
+                            color: Colors.black,
+                            fontSize: 22, // ✅ تقليل من 24 إلى 22
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$greeting 👋',
-                              style: GoogleFonts.cairo(
-                                color: Colors.grey[400],
-                                fontSize: 14,
-                              ),
+                    ),
+                    
+                    const SizedBox(width: 12), // ✅ تقليل من 14 إلى 12
+                    
+                    // التحية والاسم والتاريخ
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$greeting 👋',
+                            style: GoogleFonts.cairo(
+                              color: Colors.grey[400],
+                              fontSize: 12, // ✅ تقليل من 13 إلى 12
                             ),
-                            Text(
-                              widget.fullName ?? widget.username,
-                              style: GoogleFonts.cairo(
-                                color: const Color(0xFFFFD700),
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            widget.fullName ?? widget.username,
+                            style: GoogleFonts.cairo(
+                              color: const Color(0xFFFFD700),
+                              fontSize: 18, // ✅ تقليل من 20 إلى 18
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$dayName، $date',
-                              style: GoogleFonts.cairo(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                              ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$dayName، $date',
+                            style: GoogleFonts.cairo(
+                              color: Colors.grey[500],
+                              fontSize: 11,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0),
-                ],
-              ),
+                    ),
+                  ],
+                ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0),
+              ],
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _getArabicDayName(int weekday) {
     const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
@@ -384,20 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildLogoutButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: IconButton(
-        icon: const Icon(Icons.logout, color: Colors.red, size: 24),
-        onPressed: _showLogoutDialog,
-        tooltip: 'تسجيل الخروج',
-      ),
     );
   }
 
@@ -487,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${num.toInt()} ج.م';
   }
 
-  // ✅ تم تصليح زرار "عميل جديد"
+  // ✅ الإجراءات السريعة - مع تفعيل الأزرار
   Widget _buildQuickActionsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> {
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              // ✅ زرار عميل جديد - تم تصليحه
+              // ✅ عميل جديد
               _buildQuickAction('عميل جديد', Icons.person_add, const Color(0xFF4CAF50), () {
                 Navigator.push(
                   context,
@@ -516,20 +479,43 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (result == true) fetchDashboard();
                 });
               }),
+              
+              // فرصة جديدة
               _buildQuickAction('فرصة جديدة', Icons.lightbulb, const Color(0xFFFF9800), () {
-                // TODO: إضافة شاشة الفرص
+                _showComingSoon('الفرص');
               }),
+              
+              // مهمة جديدة
               _buildQuickAction('مهمة جديدة', Icons.add_task, const Color(0xFF9C27B0), () {
-                // TODO: إضافة شاشة المهام
+                _showComingSoon('المهام');
               }),
+              
+              // ✅ مصروف جديد
               _buildQuickAction('مصروف', Icons.money_off, Colors.red, () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesScreen(userId: widget.userId, username: widget.username)));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddExpenseScreen(username: widget.username),
+                  ),
+                ).then((result) {
+                  if (result == true) fetchDashboard();
+                });
               }),
             ],
           ),
         ),
       ],
     ).animate().fadeIn(delay: 400.ms, duration: 500.ms);
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature - قريباً! 🚀', style: GoogleFonts.cairo()),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Widget _buildQuickAction(String label, IconData icon, Color color, VoidCallback onTap) {
@@ -595,7 +581,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }, 2),
             _buildMainButton('الفرص', Icons.trending_up, const Color(0xFFFF9800), () {
-              // TODO: إضافة شاشة الفرص
+              _showComingSoon('الفرص');
             }, 3),
           ],
         ),
@@ -633,6 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ).animate().fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1));
   }
 
+  // ✅ Bottom Navigation Bar - مفعّل
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -645,8 +632,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_filled, 'الرئيسية', true, () {}),
-              _buildNavItem(Icons.people_outline, 'العملاء', false, () {
+              _buildNavItem(Icons.home_filled, 'الرئيسية', _currentNavIndex == 0, () {
+                setState(() => _currentNavIndex = 0);
+              }),
+              _buildNavItem(Icons.people_outline, 'العملاء', _currentNavIndex == 1, () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -658,14 +647,156 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }),
               _buildNavItem(Icons.add_circle, '', false, () {
-                // يمكن إضافة قائمة اختيارات هنا
+                _showQuickAddMenu();
               }, isCenter: true),
-              _buildNavItem(Icons.analytics_outlined, 'التقارير', false, () {}),
-              _buildNavItem(Icons.settings_outlined, 'الإعدادات', false, () {}),
+              _buildNavItem(Icons.analytics_outlined, 'التقارير', _currentNavIndex == 3, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              }),
+              _buildNavItem(Icons.settings_outlined, 'الإعدادات', _currentNavIndex == 4, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                      fullName: widget.fullName,
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  // ✅ قائمة الإضافة السريعة
+  void _showQuickAddMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'إضافة جديد',
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // عميل جديد
+            _buildQuickAddItem(
+              icon: Icons.person_add,
+              label: 'عميل جديد',
+              color: const Color(0xFF4CAF50),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddClientScreen(username: widget.username),
+                  ),
+                ).then((result) {
+                  if (result == true) fetchDashboard();
+                });
+              },
+            ),
+            
+            // فرصة جديدة
+            _buildQuickAddItem(
+              icon: Icons.lightbulb,
+              label: 'فرصة جديدة',
+              color: const Color(0xFFFF9800),
+              onTap: () {
+                Navigator.pop(context);
+                _showComingSoon('الفرص');
+              },
+            ),
+            
+            // مهمة جديدة
+            _buildQuickAddItem(
+              icon: Icons.add_task,
+              label: 'مهمة جديدة',
+              color: const Color(0xFF9C27B0),
+              onTap: () {
+                Navigator.pop(context);
+                _showComingSoon('المهام');
+              },
+            ),
+            
+            // مصروف جديد
+            _buildQuickAddItem(
+              icon: Icons.money_off,
+              label: 'مصروف جديد',
+              color: Colors.red,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddExpenseScreen(username: widget.username),
+                  ),
+                ).then((result) {
+                  if (result == true) fetchDashboard();
+                });
+              },
+            ),
+            
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickAddItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(
+        label,
+        style: GoogleFonts.cairo(color: Colors.white, fontSize: 16),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+      onTap: onTap,
     );
   }
 
