@@ -24,17 +24,15 @@ class _AddClientScreenState extends State<AddClientScreen> {
   bool _isLoading = false;
   bool _isLoadingData = true;
 
-  // Controllers
+  // Controllers - تم إزالة الغير مطلوبين
   final _nameController = TextEditingController();
   final _contactPersonController = TextEditingController();
   final _phoneController = TextEditingController();
   final _phone2Controller = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
-  final _taxNumberController = TextEditingController();
   final _nationalIdController = TextEditingController();
   final _floorNumberController = TextEditingController();
-  final _openingBalanceController = TextEditingController();
   final _notesController = TextEditingController();
 
   // القوائم المنسدلة
@@ -43,7 +41,6 @@ class _AddClientScreenState extends State<AddClientScreen> {
 
   int? selectedReferralSourceId;
   int? selectedReferralClientId;
-  String balanceType = 'D';
 
   bool get isEditing => widget.existingClient != null;
 
@@ -61,10 +58,8 @@ class _AddClientScreenState extends State<AddClientScreen> {
     _phone2Controller.dispose();
     _emailController.dispose();
     _addressController.dispose();
-    _taxNumberController.dispose();
     _nationalIdController.dispose();
     _floorNumberController.dispose();
-    _openingBalanceController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -100,12 +95,9 @@ class _AddClientScreenState extends State<AddClientScreen> {
     _phone2Controller.text = client['Phone2'] ?? '';
     _emailController.text = client['Email'] ?? '';
     _addressController.text = client['Address'] ?? '';
-    _taxNumberController.text = client['TaxNumber'] ?? '';
     _nationalIdController.text = client['NationalID'] ?? '';
     _floorNumberController.text = client['FloorNumber'] ?? '';
-    _openingBalanceController.text = (client['OpeningBalance'] ?? 0).toString();
     _notesController.text = client['Notes'] ?? '';
-    balanceType = client['BalanceType'] ?? 'D';
     selectedReferralSourceId = client['ReferralSourceID'];
     selectedReferralClientId = client['ReferralSourceClient'];
   }
@@ -123,11 +115,8 @@ class _AddClientScreenState extends State<AddClientScreen> {
         'phone2': _phone2Controller.text.trim(),
         'email': _emailController.text.trim(),
         'address': _addressController.text.trim(),
-        'taxNumber': _taxNumberController.text.trim(),
         'nationalId': _nationalIdController.text.trim(),
         'floorNumber': _floorNumberController.text.trim(),
-        'openingBalance': double.tryParse(_openingBalanceController.text) ?? 0,
-        'balanceType': balanceType,
         'notes': _notesController.text.trim(),
         'referralSourceId': selectedReferralSourceId,
         'referralSourceClient': selectedReferralClientId,
@@ -223,6 +212,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ===== البيانات الأساسية =====
                     _buildSectionTitle('البيانات الأساسية', Icons.person),
                     const SizedBox(height: 12),
                     _buildTextField(
@@ -241,9 +231,17 @@ class _AddClientScreenState extends State<AddClientScreen> {
                       label: 'جهة الاتصال',
                       icon: Icons.contact_phone,
                     ),
+                    _buildTextField(
+                      controller: _nationalIdController,
+                      label: 'الرقم القومي',
+                      icon: Icons.badge,
+                      keyboardType: TextInputType.number,
+                      maxLength: 14,
+                    ),
 
                     const SizedBox(height: 24),
 
+                    // ===== بيانات الاتصال =====
                     _buildSectionTitle('بيانات الاتصال', Icons.phone),
                     const SizedBox(height: 12),
                     Row(
@@ -287,40 +285,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
 
                     const SizedBox(height: 24),
 
-                    _buildSectionTitle('البيانات المالية', Icons.attach_money),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: _buildTextField(
-                            controller: _openingBalanceController,
-                            label: 'الرصيد الافتتاحي',
-                            icon: Icons.account_balance_wallet,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildBalanceTypeSelector(),
-                        ),
-                      ],
-                    ),
-                    _buildTextField(
-                      controller: _taxNumberController,
-                      label: 'الرقم الضريبي',
-                      icon: Icons.receipt,
-                    ),
-                    _buildTextField(
-                      controller: _nationalIdController,
-                      label: 'الرقم القومي',
-                      icon: Icons.badge,
-                      keyboardType: TextInputType.number,
-                      maxLength: 14,
-                    ),
-
-                    const SizedBox(height: 24),
-
+                    // ===== مصدر الإحالة =====
                     _buildSectionTitle('مصدر الإحالة', Icons.share),
                     const SizedBox(height: 12),
                     _buildReferralSourceDropdown(),
@@ -329,6 +294,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
 
                     const SizedBox(height: 24),
 
+                    // ===== ملاحظات =====
                     _buildSectionTitle('ملاحظات', Icons.notes),
                     const SizedBox(height: 12),
                     _buildTextField(
@@ -417,37 +383,6 @@ class _AddClientScreenState extends State<AddClientScreen> {
           counterStyle: GoogleFonts.cairo(color: Colors.grey),
         ),
         validator: validator,
-      ),
-    );
-  }
-
-  Widget _buildBalanceTypeSelector() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: balanceType,
-          isExpanded: true,
-          dropdownColor: const Color(0xFF1A1A1A),
-          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFFFD700)),
-          items: [
-            DropdownMenuItem(
-              value: 'D',
-              child: Text('مدين', style: GoogleFonts.cairo(color: Colors.red[300])),
-            ),
-            DropdownMenuItem(
-              value: 'C',
-              child: Text('دائن', style: GoogleFonts.cairo(color: Colors.green[300])),
-            ),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => balanceType = value);
-          },
-        ),
       ),
     );
   }

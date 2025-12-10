@@ -12,6 +12,7 @@ import 'login_screen.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import 'clients_screen.dart';
+import 'add_client_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -43,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _startNotificationService();
   }
 
-  // ✅ إضافة dispose
   @override
   void dispose() {
     NotificationService().stopPolling();
@@ -127,11 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-
-              // ✅ مسح الصلاحيات
               PermissionService().clear();
-
-              // إيقاف الإشعارات قبل الخروج
               NotificationService().stopPolling();
               Navigator.pushAndRemoveUntil(
                 context,
@@ -215,8 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildGreetingSection(),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 8),
                             _buildStatsSection(),
                             const SizedBox(height: 30),
                             _buildQuickActionsSection(),
@@ -235,9 +230,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ✅ AppBar المعدل - التحية فوق والتاريخ تحتها
   Widget _buildSliverAppBar() {
+    final now = DateTime.now();
+    final dayName = _getArabicDayName(now.weekday);
+    final date = '${now.day}/${now.month}/${now.year}';
+    
     return SliverAppBar(
-      expandedHeight: 120,
+      expandedHeight: 160,
       floating: true,
       pinned: true,
       automaticallyImplyLeading: false,
@@ -253,40 +253,77 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFD700).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      width: 40,
-                      height: 40,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.diamond,
-                        color: Color(0xFFFFD700),
-                        size: 30,
+                  // ===== الصف العلوي: الإشعارات وتسجيل الخروج =====
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _buildNotificationButton(),
+                      const SizedBox(width: 8),
+                      _buildLogoutButton(),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // ===== التحية واسم المستخدم =====
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD700).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: 36,
+                          height: 36,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.diamond,
+                            color: Color(0xFFFFD700),
+                            size: 28,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'COCOBOLO',
-                    style: GoogleFonts.playfairDisplay(
-                      color: const Color(0xFFFFD700),
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const Spacer(),
-                  _buildNotificationButton(),
-                  const SizedBox(width: 8),
-                  _buildLogoutButton(),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$greeting 👋',
+                              style: GoogleFonts.cairo(
+                                color: Colors.grey[400],
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              widget.fullName ?? widget.username,
+                              style: GoogleFonts.cairo(
+                                color: const Color(0xFFFFD700),
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$dayName، $date',
+                              style: GoogleFonts.cairo(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0),
                 ],
               ),
             ),
@@ -296,7 +333,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ مصحح - الـ username داخل NotificationsScreen
+  String _getArabicDayName(int weekday) {
+    const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+    return days[weekday - 1];
+  }
+
   Widget _buildNotificationButton() {
     return Stack(
       children: [
@@ -313,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(
                   builder: (context) => NotificationsScreen(
                     userId: widget.userId,
-                    username: widget.username,  // ✅ صحيح الآن
+                    username: widget.username,
                   ),
                 ),
               ).then((_) => fetchDashboard());
@@ -358,45 +399,6 @@ class _HomeScreenState extends State<HomeScreen> {
         tooltip: 'تسجيل الخروج',
       ),
     );
-  }
-
-  Widget _buildGreetingSection() {
-    final now = DateTime.now();
-    final dayName = _getArabicDayName(now.weekday);
-    final date = '${now.day}/${now.month}/${now.year}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '$greeting، ${widget.fullName ?? widget.username} 👋',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$dayName، $date',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[500],
-            fontSize: 14,
-          ),
-        ),
-      ],
-    ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.1, end: 0);
-  }
-
-  String _getArabicDayName(int weekday) {
-    const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
-    return days[weekday - 1];
   }
 
   Widget _buildStatsSection() {
@@ -485,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${num.toInt()} ج.م';
   }
 
+  // ✅ تم تصليح زرار "عميل جديد"
   Widget _buildQuickActionsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,9 +505,23 @@ class _HomeScreenState extends State<HomeScreen> {
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              _buildQuickAction('عميل جديد', Icons.person_add, const Color(0xFF4CAF50), () {}),
-              _buildQuickAction('فرصة جديدة', Icons.lightbulb, const Color(0xFFFF9800), () {}),
-              _buildQuickAction('مهمة جديدة', Icons.add_task, const Color(0xFF9C27B0), () {}),
+              // ✅ زرار عميل جديد - تم تصليحه
+              _buildQuickAction('عميل جديد', Icons.person_add, const Color(0xFF4CAF50), () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddClientScreen(username: widget.username),
+                  ),
+                ).then((result) {
+                  if (result == true) fetchDashboard();
+                });
+              }),
+              _buildQuickAction('فرصة جديدة', Icons.lightbulb, const Color(0xFFFF9800), () {
+                // TODO: إضافة شاشة الفرص
+              }),
+              _buildQuickAction('مهمة جديدة', Icons.add_task, const Color(0xFF9C27B0), () {
+                // TODO: إضافة شاشة المهام
+              }),
               _buildQuickAction('مصروف', Icons.money_off, Colors.red, () {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesScreen(userId: widget.userId, username: widget.username)));
               }),
@@ -567,17 +584,19 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesScreen(userId: widget.userId, username: widget.username)));
             }, 1),
             _buildMainButton('العملاء', Icons.people_outline, const Color(0xFF4CAF50), () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ClientsScreen(
-        userId: widget.userId,
-        username: widget.username,
-      ),
-    ),
-  );
-}, 2),
-            _buildMainButton('الفرص', Icons.trending_up, const Color(0xFFFF9800), () {}, 3),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClientsScreen(
+                    userId: widget.userId,
+                    username: widget.username,
+                  ),
+                ),
+              );
+            }, 2),
+            _buildMainButton('الفرص', Icons.trending_up, const Color(0xFFFF9800), () {
+              // TODO: إضافة شاشة الفرص
+            }, 3),
           ],
         ),
       ],
@@ -627,8 +646,20 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(Icons.home_filled, 'الرئيسية', true, () {}),
-              _buildNavItem(Icons.people_outline, 'العملاء', false, () {}),
-              _buildNavItem(Icons.add_circle, '', false, () {}, isCenter: true),
+              _buildNavItem(Icons.people_outline, 'العملاء', false, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ClientsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              }),
+              _buildNavItem(Icons.add_circle, '', false, () {
+                // يمكن إضافة قائمة اختيارات هنا
+              }, isCenter: true),
               _buildNavItem(Icons.analytics_outlined, 'التقارير', false, () {}),
               _buildNavItem(Icons.settings_outlined, 'الإعدادات', false, () {}),
             ],

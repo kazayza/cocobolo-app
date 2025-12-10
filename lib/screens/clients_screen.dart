@@ -46,11 +46,34 @@ class _ClientsScreenState extends State<ClientsScreen> {
   Future<void> fetchSummary() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/api/clients/summary'));
+      
+      // طباعة للتشخيص - سأزيلها لاحقًا
+      print('📊 إحصائيات - كود الاستجابة: ${res.statusCode}');
+      print('📊 إحصائيات - نص الاستجابة: ${res.body}');
+      
       if (res.statusCode == 200) {
         setState(() => summary = jsonDecode(res.body));
+      } else {
+        print('⚠️ الخادم رجع كود خطأ: ${res.statusCode}');
+        // تعيين قيم افتراضية إذا فشل الاتصال
+        setState(() {
+          summary = {
+            'totalClients': 0,
+            'newToday': 0,
+            'newThisMonth': 0
+          };
+        });
       }
     } catch (e) {
-      print('Error fetching summary: $e');
+      print('❌ خطأ في جلب الإحصائيات: $e');
+      // تعيين قيم افتراضية في حالة الخطأ
+      setState(() {
+        summary = {
+          'totalClients': 0,
+          'newToday': 0,
+          'newThisMonth': 0
+        };
+      });
     }
   }
 
@@ -81,10 +104,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
           final name = client['PartyName']?.toString().toLowerCase() ?? '';
           final phone = client['Phone']?.toString().toLowerCase() ?? '';
           final phone2 = client['Phone2']?.toString().toLowerCase() ?? '';
+          final nationalId = client['NationalID']?.toString().toLowerCase() ?? '';
           final searchLower = query.toLowerCase();
           return name.contains(searchLower) ||
               phone.contains(searchLower) ||
-              phone2.contains(searchLower);
+              phone2.contains(searchLower) ||
+              nationalId.contains(searchLower); // إضافة البحث بالرقم القومي
         }).toList();
       }
     });
@@ -147,6 +172,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 
   Widget _buildSummarySection() {
+    // إذا كانت الإحصائيات فارغة، نعرض قيم افتراضية
+    final totalClients = summary['totalClients'] ?? 0;
+    final newToday = summary['newToday'] ?? 0;
+    final newThisMonth = summary['newThisMonth'] ?? 0;
+    
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -165,7 +195,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           Expanded(
             child: _buildSummaryItem(
               'إجمالي العملاء',
-              '${summary['totalClients'] ?? 0}',
+              '$totalClients',
               Icons.people,
             ),
           ),
@@ -173,7 +203,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           Expanded(
             child: _buildSummaryItem(
               'عملاء اليوم',
-              '${summary['newToday'] ?? 0}',
+              '$newToday',
               Icons.person_add,
             ),
           ),
@@ -181,7 +211,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           Expanded(
             child: _buildSummaryItem(
               'هذا الشهر',
-              '${summary['newThisMonth'] ?? 0}',
+              '$newThisMonth',
               Icons.calendar_month,
             ),
           ),
@@ -222,7 +252,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         controller: _searchController,
         style: GoogleFonts.cairo(color: Colors.white),
         decoration: InputDecoration(
-          hintText: 'بحث بالاسم أو رقم الهاتف...',
+          hintText: 'بحث بالاسم، الهاتف، أو الرقم القومي...',
           hintStyle: GoogleFonts.cairo(color: Colors.white54),
           prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
           suffixIcon: _searchController.text.isNotEmpty
@@ -368,28 +398,37 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${_formatNumber(client['OpeningBalance'] ?? 0)} ج.م',
-                    style: GoogleFonts.cairo(
-                      color: client['BalanceType'] == 'D'
-                          ? Colors.red[300]
-                          : Colors.green[300],
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+              // ========== التعديل هنا: استبدال الرصيد بالرقم القومي ==========
+              if (client['NationalID'] != null && client['NationalID'].toString().isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Icon(Icons.badge, size: 20, color: const Color(0xFFFFD700)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${client['NationalID']}',
+                      style: GoogleFonts.cairo(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  Text(
-                    client['BalanceType'] == 'D' ? 'عليه' : 'له',
-                    style: GoogleFonts.cairo(
-                      color: Colors.grey[500],
-                      fontSize: 11,
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Icon(Icons.badge_outlined, size: 20, color: Colors.grey[600]),
+                    const SizedBox(height: 4),
+                    Text(
+                      'لا يوجد',
+                      style: GoogleFonts.cairo(
+                        color: Colors.grey[600],
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ), // <-- هذه الفاصلة كانت مفقودة وهنا كانت المشكلة!
             ],
           ),
         ),
@@ -400,164 +439,154 @@ class _ClientsScreenState extends State<ClientsScreen> {
         .slideX(begin: 0.1, end: 0);
   }
 
-  void _showClientDetails(Map<String, dynamic> client) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[600],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Center(
-                      child: Text(
-                        (client['PartyName'] ?? 'ع')[0].toUpperCase(),
-                        style: GoogleFonts.cairo(
-                          color: const Color(0xFF4CAF50),
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: Text(
-                    client['PartyName'] ?? '',
-                    style: GoogleFonts.cairo(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Divider(color: Colors.white24),
-                const SizedBox(height: 16),
-                _buildDetailRow(Icons.phone, 'الهاتف', client['Phone'] ?? 'غير محدد'),
-                if (client['Phone2'] != null && client['Phone2'].toString().isNotEmpty)
-                  _buildDetailRow(Icons.phone_android, 'هاتف 2', client['Phone2']),
-                _buildDetailRow(Icons.email, 'البريد', client['Email'] ?? 'غير محدد'),
-                _buildDetailRow(Icons.location_on, 'العنوان', client['Address'] ?? 'غير محدد'),
-                _buildDetailRow(Icons.person, 'جهة الاتصال', client['ContactPerson'] ?? 'غير محدد'),
-                _buildDetailRow(Icons.credit_card, 'الرقم الضريبي', client['TaxNumber'] ?? 'غير محدد'),
-                if (client['NationalID'] != null)
-                  _buildDetailRow(Icons.badge, 'الرقم القومي', client['NationalID']),
-                const SizedBox(height: 16),
-                const Divider(color: Colors.white24),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
+ void _showClientDetails(Map<String, dynamic> client) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1A1A1A),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    isScrollControlled: true,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'الرصيد الافتتاحي',
-                        style: GoogleFonts.cairo(color: Colors.grey[400]),
-                      ),
-                      Text(
-                        '${_formatNumber(client['OpeningBalance'] ?? 0)} ج.م (${client['BalanceType'] == 'D' ? 'مدين' : 'دائن'})',
-                        style: GoogleFonts.cairo(
-                          color: client['BalanceType'] == 'D' ? Colors.red[300] : Colors.green[300],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AddClientScreen(
-                                username: widget.username,
-                                existingClient: client,
-                              ),
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Text(
+                      (client['PartyName'] ?? 'ع')[0].toUpperCase(),
+                      style: GoogleFonts.cairo(
+                        color: const Color(0xFF4CAF50),
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  client['PartyName'] ?? '',
+                  style: GoogleFonts.cairo(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 16),
+              
+              // ===== البيانات المعروضة =====
+              _buildDetailRow(Icons.phone, 'الهاتف', client['Phone'] ?? 'غير محدد'),
+              if (client['Phone2'] != null && client['Phone2'].toString().isNotEmpty)
+                _buildDetailRow(Icons.phone_android, 'هاتف 2', client['Phone2']),
+              _buildDetailRow(Icons.email, 'البريد', client['Email'] ?? 'غير محدد'),
+              _buildDetailRow(Icons.location_on, 'العنوان', client['Address'] ?? 'غير محدد'),
+              _buildDetailRow(Icons.person, 'جهة الاتصال', client['ContactPerson'] ?? 'غير محدد'),
+              
+              // ✅ تم إزالة الرقم الضريبي
+              // _buildDetailRow(Icons.credit_card, 'الرقم الضريبي', client['TaxNumber'] ?? 'غير محدد'),
+              
+              // ✅ إبقاء الرقم القومي
+              if (client['NationalID'] != null && client['NationalID'].toString().isNotEmpty)
+                _buildDetailRow(Icons.badge, 'الرقم القومي', client['NationalID']),
+              
+              // ✅ إضافة رقم الدور لو موجود
+              if (client['FloorNumber'] != null && client['FloorNumber'].toString().isNotEmpty)
+                _buildDetailRow(Icons.apartment, 'رقم الدور', client['FloorNumber']),
+              
+              // ✅ إضافة الملاحظات لو موجودة
+              if (client['Notes'] != null && client['Notes'].toString().isNotEmpty)
+                _buildDetailRow(Icons.notes, 'ملاحظات', client['Notes']),
+              
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddClientScreen(
+                              username: widget.username,
+                              existingClient: client,
                             ),
-                          ).then((result) {
-                            if (result == true) _refreshAll();
-                          });
-                        },
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: Text('تعديل', style: GoogleFonts.cairo()),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFD700),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
+                        ).then((result) {
+                          if (result == true) _refreshAll();
+                        });
+                      },
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: Text('تعديل', style: GoogleFonts.cairo()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.phone, size: 18),
-                        label: Text('اتصال', style: GoogleFonts.cairo()),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF4CAF50),
-                          side: const BorderSide(color: Color(0xFF4CAF50)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        // TODO: إضافة وظيفة الاتصال
+                      },
+                      icon: const Icon(Icons.phone, size: 18),
+                      label: Text('اتصال', style: GoogleFonts.cairo()),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF4CAF50),
+                        side: const BorderSide(color: Color(0xFF4CAF50)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Padding(
