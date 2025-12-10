@@ -69,7 +69,19 @@ class _LoginScreenState extends State<LoginScreen>
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        
+        // جلب FCM Token وإرساله للسيرفر
+String? token = await FirebaseMessaging.instance.getToken();
+if (token != null) {
+  await http.post(
+    Uri.parse('$baseUrl/api/users/save-token'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'userId': data['user']['UserID'],
+      'fcmToken': token,
+    }),
+  );
+  print('تم إرسال FCM Token للسيرفر');
+}
         // ✅ حفظ الصلاحيات في الـ PermissionService
         PermissionService().initialize(
           user: data['user'] as Map<String, dynamic>,
