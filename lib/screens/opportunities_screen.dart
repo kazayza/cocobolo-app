@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 
 class OpportunitiesScreen extends StatefulWidget {
@@ -30,8 +32,21 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   int? selectedStageId;
   int? selectedSourceId;
   String? selectedFollowUpStatus;
+  String? sortBy;
+  Timer? _debounceTimer;
 
   final TextEditingController _searchController = TextEditingController();
+
+  // ✅ عدد الفلاتر النشطة
+  int get _activeFiltersCount {
+    int count = 0;
+    if (selectedStageId != null) count++;
+    if (selectedSourceId != null) count++;
+    if (selectedFollowUpStatus != null) count++;
+    if (searchQuery.isNotEmpty) count++;
+    if (sortBy != null) count++;
+    return count;
+  }
 
   @override
   void initState() {
@@ -42,6 +57,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -94,7 +110,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   Future<void> _fetchOpportunities() async {
     try {
       String url = '$baseUrl/api/opportunities?';
-      
+
       if (searchQuery.isNotEmpty) {
         url += 'search=$searchQuery&';
       }
@@ -106,6 +122,9 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
       }
       if (selectedFollowUpStatus != null) {
         url += 'followUpStatus=$selectedFollowUpStatus&';
+      }
+      if (sortBy != null) {
+        url += 'sortBy=$sortBy&';
       }
 
       final res = await http.get(Uri.parse(url));
@@ -161,10 +180,10 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   // ═══════════════════════════════════════════════════════════════
   // ✅ أيقونات المصادر الاحترافية
   // ═══════════════════════════════════════════════════════════════
-  
+
   Widget _getSourceIcon(String? sourceName, {double size = 18}) {
     final name = sourceName?.toLowerCase() ?? '';
-    
+
     if (name.contains('whatsapp') || name.contains('واتساب')) {
       return FaIcon(FontAwesomeIcons.whatsapp, size: size, color: const Color(0xFF25D366));
     } else if (name.contains('facebook') || name.contains('فيسبوك')) {
@@ -218,13 +237,108 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     return FaIcon(iconData, size: size, color: color);
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ Quick Actions - اتصال وواتساب
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<void> _makePhoneCall(String? phone) async {
+    if (phone == null || phone.isEmpty) {
+      _showSnackBar('لا يوجد رقم هاتف', Colors.red);
+      return;
+    }
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+ Future<void> _openWhatsApp(String? phone) async {
+  if (phone == null || phone.isEmpty) {
+    _showSnackBar('لا يوجد رقم هاتف', Colors.red);
+    return;
+  }
+
+  // ✅ تنظيف الرقم من أي حروف أو رموز
+  String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  
+  debugPrint('📱 Original Phone: $phone');
+  debugPrint('📱 Clean Phone: $cleanPhone');
+
+  // ✅ معالجة كود الدولة (مصر)
+  if (cleanPhone.startsWith('00')) {
+    // لو بادئ بـ 00 شيلهم
+    cleanPhone = cleanPhone.substring(2);
+  } else if (cleanPhone.startsWith('0')) {
+    // لو بادئ بـ 0 واحد، شيله وحط 20
+    cleanPhone = '20${cleanPhone.substring(1)}';
+  } else if (cleanPhone.length == 10 && !cleanPhone.startsWith('20')) {
+    // لو 10 أرقام من غير كود
+    cleanPhone = '20$cleanPhone';
+  }
+
+  debugPrint('📱 Final Phone: $cleanPhone');
+
+  final waUrl = 'https://wa.me/$cleanPhone';
+  debugPrint('📱 WhatsApp URL: $waUrl');
+
+  try {
+    final uri = Uri.parse(waUrl);
+
+    // ✅ الطريقة الأولى: wa.me
+    bool launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched) {
+      // ✅ الطريقة التانية: whatsapp://
+      final waUri = Uri.parse('whatsapp://send?phone=$cleanPhone');
+      launched = await launchUrl(waUri);
+      
+      if (!launched) {
+        _showSnackBar('لم يتم العثور على واتساب', Colors.orange);
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ WhatsApp Error: $e');
+    _showSnackBar('حدث خطأ: $e', Colors.red);
+  }
+}
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.cairo()),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // ✅ تنسيق العملة
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return '0 ج.م';
+    final num = double.tryParse(amount.toString()) ?? 0;
+    if (num >= 1000000) {
+      return '${(num / 1000000).toStringAsFixed(1)}M ج.م';
+    } else if (num >= 1000) {
+      return '${(num / 1000).toStringAsFixed(1)}K ج.م';
+    }
+    return '${num.toInt()} ج.م';
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ BUILD METHODS
+  // ═══════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       appBar: _buildAppBar(),
       body: loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
+          ? _buildShimmerLoading()
           : RefreshIndicator(
               onRefresh: _loadData,
               color: const Color(0xFFFFD700),
@@ -232,7 +346,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                 physics: const BouncingScrollPhysics(),
                 slivers: [
                   SliverToBoxAdapter(child: _buildSummaryCards()),
-                  SliverToBoxAdapter(child: _buildFilters()),
+                  SliverToBoxAdapter(child: _buildSearchAndSort()),
                   SliverToBoxAdapter(child: _buildStageFilter()),
                   opportunities.isEmpty
                       ? SliverFillRemaining(child: _buildEmptyState())
@@ -247,6 +361,76 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
               ),
             ),
       floatingActionButton: _buildFAB(),
+    );
+  }
+
+  // ✅ Shimmer Loading
+  Widget _buildShimmerLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildShimmerBox(40, 40, radius: 8),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildShimmerBox(double.infinity, 16),
+                        const SizedBox(height: 8),
+                        _buildShimmerBox(100, 12),
+                      ],
+                    ),
+                  ),
+                  _buildShimmerBox(60, 24, radius: 12),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildShimmerBox(120, 30, radius: 8),
+                  const Spacer(),
+                  _buildShimmerBox(100, 30, radius: 8),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildShimmerBox(double.infinity, 40, radius: 8)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildShimmerBox(double.infinity, 40, radius: 8)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildShimmerBox(double.infinity, 40, radius: 8)),
+                ],
+              ),
+            ],
+          ),
+        ).animate(onPlay: (controller) => controller.repeat())
+            .shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.1));
+      },
+    );
+  }
+
+  Widget _buildShimmerBox(double width, double height, {double radius = 4}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 
@@ -273,9 +457,34 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
-        IconButton(
-          icon: const FaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
-          onPressed: _showFilterBottomSheet,
+        // ✅ Badge لعدد الفلاتر
+        Stack(
+          children: [
+            IconButton(
+              icon: const FaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
+              onPressed: _showFilterBottomSheet,
+            ),
+            if (_activeFiltersCount > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFD700),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$_activeFiltersCount',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -378,37 +587,71 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     );
   }
 
-  Widget _buildFilters() {
+  // ✅ البحث + الترتيب
+  Widget _buildSearchAndSort() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        controller: _searchController,
-        style: GoogleFonts.cairo(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'بحث بالاسم أو الهاتف...',
-          hintStyle: GoogleFonts.cairo(color: Colors.grey),
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-          suffixIcon: searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => searchQuery = '');
-                    _fetchOpportunities();
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.white.withOpacity(0.1),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+      child: Row(
+        children: [
+          // حقل البحث
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.cairo(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'بحث بالاسم أو الهاتف...',
+                hintStyle: GoogleFonts.cairo(color: Colors.grey),
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => searchQuery = '');
+                          _fetchOpportunities();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+              onChanged: (value) {
+                setState(() => searchQuery = value);
+                // ✅ Real-time search with debounce
+                _debounceTimer?.cancel();
+                _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                  _fetchOpportunities();
+                });
+              },
+            ),
           ),
-        ),
-        onChanged: (value) {
-          setState(() => searchQuery = value);
-        },
-        onSubmitted: (_) => _fetchOpportunities(),
+          const SizedBox(width: 10),
+          // ✅ زر الترتيب
+          Container(
+            decoration: BoxDecoration(
+              color: sortBy != null 
+                  ? const Color(0xFFFFD700).withOpacity(0.2) 
+                  : Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: sortBy != null 
+                  ? Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)) 
+                  : null,
+            ),
+            child: IconButton(
+              icon: FaIcon(
+                FontAwesomeIcons.arrowDownWideShort,
+                color: sortBy != null ? const Color(0xFFFFD700) : Colors.grey,
+                size: 18,
+              ),
+              onPressed: _showSortBottomSheet,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -423,11 +666,11 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
           children: [
             _buildStageChip(null, 'الكل', const Color(0xFFFFD700), null),
             ...stages.map((stage) => _buildStageChip(
-              stage['StageID'],
-              stage['StageNameAr'] ?? stage['StageName'],
-              _getStageColor(stage['StageColor']),
-              stage['StageID'],
-            )),
+                  stage['StageID'],
+                  stage['StageNameAr'] ?? stage['StageName'],
+                  _getStageColor(stage['StageColor']),
+                  stage['StageID'],
+                )),
           ],
         ),
       ),
@@ -439,7 +682,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
-        avatar: stageIdForIcon != null 
+        avatar: stageIdForIcon != null
             ? _getStageIconWidget(stageIdForIcon, isSelected ? Colors.black : color, size: 12)
             : null,
         label: Text(
@@ -464,238 +707,326 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     );
   }
 
+  // ✅ كارت الفرصة مع Swipe Actions
   Widget _buildOpportunityCard(dynamic opportunity, int index) {
     final stageColor = _getStageColor(opportunity['StageColor']);
     final followUpStatus = opportunity['FollowUpStatus'];
     final followUpColor = _getFollowUpStatusColor(followUpStatus);
     final stageId = opportunity['StageID'];
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border(
-          right: BorderSide(color: stageColor, width: 4),
+    return Dismissible(
+      key: Key(opportunity['OpportunityID'].toString()),
+      background: _buildSwipeBackground(Colors.green, FontAwesomeIcons.phone, 'اتصال', Alignment.centerRight),
+      secondaryBackground: _buildSwipeBackground(const Color(0xFF25D366), FontAwesomeIcons.whatsapp, 'واتساب', Alignment.centerLeft),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          _makePhoneCall(opportunity['Phone1']);
+        } else {
+          _openWhatsApp(opportunity['Phone1']);
+        }
+        return false; // لا تحذف الكارت
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border(
+            right: BorderSide(color: stageColor, width: 4),
+          ),
         ),
-      ),
-      child: InkWell(
-        onTap: () => _openOpportunityDetails(opportunity),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // الصف الأول: الاسم + المرحلة
-              Row(
-                children: [
-                  // أيقونة المرحلة
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: stageColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: _getStageIconWidget(stageId, stageColor, size: 16),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          opportunity['ClientName'] ?? 'بدون اسم',
-                          style: GoogleFonts.cairo(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          opportunity['StageNameAr'] ?? opportunity['StageName'] ?? '',
-                          style: GoogleFonts.cairo(
-                            color: stageColor,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // حالة المتابعة
-                  if (followUpStatus != null && followUpStatus != 'NotSet')
+        child: InkWell(
+          onTap: () => _openOpportunityDetails(opportunity),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // الصف الأول: الاسم + المرحلة
+                Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: followUpColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: followUpColor.withOpacity(0.5)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          FaIcon(
-                            followUpStatus == 'Overdue' 
-                                ? FontAwesomeIcons.clockRotateLeft
-                                : FontAwesomeIcons.clock,
-                            color: followUpColor,
-                            size: 10,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _getFollowUpStatusText(followUpStatus),
-                            style: GoogleFonts.cairo(
-                              color: followUpColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // خط فاصل
-              Divider(color: Colors.grey.withOpacity(0.2), height: 1),
-              
-              const SizedBox(height: 12),
-
-              // الصف الثاني: الهاتف + المصدر
-              Row(
-                children: [
-                  // الهاتف
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const FaIcon(FontAwesomeIcons.phone, color: Colors.grey, size: 12),
-                        const SizedBox(width: 6),
-                        Text(
-                          opportunity['Phone1'] ?? 'لا يوجد',
-                          style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  // المصدر
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _getSourceIcon(opportunity['SourceName'], size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          opportunity['SourceNameAr'] ?? opportunity['SourceName'] ?? '',
-                          style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 10),
-
-              // الصف الثالث: القيمة + المنتج
-              Row(
-                children: [
-                  // القيمة المتوقعة
-                  if (opportunity['ExpectedValue'] != null && opportunity['ExpectedValue'] > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.green.withOpacity(0.2),
-                            Colors.green.withOpacity(0.1),
-                          ],
-                        ),
+                        color: stageColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.withOpacity(0.3)),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      child: _getStageIconWidget(stageId, stageColor, size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const FaIcon(FontAwesomeIcons.coins, color: Colors.green, size: 12),
-                          const SizedBox(width: 6),
                           Text(
-                            '${_formatCurrency(opportunity['ExpectedValue'])}',
+                            opportunity['ClientName'] ?? 'بدون اسم',
                             style: GoogleFonts.cairo(
-                              color: Colors.green,
-                              fontSize: 12,
+                              color: Colors.white,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            opportunity['StageNameAr'] ?? opportunity['StageName'] ?? '',
+                            style: GoogleFonts.cairo(
+                              color: stageColor,
+                              fontSize: 11,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  
-                  // المنتج المهتم به
-                  if (opportunity['InterestedProduct'] != null &&
-                      opportunity['InterestedProduct'].toString().isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
+                    if (followUpStatus != null && followUpStatus != 'NotSet')
+                      Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
+                          color: followUpColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: followUpColor.withOpacity(0.5)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const FaIcon(FontAwesomeIcons.box, color: Colors.grey, size: 12),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                opportunity['InterestedProduct'],
-                                style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            FaIcon(
+                              followUpStatus == 'Overdue'
+                                  ? FontAwesomeIcons.clockRotateLeft
+                                  : FontAwesomeIcons.clock,
+                              color: followUpColor,
+                              size: 10,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _getFollowUpStatusText(followUpStatus),
+                              style: GoogleFonts.cairo(
+                                color: followUpColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
                       ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+                Divider(color: Colors.grey.withOpacity(0.2), height: 1),
+                const SizedBox(height: 12),
+
+                // الصف الثاني: الهاتف + المصدر
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const FaIcon(FontAwesomeIcons.phone, color: Colors.grey, size: 12),
+                          const SizedBox(width: 6),
+                          Text(
+                            opportunity['Phone1'] ?? 'لا يوجد',
+                            style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _getSourceIcon(opportunity['SourceName'], size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            opportunity['SourceNameAr'] ?? opportunity['SourceName'] ?? '',
+                            style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 11),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ],
-              ),
-            ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // الصف الثالث: القيمة + المنتج
+                Row(
+                  children: [
+                    if (opportunity['ExpectedValue'] != null && opportunity['ExpectedValue'] > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.withOpacity(0.2),
+                              Colors.green.withOpacity(0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const FaIcon(FontAwesomeIcons.coins, color: Colors.green, size: 12),
+                            const SizedBox(width: 6),
+                            Text(
+                              _formatCurrency(opportunity['ExpectedValue']),
+                              style: GoogleFonts.cairo(
+                                color: Colors.green,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (opportunity['InterestedProduct'] != null &&
+                        opportunity['InterestedProduct'].toString().isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const FaIcon(FontAwesomeIcons.box, color: Colors.grey, size: 12),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  opportunity['InterestedProduct'],
+                                  style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // ✅ Quick Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickActionButton(
+                        icon: FontAwesomeIcons.phone,
+                        label: 'اتصال',
+                        color: Colors.green,
+                        onTap: () => _makePhoneCall(opportunity['Phone1']),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildQuickActionButton(
+                        icon: FontAwesomeIcons.whatsapp,
+                        label: 'واتساب',
+                        color: const Color(0xFF25D366),
+                        onTap: () => _openWhatsApp(opportunity['Phone1']),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildQuickActionButton(
+                        icon: FontAwesomeIcons.circleInfo,
+                        label: 'تفاصيل',
+                        color: const Color(0xFFFFD700),
+                        onTap: () => _openOpportunityDetails(opportunity),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ).animate().fadeIn(delay: Duration(milliseconds: 50 * index), duration: 300.ms)
-        .slideX(begin: 0.1, end: 0);
+    ).animate().fadeIn(delay: Duration(milliseconds: 50 * index), duration: 300.ms).slideX(begin: 0.1, end: 0);
   }
 
-  // ✅ تنسيق العملة
-  String _formatCurrency(dynamic amount) {
-    if (amount == null) return '0 ج.م';
-    final num = double.tryParse(amount.toString()) ?? 0;
-    if (num >= 1000000) {
-      return '${(num / 1000000).toStringAsFixed(1)}M ج.م';
-    } else if (num >= 1000) {
-      return '${(num / 1000).toStringAsFixed(1)}K ج.م';
-    }
-    return '${num.toInt()} ج.م';
+  // ✅ Swipe Background
+  Widget _buildSwipeBackground(Color color, IconData icon, String label, Alignment alignment) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (alignment == Alignment.centerLeft) ...[
+            Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+          ],
+          FaIcon(icon, color: color, size: 24),
+          if (alignment == Alignment.centerRight) ...[
+            const SizedBox(width: 8),
+            Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ✅ Quick Action Button
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FaIcon(icon, color: color, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -743,6 +1074,93 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     ).animate().scale(delay: 500.ms, duration: 300.ms);
   }
 
+  // ✅ Sort Bottom Sheet
+  void _showSortBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const FaIcon(FontAwesomeIcons.arrowDownWideShort, color: Color(0xFFFFD700), size: 18),
+                const SizedBox(width: 10),
+                Text(
+                  'ترتيب حسب',
+                  style: GoogleFonts.cairo(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSortOption('newest', 'الأحدث أولاً', FontAwesomeIcons.arrowDown),
+            _buildSortOption('oldest', 'الأقدم أولاً', FontAwesomeIcons.arrowUp),
+            _buildSortOption('value_high', 'القيمة (الأعلى)', FontAwesomeIcons.arrowUp),
+            _buildSortOption('value_low', 'القيمة (الأقل)', FontAwesomeIcons.arrowDown),
+            _buildSortOption('name', 'الاسم (أ → ي)', FontAwesomeIcons.arrowDownAZ),
+            const SizedBox(height: 10),
+            if (sortBy != null)
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() => sortBy = null);
+                    Navigator.pop(context);
+                    _fetchOpportunities();
+                  },
+                  icon: const FaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
+                  label: Text('إزالة الترتيب', style: GoogleFonts.cairo(color: Colors.grey)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortOption(String value, String label, IconData icon) {
+    final isSelected = sortBy == value;
+    return ListTile(
+      leading: FaIcon(icon, color: isSelected ? const Color(0xFFFFD700) : Colors.grey, size: 16),
+      title: Text(
+        label,
+        style: GoogleFonts.cairo(
+          color: isSelected ? const Color(0xFFFFD700) : Colors.white,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected ? const FaIcon(FontAwesomeIcons.check, color: Color(0xFFFFD700), size: 16) : null,
+      onTap: () {
+        setState(() => sortBy = value);
+        Navigator.pop(context);
+        _fetchOpportunities();
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      tileColor: isSelected ? const Color(0xFFFFD700).withOpacity(0.1) : null,
+    );
+  }
+
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -750,6 +1168,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Padding(
           padding: const EdgeInsets.all(20),
@@ -791,18 +1210,35 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildFilterChip('الكل', null, selectedFollowUpStatus == null, (selected) {
+                  _buildFilterChipItem('الكل', null, selectedFollowUpStatus == null, (selected) {
                     setModalState(() => selectedFollowUpStatus = null);
                   }, FontAwesomeIcons.layerGroup),
-                  _buildFilterChip('متأخرة', 'Overdue', selectedFollowUpStatus == 'Overdue', (selected) {
+                  _buildFilterChipItem('متأخرة', 'Overdue', selectedFollowUpStatus == 'Overdue', (selected) {
                     setModalState(() => selectedFollowUpStatus = selected ? 'Overdue' : null);
                   }, FontAwesomeIcons.triangleExclamation),
-                  _buildFilterChip('اليوم', 'Today', selectedFollowUpStatus == 'Today', (selected) {
+                  _buildFilterChipItem('اليوم', 'Today', selectedFollowUpStatus == 'Today', (selected) {
                     setModalState(() => selectedFollowUpStatus = selected ? 'Today' : null);
                   }, FontAwesomeIcons.calendarDay),
-                  _buildFilterChip('غداً', 'Tomorrow', selectedFollowUpStatus == 'Tomorrow', (selected) {
+                  _buildFilterChipItem('غداً', 'Tomorrow', selectedFollowUpStatus == 'Tomorrow', (selected) {
                     setModalState(() => selectedFollowUpStatus = selected ? 'Tomorrow' : null);
                   }, FontAwesomeIcons.calendarWeek),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ✅ فلترة حسب المصدر
+              Text('المصدر', style: GoogleFonts.cairo(color: Colors.grey)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildSourceFilterChip(null, 'الكل', setModalState),
+                  ...sources.map((source) => _buildSourceFilterChip(
+                        source['SourceID'],
+                        source['SourceNameAr'] ?? source['SourceName'],
+                        setModalState,
+                      )),
                 ],
               ),
               const SizedBox(height: 24),
@@ -844,6 +1280,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                       selectedFollowUpStatus = null;
                       selectedSourceId = null;
                       selectedStageId = null;
+                      sortBy = null;
                     });
                     Navigator.pop(context);
                     _fetchOpportunities();
@@ -862,7 +1299,31 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, String? value, bool isSelected, Function(bool) onSelected, IconData icon) {
+  Widget _buildSourceFilterChip(int? sourceId, String label, StateSetter setModalState) {
+    final isSelected = selectedSourceId == sourceId;
+    return FilterChip(
+      avatar: sourceId != null
+          ? _getSourceIcon(sources.firstWhere((s) => s['SourceID'] == sourceId, orElse: () => {})['SourceName'], size: 14)
+          : null,
+      label: Text(
+        label,
+        style: GoogleFonts.cairo(
+          color: isSelected ? Colors.black : Colors.white,
+          fontSize: 12,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: (selected) {
+        setModalState(() => selectedSourceId = selected ? sourceId : null);
+      },
+      backgroundColor: Colors.grey[800],
+      selectedColor: const Color(0xFFFFD700),
+      checkmarkColor: Colors.black,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+  }
+
+  Widget _buildFilterChipItem(String label, String? value, bool isSelected, Function(bool) onSelected, IconData icon) {
     return FilterChip(
       avatar: FaIcon(icon, size: 12, color: isSelected ? Colors.black : Colors.grey),
       label: Text(
@@ -882,7 +1343,6 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   }
 
   void _openOpportunityDetails(dynamic opportunity) {
-    // TODO: Navigate to details screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -903,7 +1363,6 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
   }
 
   void _addNewOpportunity() {
-    // TODO: Navigate to add screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
