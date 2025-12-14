@@ -16,6 +16,7 @@ import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import 'clients_screen.dart';
 import 'add_client_screen.dart';
+import 'opportunities_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -694,7 +695,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               }),
               _buildQuickAction('فرصة جديدة', Icons.lightbulb, const Color(0xFFFF9800), () {
-                _showComingSoon('الفرص');
+                 Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => OpportunitiesScreen(
+        userId: widget.userId,
+        username: widget.username,
+      ),
+    ),
+  );
               }),
               _buildQuickAction('مهمة جديدة', Icons.add_task, const Color(0xFF9C27B0), () {
                 _showComingSoon('المهام');
@@ -842,12 +851,20 @@ class _HomeScreenState extends State<HomeScreen> {
               2,
             ),
             _buildMainButton(
-              'الفرص',
-              Icons.trending_up,
+               'الفرص',
+               Icons.trending_up,
               const Color(0xFFFF9800),
-              () {
-                _showComingSoon('الفرص');
-              },
+               () {
+               Navigator.push(
+               context,
+               MaterialPageRoute(
+               builder: (context) => OpportunitiesScreen(
+               userId: widget.userId,
+               username: widget.username,
+               ),
+               ),
+               );
+               },
               3,
             ),
           ],
@@ -1216,15 +1233,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
-            _buildQuickAddItem(
-              icon: Icons.lightbulb,
-              label: 'فرصة جديدة',
-              color: const Color(0xFFFF9800),
-              onTap: () {
-                Navigator.pop(context);
-                _showComingSoon('الفرص');
-              },
-            ),
+           _buildQuickAddItem(
+  icon: Icons.lightbulb,
+  label: 'فرصة جديدة',
+  color: const Color(0xFFFF9800),
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OpportunitiesScreen(
+          userId: widget.userId,
+          username: widget.username,
+        ),
+      ),
+    );
+  },
+),
             _buildQuickAddItem(
               icon: Icons.add_task,
               label: 'مهمة جديدة',
