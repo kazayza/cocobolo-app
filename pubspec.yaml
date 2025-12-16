@@ -16,6 +16,7 @@ dependencies:
   image_picker: ^1.1.2
   font_awesome_flutter: ^10.6.0
   url_launcher: ^6.2.1  # ✅ أضف ده
+  intl: ^0.18.1  # ✅ أضف ده
 
   
   # Firebase - أحدث إصدارات (محدث)

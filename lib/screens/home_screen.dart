@@ -17,6 +17,9 @@ import '../services/permission_service.dart';
 import 'clients_screen.dart';
 import 'add_client_screen.dart';
 import 'opportunities_screen.dart';
+import 'add_opportunity_screen.dart';
+import 'add_interaction_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final int userId;
