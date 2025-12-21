@@ -44,5 +44,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/app_icon.png"
+  image_path: "assets/icons/app_icon.png"          # لسه مستخدمينها لـ iOS
+  adaptive_icon_background: "#13273F"             # لون خلفية الأيقونة (Navy بتاع اللوجو)
+  adaptive_icon_foreground: "assets/icons/app_icon.png"  # صورة اللوجو (Foreground)
   min_sdk_android: 21

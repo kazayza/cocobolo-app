@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../constants.dart';
+import '../services/permission_service.dart';
 
 class AddProductScreen extends StatefulWidget {
   final String username;
@@ -440,7 +441,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-   Widget _buildPricesSection() {
+  Widget _buildPricesSection() {
+    final perm = PermissionService();
+    final showFull = perm.canSeeFullProductPricing;          // admin / nabil / hassan
+    final costOnly = perm.canSeeCostOnlyProductPricing;      // factory
+    final saleOnly = perm.canSeeSaleOnlyProductPricing;      // باقي اليوزرات
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -448,178 +454,232 @@ class _AddProductScreenState extends State<AddProductScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              // عمود Premium
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Premium',
-                      style: GoogleFonts.cairo(
-                        color: const Color(0xFFFFD700),
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTextField(
-                      controller: _purchasePriceController,
-                      label: 'سعر التكلفة',
-                      icon: Icons.money_off,
-                      keyboardType: TextInputType.number,
-                      suffixText: 'ج.م',
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _premiumMarginController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: GoogleFonts.cairo(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'نسبة الربح %',
-                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                        prefixIcon: const Icon(Icons.percent,
-                            color: Color(0xFFFFD700)),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFFFD700)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
-                      onChanged: (_) => _recalcPremiumFromCostOrMargin(),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _salePriceController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: GoogleFonts.cairo(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'سعر البيع',
-                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                        prefixIcon: const Icon(Icons.attach_money,
-                            color: Color(0xFFFFD700)),
-                        suffixText: 'ج.م',
-                        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFFFD700)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
-                      // لو عدلنا السعر يدوي → يحدث النسبة
-                      onChanged: (_) => _recalcPremiumMarginFromSale(),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // عمود Elite
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Elite',
-                      style: GoogleFonts.cairo(
-                        color: Colors.greenAccent,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTextField(
-                      controller: _purchasePriceEliteController,
-                      label: 'سعر التكلفة Elite',
-                      icon: Icons.money_off_csred,
-                      keyboardType: TextInputType.number,
-                      suffixText: 'ج.م',
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _eliteMarginController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: GoogleFonts.cairo(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'نسبة الربح % Elite',
-                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                        prefixIcon: const Icon(Icons.percent,
-                            color: Colors.greenAccent),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Colors.greenAccent),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
-                      onChanged: (_) => _recalcEliteFromCostOrMargin(),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _salePriceEliteController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: GoogleFonts.cairo(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'سعر البيع Elite',
-                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                        prefixIcon: const Icon(Icons.attach_money,
-                            color: Colors.greenAccent),
-                        suffixText: 'ج.م',
-                        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Colors.greenAccent),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
-                      onChanged: (_) => _recalcEliteMarginFromSale(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          // عمود Premium
+          Expanded(
+            child: _buildPackagePriceEditor(
+              title: 'Premium',
+              costController: _purchasePriceController,
+              saleController: _salePriceController,
+              marginController: _premiumMarginController,
+              color: const Color(0xFFFFD700),
+              showFull: showFull,
+              costOnly: costOnly,
+              saleOnly: saleOnly,
+              onCostChanged: _recalcPremiumFromCostOrMargin,
+              onSaleChanged: _recalcPremiumMarginFromSale,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // عمود Elite
+          Expanded(
+            child: _buildPackagePriceEditor(
+              title: 'Elite',
+              costController: _purchasePriceEliteController,
+              saleController: _salePriceEliteController,
+              marginController: _eliteMarginController,
+              color: Colors.greenAccent,
+              showFull: showFull,
+              costOnly: costOnly,
+              saleOnly: saleOnly,
+              onCostChanged: _recalcEliteFromCostOrMargin,
+              onSaleChanged: _recalcEliteMarginFromSale,
+            ),
           ),
         ],
       ),
+    );
+  }
+  
+    Widget _buildPackagePriceEditor({
+    required String title,
+    required TextEditingController costController,
+    required TextEditingController saleController,
+    required TextEditingController marginController,
+    required Color color,
+    required bool showFull,
+    required bool costOnly,
+    required bool saleOnly,
+    void Function()? onCostChanged,
+    void Function()? onSaleChanged,
+  }) {
+    final List<Widget> children = [];
+
+    // عنوان الباقة (Premium / Elite)
+    children.add(
+      Text(
+        title,
+        style: GoogleFonts.cairo(
+          color: color,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+
+    children.add(const SizedBox(height: 8));
+
+    // ======================
+    // 1) التكلفة (Cost)
+    // ======================
+    // تظهر وتكون قابلة للتعديل لـ:
+    // - الثلاثة الكبار (showFull)
+    // - المصنع (costOnly)
+    if (showFull || costOnly) {
+      children.add(
+        TextFormField(
+          controller: costController,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          style: GoogleFonts.cairo(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'سعر التكلفة',
+            labelStyle: GoogleFonts.cairo(color: Colors.grey),
+            prefixIcon: const Icon(Icons.money_off, color: Color(0xFFFFD700)),
+            suffixText: 'ج.م',
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.08),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFFD700)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 16),
+          ),
+          onChanged: (_) {
+            // لو من الـ 3 الكبار: نعيد حساب سعر البيع من التكلفة + النسبة
+            if (showFull && onCostChanged != null) {
+              onCostChanged();
+            }
+            // لو Factory: يغيّر التكلفة فقط، مش محتاج يظهر/يغيّر بيع أو نسبة
+          },
+        ),
+      );
+
+      children.add(const SizedBox(height: 8));
+    }
+
+    // ======================
+    // 2) نسبة الربح (Margin)
+    // ======================
+    // تظهر وتُعدّل فقط للثلاثة الكبار (showFull)
+    if (showFull) {
+      children.add(
+        TextFormField(
+          controller: marginController,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          style: GoogleFonts.cairo(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'نسبة الربح %',
+            labelStyle: GoogleFonts.cairo(color: Colors.grey),
+            prefixIcon: const Icon(Icons.percent, color: Color(0xFFFFD700)),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.08),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFFD700)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 16),
+          ),
+          onChanged: (_) {
+            if (onCostChanged != null) {
+              onCostChanged();
+            }
+          },
+        ),
+      );
+
+      children.add(const SizedBox(height: 8));
+    }
+
+    // ======================
+    // 3) سعر البيع (Sale)
+    // ======================
+    // حالتين:
+    // - showFull  → Editable (الثلاثة الكبار فقط)
+    // - saleOnly  → ReadOnly (باقي اليوزرات، عرض فقط)
+    if (showFull) {
+      // Editable Sale Price
+      children.add(
+        TextFormField(
+          controller: saleController,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          style: GoogleFonts.cairo(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'سعر البيع',
+            labelStyle: GoogleFonts.cairo(color: Colors.grey),
+            prefixIcon: Icon(Icons.attach_money, color: color),
+            suffixText: 'ج.م',
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.08),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: color),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 16),
+          ),
+          onChanged: (_) {
+            if (onSaleChanged != null) {
+              onSaleChanged();
+            }
+          },
+        ),
+      );
+    } else if (saleOnly) {
+      // ReadOnly Sale Price (عرض فقط)
+      children.add(
+        TextFormField(
+          controller: saleController,
+          readOnly: true,
+          enableInteractiveSelection: false,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          style: GoogleFonts.cairo(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: 'سعر البيع (عرض فقط)',
+            labelStyle: GoogleFonts.cairo(color: Colors.grey),
+            prefixIcon: Icon(Icons.visibility, color: color),
+            suffixText: 'ج.م',
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: color.withOpacity(0.5)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 16),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 
