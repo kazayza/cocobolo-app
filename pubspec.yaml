@@ -15,10 +15,9 @@ dependencies:
   animated_text_kit: ^4.2.2
   image_picker: ^1.1.2
   font_awesome_flutter: ^10.6.0
-  url_launcher: ^6.2.1  # ✅ أضف ده
-  intl: ^0.18.1  # ✅ أضف ده
+  url_launcher: ^6.2.1
+  intl: ^0.18.1
 
-  
   # Firebase - أحدث إصدارات (محدث)
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
@@ -26,15 +25,24 @@ dependencies:
   timezone: ^0.10.1  # مطلوب لـ flutter_local_notifications
 
   http: ^1.2.2
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0  # محدث
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1   # 👈 هنا مكانها الصح
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/
-  #  - assets/sounds/  # لو هتستخدم صوت تنبيه مخصص
+    - assets/icons/   # 👈 مهم عشان أيقونة التطبيق
+
+# 👇 ده في الجذر، برا flutter:
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21

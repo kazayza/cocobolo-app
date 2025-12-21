@@ -112,7 +112,28 @@ class PermissionService {
     final perm = _permissions[formName];
     return perm?.canDelete ?? false;
   }
+  
+    // =====================
+  // صلاحيات خاصة بالأسعار (للمنتجات)
+  // =====================
 
+  /// المستخدمين اللي يشوفوا (تكلفة + بيع + نسبة ربح)
+  bool get canSeeFullProductPricing {
+    final name = (username ?? '').toLowerCase();
+    return name == 'admin' || name == 'nabil' || name == 'hassan';
+  }
+
+  /// المستخدم اللي يشوف (سعر التكلفة فقط)
+  bool get canSeeCostOnlyProductPricing {
+    final name = (username ?? '').toLowerCase();
+    return name == 'factory';
+  }
+
+  /// الباقي يشوف (سعر البيع فقط)
+  bool get canSeeSaleOnlyProductPricing {
+    return !canSeeFullProductPricing && !canSeeCostOnlyProductPricing;
+  }
+  
   // ✅ جلب صلاحية معينة
   Permission? getPermission(String formName) {
     return _permissions[formName];

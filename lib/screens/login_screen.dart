@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;  // ✅ أضف ده
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 import '../constants.dart';
 import 'home_screen.dart';
 import '../services/permission_service.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import '../services/theme_service.dart';
+import '../services/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,42 +21,64 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _username = TextEditingController();
   final _password = TextEditingController();
+
   bool _isLoading = false;
   bool _obscureText = true;
-
-  // Animation Controllers
-  late AnimationController _backgroundController;
-  late AnimationController _logoController;
+  bool _rememberMe = false;
 
   @override
   void initState() {
     super.initState();
-    _backgroundController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat(reverse: true);
-
-    _logoController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    _loadSavedCredentials();
+    ThemeService().addListener(_onThemeChanged);
   }
 
   @override
   void dispose() {
-    _backgroundController.dispose();
-    _logoController.dispose();
+    ThemeService().removeListener(_onThemeChanged);
     _username.dispose();
     _password.dispose();
     super.dispose();
   }
 
-  // ✅ دالة تسجيل الدخول المعدّلة
+  void _onThemeChanged() {
+    setState(() {});
+  }
+
+  // تحميل بيانات "تذكرني"
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('saved_username');
+    final savedPassword = prefs.getString('saved_password');
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+
+    if (rememberMe && savedUsername != null && savedPassword != null) {
+      setState(() {
+        _username.text = savedUsername;
+        _password.text = savedPassword;
+        _rememberMe = true;
+      });
+    }
+  }
+
+  // حفظ بيانات "تذكرني"
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setString('saved_username', _username.text.trim());
+      await prefs.setString('saved_password', _password.text);
+      await prefs.setBool('remember_me', true);
+    } else {
+      await prefs.remove('saved_username');
+      await prefs.remove('saved_password');
+      await prefs.setBool('remember_me', false);
+    }
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -71,11 +97,13 @@ class _LoginScreenState extends State<LoginScreen>
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        
-        // ✅ جلب FCM Token للموبايل فقط
+        // حفظ "تذكرني"
+        await _saveCredentials();
+
+        // FCM Token للموبايل فقط
         if (!kIsWeb) {
           try {
-            String? token = await FirebaseMessaging.instance.getToken();
+            final token = await FirebaseMessaging.instance.getToken();
             if (token != null) {
               await http.post(
                 Uri.parse('$baseUrl/api/users/save-token'),
@@ -85,43 +113,34 @@ class _LoginScreenState extends State<LoginScreen>
                   'fcmToken': token,
                 }),
               );
-              print('✅ تم إرسال FCM Token للسيرفر');
             }
           } catch (e) {
             print('⚠️ خطأ في FCM Token: $e');
           }
         }
 
-        // ✅ حفظ الصلاحيات في الـ PermissionService
+        // حفظ صلاحيات المستخدم
         PermissionService().initialize(
           user: data['user'] as Map<String, dynamic>,
           permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
         );
-        
-        // طباعة الصلاحيات للتأكد
-        PermissionService().printPermissions();
 
-        // Success Animation
         _showSuccessDialog();
-        
-        await Future.delayed(const Duration(milliseconds: 1500));
-        
-        if (mounted) {
-          // إغلاق الـ Dialog
-          Navigator.pop(context);
-          
-          // الانتقال للشاشة الرئيسية
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomeScreen(
-                userId: data['user']['UserID'] as int,
-                username: data['user']['Username'] as String,
-                fullName: data['user']['FullName'] as String?,
-              ),
+
+        await Future.delayed(const Duration(milliseconds: 1200));
+
+        if (!mounted) return;
+        Navigator.pop(context); // يقفل الـ Dialog
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              userId: data['user']['UserID'] as int,
+              username: data['user']['Username'] as String,
+              fullName: data['user']['FullName'] as String?,
             ),
-          );
-        }
+          ),
+        );
       } else {
         _showErrorSnackBar(data['message'] ?? 'بيانات الدخول غير صحيحة');
       }
@@ -136,41 +155,55 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showSuccessDialog() {
+    final isDark = ThemeService().isDarkMode;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Center(
         child: Container(
           padding: const EdgeInsets.all(30),
+          margin: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
+            color: AppColors.surface(isDark),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFFD700), width: 2),
+            border: Border.all(color: AppColors.gold, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withOpacity(0.3),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.check_circle,
-                color: Color(0xFFFFD700),
-                size: 80,
-              )
-                  .animate()
-                  .scale(duration: 400.ms, curve: Curves.elasticOut),
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: AppColors.gold,
+                  size: 50,
+                ),
+              ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
               const SizedBox(height: 20),
               Text(
                 'تم تسجيل الدخول بنجاح!',
                 style: GoogleFonts.cairo(
-                  color: Colors.white,
+                  color: AppColors.text(isDark),
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 'مرحباً ${_username.text}',
                 style: GoogleFonts.cairo(
-                  color: Colors.grey[400],
+                  color: AppColors.textSecondary(isDark),
                   fontSize: 14,
                 ),
               ),
@@ -206,55 +239,53 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedBuilder(
-        animation: _backgroundController,
-        builder: (context, child) {
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color.lerp(
-                    const Color(0xFF1A0F08),
-                    const Color(0xFF2D1810),
-                    _backgroundController.value,
-                  )!,
-                  const Color(0xFF0A0A0A),
-                  Color.lerp(
-                    const Color(0xFF0F0805),
-                    const Color(0xFF1A1005),
-                    _backgroundController.value,
-                  )!,
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ),
+    final isDark = ThemeService().isDarkMode;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark
+          ? const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              statusBarBrightness: Brightness.dark,
+            )
+          : const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+              statusBarBrightness: Brightness.light,
             ),
-            child: child,
-          );
-        },
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 60),
-                    _buildAnimatedLogo(),
-                    const SizedBox(height: 60),
-                    _buildLoginCard(),
-                    const SizedBox(height: 40),
-                    _buildLoginButton(),
-                    const SizedBox(height: 30),
-                    _buildFooterText(),
-                    const SizedBox(height: 40),
-                  ],
+      child: Scaffold(
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: AppColors.loginGradient(isDark),
+            ),
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 25),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 15),
+                      _buildThemeToggle(isDark),
+                      const SizedBox(height: 30),
+                      _buildLogo(isDark),
+                      const SizedBox(height: 40),
+                      _buildLoginCard(isDark),
+                      const SizedBox(height: 25),
+                      _buildLoginButton(isDark),
+                      const SizedBox(height: 25),
+                      _buildFooterText(isDark),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -264,109 +295,128 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildAnimatedLogo() {
+  Widget _buildThemeToggle(bool isDark) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Container(
+        decoration: BoxDecoration(
+          color: (isDark ? AppColors.navy : Colors.white).withOpacity(0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.gold.withOpacity(0.5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IconButton(
+          onPressed: () => ThemeService().toggleTheme(),
+          icon: Icon(
+            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+            color: AppColors.gold,
+          ),
+          tooltip: isDark ? 'الوضع الفاتح' : 'الوضع الداكن',
+        ),
+      ),
+    ).animate().fadeIn(duration: 600.ms);
+  }
+
+  Widget _buildLogo(bool isDark) {
     return Column(
       children: [
-        AnimatedBuilder(
-          animation: _logoController,
-          builder: (context, child) {
-            return Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFD700).withOpacity(
-                      0.2 + (_logoController.value * 0.3),
-                    ),
-                    blurRadius: 30 + (_logoController.value * 20),
-                    spreadRadius: 5,
-                  ),
-                ],
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.navy,
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withOpacity(0.3),
+                blurRadius: 25,
+                spreadRadius: 3,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.asset(
-                  'assets/images/logo.png',
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: 140,
+              height: 140,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
                   width: 140,
                   height: 140,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
+                  decoration: BoxDecoration(
+                    color: AppColors.navy,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
                         Icons.diamond,
-                        color: Color(0xFFFFD700),
-                        size: 80,
+                        color: AppColors.gold,
+                        size: 60,
                       ),
-                    );
-                  },
-                ),
-              ),
-            );
-          },
-        )
-            .animate()
-            .fadeIn(duration: 800.ms)
-            .scale(delay: 200.ms, duration: 600.ms, curve: Curves.elasticOut),
-        
-        const SizedBox(height: 30),
-        
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [
-              Color(0xFFFFD700),
-              Color(0xFFFFA500),
-              Color(0xFFFFD700),
-            ],
-          ).createShader(bounds),
-          child: Text(
-            'COCOBOLO',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 8,
+                      const SizedBox(height: 8),
+                      Text(
+                        'COCOBOLO',
+                        style: GoogleFonts.playfairDisplay(
+                          color: AppColors.gold,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         )
             .animate()
-            .fadeIn(delay: 400.ms, duration: 800.ms)
-            .slideY(begin: 0.3, end: 0, curve: Curves.easeOutCubic),
-        
-        const SizedBox(height: 15),
-        
-        AnimatedTextKit(
-          animatedTexts: [
-            TypewriterAnimatedText(
-              'Luxury Furniture Since 1960',
-              textStyle: GoogleFonts.cormorantGaramond(
-                fontSize: 18,
-                color: Colors.white70,
-                letterSpacing: 3,
-                fontStyle: FontStyle.italic,
-              ),
-              speed: const Duration(milliseconds: 100),
-            ),
-          ],
-          isRepeatingAnimation: false,
-        ),
-        
-        const SizedBox(height: 10),
-        
+            .fadeIn(duration: 800.ms)
+            .scale(delay: 200.ms, duration: 600.ms, curve: Curves.easeOutBack),
+        const SizedBox(height: 25),
+        Text(
+          'COCOBOLO',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: isDark ? AppColors.gold : AppColors.navy,
+            letterSpacing: 6,
+          ),
+        ).animate().fadeIn(delay: 400.ms, duration: 800.ms),
+        const SizedBox(height: 8),
+        Text(
+          'Luxury Furniture Since 1960',
+          style: GoogleFonts.cormorantGaramond(
+            fontSize: 16,
+            color: AppColors.textSecondary(isDark),
+            letterSpacing: 2,
+            fontStyle: FontStyle.italic,
+          ),
+        ).animate().fadeIn(delay: 600.ms, duration: 800.ms),
+        const SizedBox(height: 12),
         Container(
-          width: 100,
+          width: 80,
           height: 2,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               colors: [
                 Colors.transparent,
-                Color(0xFFFFD700),
+                AppColors.gold,
                 Colors.transparent,
               ],
             ),
@@ -374,102 +424,142 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         )
             .animate()
-            .fadeIn(delay: 1000.ms)
-            .scaleX(begin: 0, end: 1, delay: 1000.ms, duration: 600.ms),
+            .fadeIn(delay: 800.ms, duration: 600.ms)
+            .scaleX(begin: 0, end: 1, duration: 600.ms),
       ],
     );
   }
 
-  Widget _buildLoginCard() {
+  Widget _buildLoginCard(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(30),
+      padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: isDark ? AppColors.navy.withOpacity(0.8) : Colors.white,
         borderRadius: BorderRadius.circular(25),
         border: Border.all(
-          color: const Color(0xFFFFD700).withOpacity(0.3),
+          color: AppColors.gold.withOpacity(isDark ? 0.3 : 0.2),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 25,
             offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         children: [
-          Text(
-            'تسجيل الدخول',
-            style: GoogleFonts.cairo(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 30,
+                height: 1,
+                color: AppColors.gold.withOpacity(0.5),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'تسجيل الدخول',
+                style: GoogleFonts.cairo(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.gold : AppColors.navy,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 30,
+                height: 1,
+                color: AppColors.gold.withOpacity(0.5),
+              ),
+            ],
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 25),
           _buildTextField(
             controller: _username,
             label: 'اسم المستخدم',
-            icon: Icons.person_outline,
-            delay: 600,
+            icon: Icons.person_outline_rounded,
+            isDark: isDark,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           _buildTextField(
             controller: _password,
             label: 'كلمة المرور',
-            icon: Icons.lock_outline,
+            icon: Icons.lock_outline_rounded,
             isPassword: true,
-            delay: 800,
+            isDark: isDark,
           ),
+          const SizedBox(height: 16),
+          _buildRememberMe(isDark),
         ],
       ),
     )
         .animate()
         .fadeIn(delay: 500.ms, duration: 800.ms)
-        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic);
+        .slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    required bool isDark,
     bool isPassword = false,
-    int delay = 0,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscureText : false,
-      style: GoogleFonts.cairo(color: Colors.white, fontSize: 16),
+      style: GoogleFonts.cairo(
+        color: AppColors.text(isDark),
+        fontSize: 16,
+      ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.cairo(color: Colors.white60),
-        prefixIcon: Icon(icon, color: const Color(0xFFFFD700)),
+        labelStyle: GoogleFonts.cairo(
+          color: AppColors.textHint(isDark),
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: isDark ? AppColors.gold : AppColors.navy,
+        ),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
-                  _obscureText ? Icons.visibility_off : Icons.visibility,
-                  color: const Color(0xFFFFD700).withOpacity(0.7),
+                  _obscureText
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  color: (isDark ? AppColors.gold : AppColors.navy)
+                      .withOpacity(0.7),
                 ),
                 onPressed: () => setState(() => _obscureText = !_obscureText),
               )
             : null,
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: isDark
+            ? AppColors.navyDark.withOpacity(0.6)
+            : AppColors.lightInputFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
+          borderSide: BorderSide(
+            color: isDark ? AppColors.gold : AppColors.navy,
+            width: 2,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: const BorderSide(color: Colors.red, width: 1),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -477,26 +567,62 @@ class _LoginScreenState extends State<LoginScreen>
         }
         return null;
       },
-    )
-        .animate()
-        .fadeIn(delay: Duration(milliseconds: delay), duration: 600.ms)
-        .slideX(begin: 0.1, end: 0);
+    );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildRememberMe(bool isDark) {
+    return Row(
+      children: [
+        SizedBox(
+          height: 22,
+          width: 22,
+          child: Checkbox(
+            value: _rememberMe,
+            onChanged: (value) =>
+                setState(() => _rememberMe = value ?? false),
+            activeColor: isDark ? AppColors.gold : AppColors.navy,
+            checkColor: isDark ? AppColors.navy : Colors.white,
+            side: BorderSide(
+              color: AppColors.textHint(isDark),
+              width: 1.5,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => setState(() => _rememberMe = !_rememberMe),
+          child: Text(
+            'تذكرني',
+            style: GoogleFonts.cairo(
+              color: AppColors.textSecondary(isDark),
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginButton(bool isDark) {
     return Container(
       width: double.infinity,
-      height: 60,
+      height: 55,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+        gradient: LinearGradient(
+          colors: isDark
+              ? [AppColors.gold, AppColors.goldLight]
+              : [AppColors.navy, AppColors.navyLight],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFD700).withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color:
+                (isDark ? AppColors.gold : AppColors.navy).withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -510,11 +636,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 30,
-                height: 30,
+            ? SizedBox(
+                width: 26,
+                height: 26,
                 child: CircularProgressIndicator(
-                  color: Colors.black,
+                  color: isDark ? AppColors.navy : Colors.white,
                   strokeWidth: 3,
                 ),
               )
@@ -522,69 +648,73 @@ class _LoginScreenState extends State<LoginScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'دخول',
+                    'تسجيل الدخول',
                     style: GoogleFonts.cairo(
-                      fontSize: 22,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                      color: isDark ? AppColors.navy : Colors.white,
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Icon(
+                  Icon(
                     Icons.arrow_forward_rounded,
-                    color: Colors.black,
-                    size: 26,
+                    color: isDark ? AppColors.navy : Colors.white,
+                    size: 22,
                   ),
                 ],
               ),
       ),
     )
         .animate()
-        .fadeIn(delay: 1000.ms, duration: 600.ms)
-        .slideY(begin: 0.3, end: 0)
-        .then()
-        .shimmer(delay: 500.ms, duration: 1500.ms);
+        .fadeIn(delay: 700.ms, duration: 600.ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildFooterText() {
+  Widget _buildFooterText(bool isDark) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(width: 40, height: 1, color: Colors.white24),
-            const SizedBox(width: 15),
-            Text(
-              '✦',
-              style: TextStyle(
-                color: const Color(0xFFFFD700).withOpacity(0.5),
-                fontSize: 16,
-              ),
+            Container(
+              width: 35,
+              height: 1,
+              color: AppColors.divider(isDark),
             ),
-            const SizedBox(width: 15),
-            Container(width: 40, height: 1, color: Colors.white24),
+            const SizedBox(width: 12),
+            Icon(
+              Icons.diamond_outlined,
+              color: AppColors.gold.withOpacity(0.6),
+              size: 16,
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 35,
+              height: 1,
+              color: AppColors.divider(isDark),
+            ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 15),
         Text(
           'نظام إدارة متكامل',
           style: GoogleFonts.cairo(
-            color: Colors.white38,
-            fontSize: 14,
+            color: AppColors.textHint(isDark),
+            fontSize: 13,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         Text(
           'ERP System v2.0',
           style: GoogleFonts.roboto(
-            color: Colors.white24,
-            fontSize: 12,
+            color: AppColors.textHint(isDark).withOpacity(0.7),
+            fontSize: 11,
             letterSpacing: 2,
           ),
         ),
       ],
     )
         .animate()
-        .fadeIn(delay: 1200.ms, duration: 800.ms);
+        .fadeIn(delay: 900.ms, duration: 800.ms);
   }
 }

@@ -8,6 +8,7 @@ import 'product_details_screen.dart';
 import 'add_product_screen.dart';
 import '../services/permission_service.dart';
 
+
 class ProductsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -46,46 +47,73 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   // جلب مجموعات المنتجات
-  Future<void> fetchProductGroups() async {
-    try {
-      final res = await http.get(Uri.parse('$baseUrl/api/product-groups'));
-      if (res.statusCode == 200) {
-        setState(() {
-          productGroups = jsonDecode(res.body);
-        });
-      }
-    } catch (e) {
-      print('Error fetching groups: $e');
+Future<void> fetchProductGroups() async {
+  try {
+    final url = '$baseUrl/api/products/groups';
+    print('📡 Fetching groups from: $url');
+
+    final res = await http.get(Uri.parse(url));
+
+    print('📡 Groups status: ${res.statusCode}');
+    print('📡 Groups body: ${res.body}');
+
+    if (res.statusCode == 200) {
+      setState(() {
+        productGroups = jsonDecode(res.body);
+      });
+    } else {
+      // هنا ممكن نخليها بس تطبع ومانكسرش الشاشة
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('فشل تحميل المجموعات (${res.statusCode})'),
+        ),
+      );
     }
+  } catch (e) {
+    print('Error fetching groups: $e');
   }
+}
 
   // جلب المنتجات
-  Future<void> fetchProducts() async {
-    setState(() => loading = true);
+Future<void> fetchProducts() async {
+  setState(() => loading = true);
+  
+  try {
+    String url = '$baseUrl/api/products?';
     
-    try {
-      String url = '$baseUrl/api/products?';
-      
-      if (searchQuery.isNotEmpty) {
-        url += 'search=${Uri.encodeComponent(searchQuery)}&';
-      }
-      if (selectedGroupId != null) {
-        url += 'groupId=$selectedGroupId';
-      }
-      
-      final res = await http.get(Uri.parse(url));
-      
-      if (res.statusCode == 200) {
-        setState(() {
-          products = jsonDecode(res.body);
-          loading = false;
-        });
-      }
-    } catch (e) {
-      print('Error fetching products: $e');
-      setState(() => loading = false);
+    if (searchQuery.isNotEmpty) {
+      url += 'search=${Uri.encodeComponent(searchQuery)}&';
     }
+    if (selectedGroupId != null) {
+      url += 'groupId=$selectedGroupId';
+    }
+
+    print('📡 Fetching products from: $url');
+
+    final res = await http.get(Uri.parse(url));
+
+    print('📡 Products status: ${res.statusCode}');
+    // لو الريسبونس كبير، نطبع أول 300 حرف بس
+    print('📡 Products body (first 300): ${res.body.substring(0, res.body.length > 300 ? 300 : res.body.length)}');
+
+    if (res.statusCode == 200) {
+      setState(() {
+        products = jsonDecode(res.body);
+        loading = false;
+      });
+    } else {
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('فشل تحميل المنتجات (${res.statusCode})'),
+        ),
+      );
+    }
+  } catch (e) {
+    print('Error fetching products: $e');
+    setState(() => loading = false);
   }
+}
 
   // البحث
   void _onSearch(String value) {
@@ -278,6 +306,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Widget _buildProductCard(Map<String, dynamic> product, int index) {
+    // 🔐 منطق عرض الأسعار حسب نوع المستخدم
+    final permService = PermissionService();
+    final costOnly = permService.canSeeCostOnlyProductPricing;      // factory
+    // باقي اليوزرات (ومنهم أصحاب الـ full) → في الليست نعرض سعر البيع فقط
+    final saleOnly = permService.canSeeSaleOnlyProductPricing ||
+        permService.canSeeFullProductPricing;
+
+    final cost = product['PurchasePrice'] ?? 0;
+    final sale = product['SuggestedSalePrice'] ?? 0;
+
+    String priceTitle;
+    dynamic priceValue;
+
+    if (costOnly) {
+      priceTitle = 'سعر التكلفة';
+      priceValue = cost;
+    } else {
+      priceTitle = 'سعر البيع';
+      priceValue = sale;
+    }
+
     return Card(
       color: Colors.white.withOpacity(0.08),
       margin: const EdgeInsets.only(bottom: 16),
@@ -304,11 +353,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // صورة المنتج
-              _buildProductImage(product),
-              
+              // الصورة (Thumbnail من الـ API)
+              _buildProductThumbnail(product),
+
               const SizedBox(width: 16),
-              
+
               // تفاصيل المنتج
               Expanded(
                 child: Column(
@@ -325,9 +374,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    
+
                     const SizedBox(height: 6),
-                    
+
                     // العميل
                     Row(
                       children: [
@@ -350,9 +399,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 4),
-                    
+
                     // المجموعة
                     Row(
                       children: [
@@ -371,29 +420,45 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 8),
-                    
-                    // السعر
+
+                    // السعر (حسب نوع المستخدم)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withOpacity(0.2),
+                        color: const Color(0xFFFFD700).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        '${_formatNumber(product['SuggestedSalePrice'] ?? 0)} ج.م',
-                        style: GoogleFonts.cairo(
-                          color: const Color(0xFFFFD700),
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            priceTitle,
+                            style: GoogleFonts.cairo(
+                              color: Colors.grey[300],
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_formatNumber(priceValue)} ج.م',
+                            style: GoogleFonts.cairo(
+                              color: const Color(0xFFFFD700),
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              
+
+              const SizedBox(width: 8),
+
               // سهم
               const Icon(
                 Icons.arrow_forward_ios,
@@ -408,6 +473,60 @@ class _ProductsScreenState extends State<ProductsScreen> {
         .animate()
         .fadeIn(delay: Duration(milliseconds: 50 * index), duration: 400.ms)
         .slideX(begin: 0.1, end: 0);
+  }
+  
+    Widget _buildProductThumbnail(Map<String, dynamic> product) {
+    final mainImageId = product['MainImageId'];
+
+    return Container(
+      width: 70,
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFFFD700).withOpacity(0.3),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: mainImageId != null
+            ? Image.network(
+                '$baseUrl/api/product-images/$mainImageId',
+                fit: BoxFit.cover,
+                // Placeholder أثناء التحميل
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: const Color(0xFFFFD700),
+                      ),
+                    ),
+                  );
+                },
+                // Placeholder في حالة الخطأ
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildThumbnailPlaceholderIcon();
+                },
+              )
+            : _buildThumbnailPlaceholderIcon(),
+      ),
+    );
+  }
+
+  Widget _buildThumbnailPlaceholderIcon() {
+    return Container(
+      color: Colors.white.withOpacity(0.02),
+      child: Icon(
+        Icons.inventory_2_outlined,
+        size: 32,
+        color: Colors.grey[400],
+      ),
+    );
   }
 
   Widget _buildProductImage(Map<String, dynamic> product) {
@@ -430,6 +549,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
               )
             : _buildPlaceholder(),
+      ),
+    );
+  }
+    Widget _buildProductThumbnailPlaceholder() {
+    return Container(
+      width: 70,
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFFFD700).withOpacity(0.3),
+        ),
+      ),
+      child: Icon(
+        Icons.inventory_2_outlined,
+        size: 32,
+        color: Colors.grey[400],
       ),
     );
   }

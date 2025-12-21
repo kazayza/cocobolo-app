@@ -35,6 +35,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _salePriceController = TextEditingController();
   final _qtyController = TextEditingController(text: '1');
   final _periodController = TextEditingController(text: '0');
+    // أسعار Elite
+  final _purchasePriceEliteController = TextEditingController();
+  final _salePriceEliteController = TextEditingController();
+
+  // نسب الربح %
+  final _premiumMarginController = TextEditingController(text: '48'); // 48%
+  final _eliteMarginController = TextEditingController(text: '51');   // 51%
+
+  // للتحكم في عدم تكرار الحساب داخل onChanged
+  bool _updatingPremium = false;
+  bool _updatingElite = false;
 
   // Dropdowns
   List<dynamic> productGroups = [];
@@ -52,7 +63,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   List<Map<String, dynamic>> newImages = [];
   final ImagePicker _picker = ImagePicker();
 
-  final List<String> pricingTypes = ['ثابت', 'قابل للتفاوض', 'بالمتر', 'بالقطعة'];
+  final List<String> pricingTypes = ['Premium', 'Elite '];
 
   @override
   void initState() {
@@ -65,7 +76,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  void _populateFields() {
+    void _populateFields() {
     final p = widget.existingProduct!;
     _nameController.text = p['ProductName'] ?? '';
     _descriptionController.text = p['ProductDescription'] ?? '';
@@ -78,13 +89,39 @@ class _AddProductScreenState extends State<AddProductScreen> {
     selectedCustomerId = p['Customer'];
     selectedPricingType = p['PricingType'];
 
+    // أسعار Elite
+    _purchasePriceEliteController.text =
+        (p['PurchasePriceElite'] ?? 0).toString();
+    _salePriceEliteController.text =
+        (p['SuggestedSalePriceElite'] ?? 0).toString();
+
+    // حساب نسبة الربح للبريميم
+    final costPremium = _parseDouble(p['PurchasePrice']);
+    final salePremium = _parseDouble(p['SuggestedSalePrice']);
+    if (costPremium > 0 && salePremium > 0) {
+      final margin = ((salePremium - costPremium) / costPremium) * 100;
+      _premiumMarginController.text = margin.toStringAsFixed(1);
+    } else {
+      _premiumMarginController.text = '48'; // افتراضي
+    }
+
+    // حساب نسبة الربح للإليت
+    final costElite = _parseDouble(p['PurchasePriceElite']);
+    final saleElite = _parseDouble(p['SuggestedSalePriceElite']);
+    if (costElite > 0 && saleElite > 0) {
+      final margin = ((saleElite - costElite) / costElite) * 100;
+      _eliteMarginController.text = margin.toStringAsFixed(1);
+    } else {
+      _eliteMarginController.text = '51'; // افتراضي
+    }
+
     // المكونات
     if (p['components'] != null) {
       components = List<Map<String, dynamic>>.from(
         (p['components'] as List).map((c) => {
-          'name': c['ComponentName'],
-          'qty': c['Quantity'],
-        }),
+              'name': c['ComponentName'],
+              'qty': c['Quantity'],
+            }),
       );
     }
   }
@@ -92,7 +129,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> fetchDropdownData() async {
     try {
       // جلب المجموعات
-      final groupsRes = await http.get(Uri.parse('$baseUrl/api/product-groups'));
+      final groupsRes = await http.get(Uri.parse('$baseUrl/api/products/groups'));
       if (groupsRes.statusCode == 200) {
         setState(() => productGroups = jsonDecode(groupsRes.body));
       }
@@ -119,6 +156,80 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _componentNameController.dispose();
     _componentQtyController.dispose();
     super.dispose();
+  }
+    // =========================
+  // 🔢 دوال مساعدة للحسابات
+  // =========================
+
+  // تحويل أي قيمة إلى double بأمان
+  double _parseDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().replaceAll(',', '')) ?? 0.0;
+  }
+
+  // بريميم: حساب سعر البيع من (التكلفة + النسبة)
+  void _recalcPremiumFromCostOrMargin() {
+    if (_updatingPremium) return;
+    _updatingPremium = true;
+
+    final cost = _parseDouble(_purchasePriceController.text);
+    final margin = _parseDouble(_premiumMarginController.text);
+
+    if (cost > 0) {
+      final sale = cost * (1 + margin / 100);
+      _salePriceController.text = sale.toStringAsFixed(2);
+    }
+
+    _updatingPremium = false;
+  }
+
+  // بريميم: حساب النسبة من (التكلفة + سعر البيع)
+  void _recalcPremiumMarginFromSale() {
+    if (_updatingPremium) return;
+    _updatingPremium = true;
+
+    final cost = _parseDouble(_purchasePriceController.text);
+    final sale = _parseDouble(_salePriceController.text);
+
+    if (cost > 0 && sale > 0) {
+      final margin = ((sale - cost) / cost) * 100;
+      _premiumMarginController.text = margin.toStringAsFixed(1);
+    }
+
+    _updatingPremium = false;
+  }
+
+  // إليت: حساب سعر البيع من (التكلفة + النسبة)
+  void _recalcEliteFromCostOrMargin() {
+    if (_updatingElite) return;
+    _updatingElite = true;
+
+    final cost = _parseDouble(_purchasePriceEliteController.text);
+    final margin = _parseDouble(_eliteMarginController.text);
+
+    if (cost > 0) {
+      final sale = cost * (1 + margin / 100);
+      _salePriceEliteController.text = sale.toStringAsFixed(2);
+    }
+
+    _updatingElite = false;
+  }
+
+  // إليت: حساب النسبة من (التكلفة + سعر البيع)
+  void _recalcEliteMarginFromSale() {
+    if (_updatingElite) return;
+    _updatingElite = true;
+
+    final cost = _parseDouble(_purchasePriceEliteController.text);
+    final sale = _parseDouble(_salePriceEliteController.text);
+
+    if (cost > 0 && sale > 0) {
+      final margin = ((sale - cost) / cost) * 100;
+      _eliteMarginController.text = margin.toStringAsFixed(1);
+    }
+
+    _updatingElite = false;
   }
 
   @override
@@ -205,6 +316,24 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildBasicInfoSection() {
+    // نحسب قيمة آمنة للمجموعة (لو الـ ID مش موجود في القائمة نخليه null)
+    final safeGroupValue = (selectedGroupId != null &&
+            productGroups.any((g) => g['ProductGroupID'] == selectedGroupId))
+        ? selectedGroupId
+        : null;
+        
+    // قيمة آمنة للعميل
+    final safeCustomerValue = (selectedCustomerId != null &&
+        customers.any((c) => c['PartyID'] == selectedCustomerId))
+    ? selectedCustomerId
+    : null;
+    
+     // قيمة آمنة لنوع التسعير
+    final safePricingType = (selectedPricingType != null &&
+        pricingTypes.contains(selectedPricingType))
+    ? selectedPricingType
+    : null;    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -233,7 +362,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _buildDropdown<int>(
             label: 'المجموعة *',
             icon: Icons.category,
-            value: selectedGroupId,
+            value: safeGroupValue,
             items: productGroups.map((g) {
               return DropdownMenuItem<int>(
                 value: g['ProductGroupID'],
@@ -250,7 +379,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _buildDropdown<int>(
             label: 'العميل (اختياري)',
             icon: Icons.person,
-            value: selectedCustomerId,
+            value: safeCustomerValue,
             items: [
               DropdownMenuItem<int>(
                 value: null,
@@ -272,7 +401,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _buildDropdown<String>(
             label: 'نوع التسعير',
             icon: Icons.price_change,
-            value: selectedPricingType,
+            value: safePricingType,
             items: pricingTypes.map((type) {
               return DropdownMenuItem<String>(
                 value: type,
@@ -311,7 +440,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  Widget _buildPricesSection() {
+   Widget _buildPricesSection() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -319,26 +448,175 @@ class _AddProductScreenState extends State<AddProductScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _buildTextField(
-              controller: _purchasePriceController,
-              label: 'سعر التكلفة',
-              icon: Icons.money_off,
-              keyboardType: TextInputType.number,
-              suffixText: 'ج.م',
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildTextField(
-              controller: _salePriceController,
-              label: 'سعر البيع',
-              icon: Icons.attach_money,
-              keyboardType: TextInputType.number,
-              suffixText: 'ج.م',
-            ),
+          Row(
+            children: [
+              // عمود Premium
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Premium',
+                      style: GoogleFonts.cairo(
+                        color: const Color(0xFFFFD700),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTextField(
+                      controller: _purchasePriceController,
+                      label: 'سعر التكلفة',
+                      icon: Icons.money_off,
+                      keyboardType: TextInputType.number,
+                      suffixText: 'ج.م',
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _premiumMarginController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.cairo(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'نسبة الربح %',
+                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                        prefixIcon: const Icon(Icons.percent,
+                            color: Color(0xFFFFD700)),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.08),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFFFD700)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                      ),
+                      onChanged: (_) => _recalcPremiumFromCostOrMargin(),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _salePriceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.cairo(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'سعر البيع',
+                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                        prefixIcon: const Icon(Icons.attach_money,
+                            color: Color(0xFFFFD700)),
+                        suffixText: 'ج.م',
+                        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.08),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFFFD700)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                      ),
+                      // لو عدلنا السعر يدوي → يحدث النسبة
+                      onChanged: (_) => _recalcPremiumMarginFromSale(),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              // عمود Elite
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Elite',
+                      style: GoogleFonts.cairo(
+                        color: Colors.greenAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTextField(
+                      controller: _purchasePriceEliteController,
+                      label: 'سعر التكلفة Elite',
+                      icon: Icons.money_off_csred,
+                      keyboardType: TextInputType.number,
+                      suffixText: 'ج.م',
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _eliteMarginController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.cairo(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'نسبة الربح % Elite',
+                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                        prefixIcon: const Icon(Icons.percent,
+                            color: Colors.greenAccent),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.08),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: Colors.greenAccent),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                      ),
+                      onChanged: (_) => _recalcEliteFromCostOrMargin(),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _salePriceEliteController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.cairo(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'سعر البيع Elite',
+                        labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                        prefixIcon: const Icon(Icons.attach_money,
+                            color: Colors.greenAccent),
+                        suffixText: 'ج.م',
+                        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.08),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: Colors.greenAccent),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                      ),
+                      onChanged: (_) => _recalcEliteMarginFromSale(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -746,8 +1024,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'manufacturingDescription': _manufacturingDescController.text,
         'productGroupId': selectedGroupId,
         'customerId': selectedCustomerId,
-        'purchasePrice': double.tryParse(_purchasePriceController.text) ?? 0,
-        'suggestedSalePrice': double.tryParse(_salePriceController.text) ?? 0,
+
+        // أسعار Premium
+        'purchasePrice':
+            double.tryParse(_purchasePriceController.text) ?? 0,
+        'suggestedSalePrice':
+            double.tryParse(_salePriceController.text) ?? 0,
+
+        // أسعار Elite ✅
+        'purchasePriceElite':
+            double.tryParse(_purchasePriceEliteController.text) ?? 0,
+        'suggestedSalePriceElite':
+            double.tryParse(_salePriceEliteController.text) ?? 0,
+
         'pricingType': selectedPricingType,
         'qty': int.tryParse(_qtyController.text) ?? 1,
         'period': int.tryParse(_periodController.text) ?? 0,

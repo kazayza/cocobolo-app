@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
 import 'add_product_screen.dart';
+import '../services/permission_service.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final int productId;
@@ -348,8 +349,34 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       ),
     );
   }
+  
+    // حساب نسبة الربح = (البيع - التكلفة) / التكلفة * 100
+  double _calcMargin(dynamic cost, dynamic sale) {
+    double c = 0;
+    double s = 0;
 
+    if (cost != null) {
+      if (cost is num) c = cost.toDouble();
+      else c = double.tryParse(cost.toString()) ?? 0;
+    }
+    if (sale != null) {
+      if (sale is num) s = sale.toDouble();
+      else s = double.tryParse(sale.toString()) ?? 0;
+    }
+
+    if (c <= 0 || s <= 0) return 0;
+    return ((s - c) / c) * 100;
+  }
+  
   Widget _buildHeader() {
+    final costPremium = product!['PurchasePrice'] ?? 0;
+    final salePremium = product!['SuggestedSalePrice'] ?? 0;
+    final marginPremium = _calcMargin(costPremium, salePremium);
+
+    final costElite = product!['PurchasePriceElite'] ?? 0;
+    final saleElite = product!['SuggestedSalePriceElite'] ?? 0;
+    final marginElite = _calcMargin(costElite, saleElite);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -390,29 +417,227 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
         const SizedBox(height: 16),
 
-        // الأسعار
+        // أسعار Premium / Elite
         Row(
           children: [
-            // سعر البيع
+            // كارت Premium
             Expanded(
-              child: _buildPriceCard(
-                'سعر البيع',
-                product!['SuggestedSalePrice'],
-                const Color(0xFFFFD700),
+              child: _buildPackagePriceCard(
+                title: 'Premium',
+                cost: costPremium,
+                sale: salePremium,
+                margin: marginPremium,
+                color: const Color(0xFFFFD700),
               ),
             ),
             const SizedBox(width: 12),
-            // سعر الشراء
+            // كارت Elite (نظهره بس لو فيه بيانات)
             Expanded(
-              child: _buildPriceCard(
-                'سعر التكلفة',
-                product!['PurchasePrice'],
-                Colors.green,
-              ),
+              child: (costElite == 0 && saleElite == 0)
+                  ? _buildEmptyEliteCard()
+                  : _buildPackagePriceCard(
+                      title: 'Elite',
+                      cost: costElite,
+                      sale: saleElite,
+                      margin: marginElite,
+                      color: Colors.greenAccent,
+                    ),
             ),
           ],
         ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
       ],
+    );
+  }
+
+  Widget _buildPackagePriceCard({
+    required String title,
+    required dynamic cost,
+    required dynamic sale,
+    required double margin,
+    required Color color,
+  }) {
+    final permService = PermissionService();
+    final showFull = permService.canSeeFullProductPricing;          // admin / nabil / hassan
+    final costOnly = permService.canSeeCostOnlyProductPricing;      // factory
+    final saleOnly = permService.canSeeSaleOnlyProductPricing;      // باقي اليوزرات
+
+    final costText = '${_formatNumber(cost ?? 0)} ج.م';
+    final saleText = '${_formatNumber(sale ?? 0)} ج.م';
+    final marginText = '${margin.toStringAsFixed(1)} %';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // العنوان (Premium / Elite)
+          Text(
+            title,
+            style: GoogleFonts.cairo(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // 🌕 الحالة الأولى: يشوف كل حاجة
+          if (showFull) ...[
+            // التكلفة
+            Row(
+              children: [
+                Text(
+                  'التكلفة:',
+                  style: GoogleFonts.cairo(
+                    color: Colors.grey[400],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  costText,
+                  style: GoogleFonts.cairo(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+
+            // سعر البيع
+            Row(
+              children: [
+                Text(
+                  'سعر البيع:',
+                  style: GoogleFonts.cairo(
+                    color: Colors.grey[400],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  saleText,
+                  style: GoogleFonts.cairo(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+
+            // نسبة الربح
+            Row(
+              children: [
+                Text(
+                  'نسبة الربح:',
+                  style: GoogleFonts.cairo(
+                    color: Colors.grey[400],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  marginText,
+                  style: GoogleFonts.cairo(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ]
+
+          // 🌗 الحالة الثانية: يشوف تكلفة بس (factory)
+          else if (costOnly) ...[
+            Row(
+              children: [
+                Text(
+                  'التكلفة:',
+                  style: GoogleFonts.cairo(
+                    color: Colors.grey[400],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  costText,
+                  style: GoogleFonts.cairo(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ]
+
+          // 🌘 الحالة الثالثة: يشوف سعر البيع بس (الباقيين)
+          else if (saleOnly) ...[
+            Row(
+              children: [
+                Text(
+                  'سعر البيع:',
+                  style: GoogleFonts.cairo(
+                    color: Colors.grey[400],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  saleText,
+                  style: GoogleFonts.cairo(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyEliteCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Elite',
+            style: GoogleFonts.cairo(
+              color: Colors.grey[500],
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'لم يتم إدخال أسعار Elite',
+            style: GoogleFonts.cairo(
+              color: Colors.grey[500],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
