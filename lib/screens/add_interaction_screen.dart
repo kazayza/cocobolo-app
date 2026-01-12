@@ -10,13 +10,15 @@ import '../constants.dart';
 class AddInteractionScreen extends StatefulWidget {
   final int userId;
   final String username;
-  final int? initialPartyId; // لو جاي من شاشة العميل
+  final int? preSelectedPartyId; // لو جاي من شاشة العميل
+  final int? preSelectedOpportunityId; // لو جاي من شاشة الفرص
 
   const AddInteractionScreen({
     super.key,
     required this.userId,
     required this.username,
-    this.initialPartyId,
+    this.preSelectedPartyId,
+    this.preSelectedOpportunityId,
   });
 
   @override
@@ -78,12 +80,14 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllData();
     
     // لو جاي من شاشة العميل
-    if (widget.initialPartyId != null) {
-      _loadClientData(widget.initialPartyId!);
+    if (widget.preSelectedPartyId != null) {
+      _isNewClient = false;
+      _selectedPartyId = widget.preSelectedPartyId;
     }
+
+    _loadAllData();
   }
 
   @override
@@ -117,11 +121,19 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     ]);
     
     // تحديد القيم الافتراضية
-    if (stages.isNotEmpty) {
+    if (stages.isNotEmpty && selectedStageId == null) {
       selectedStageId = stages.first['StageID'];
     }
-    if (statuses.isNotEmpty) {
+    if (statuses.isNotEmpty && selectedStatusId == null) {
       selectedStatusId = statuses.first['StatusID'];
+    }
+
+    // لو جايين ببيانات مسبقة، نحملها
+    if (widget.preSelectedPartyId != null) {
+      await _loadClientData(widget.preSelectedPartyId!);
+      if (widget.preSelectedOpportunityId != null) {
+        await _fetchOpportunityDetails(widget.preSelectedOpportunityId!);
+      }
     }
     
     setState(() => _isLoadingData = false);
@@ -201,6 +213,9 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchCurrentEmployee() async {
     try {
+      // لو فيه موظف مختار بالفعل (من الفرصة) منتغيروش
+      if (selectedEmployeeId != null) return;
+
       final res = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}/employee'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -210,6 +225,32 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       }
     } catch (e) {
       debugPrint('Error fetching current employee: $e');
+    }
+  }
+
+  // جلب تفاصيل الفرصة المحددة مسبقاً
+  Future<void> _fetchOpportunityDetails(int oppId) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$oppId'));
+      if (res.statusCode == 200) {
+        final opp = jsonDecode(res.body);
+        setState(() {
+          _openOpportunity = opp; 
+          _hasOpenOpportunity = true;
+          
+          // تعبئة البيانات
+          selectedStageId = opp['StageID'];
+          selectedSourceId = opp['SourceID'];
+          selectedEmployeeId = opp['EmployeeID'];
+          selectedCategoryId = opp['CategoryID'];
+          _interestedProductController.text = opp['InterestedProduct'] ?? '';
+          if (opp['ExpectedValue'] != null) {
+            _expectedValueController.text = opp['ExpectedValue'].toString();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading opportunity details: $e');
     }
   }
 
@@ -244,7 +285,10 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       searchResults = [];
     });
     
-    await _checkOpenOpportunity(client['PartyID']);
+    // لو مش جايين من فرصة محددة، نشيك لو فيه فرصة مفتوحة
+    if (widget.preSelectedOpportunityId == null) {
+      await _checkOpenOpportunity(client['PartyID']);
+    }
   }
 
   // تحميل بيانات عميل (لو جاي من شاشة تانية)
@@ -270,7 +314,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
           _hasOpenOpportunity = data['hasOpenOpportunity'] ?? false;
           _openOpportunity = data['opportunity'];
           
-          // تحميل بيانات الفرصة المفتوحة
           if (_hasOpenOpportunity && _openOpportunity != null) {
             selectedEmployeeId = _openOpportunity!['EmployeeID'];
             selectedStageId = _openOpportunity!['StageID'];
@@ -345,7 +388,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       }
     }
     
-    if (selectedSourceId == null) {
+    if (selectedSourceId == null && widget.preSelectedOpportunityId == null) {
       _showError('برجاء اختيار مصدر التواصل');
       return false;
     }
@@ -355,7 +398,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       return false;
     }
     
-    // لو المرحلة خسارة أو غير مهتم، لازم سبب
     if ((selectedStageId == 4 || selectedStageId == 5) && selectedLostReasonId == null) {
       _showError('برجاء اختيار سبب الخسارة');
       return false;
@@ -460,6 +502,8 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isLockedClient = widget.preSelectedPartyId != null;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       appBar: _buildAppBar(),
@@ -473,12 +517,18 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildClientTypeSelector(),
-                    const SizedBox(height: 16),
+                    if (!isLockedClient) ...[
+                      _buildClientTypeSelector(),
+                      const SizedBox(height: 16),
+                    ],
                     
-                    if (_isNewClient) _buildNewClientSection() else _buildExistingClientSection(),
+                    if (_isNewClient) 
+                      _buildNewClientSection() 
+                    else 
+                      _buildExistingClientSection(isLocked: isLockedClient),
                     
-                    if (_hasOpenOpportunity) _buildOpenOpportunityAlert(),
+                    if (_hasOpenOpportunity || widget.preSelectedOpportunityId != null) 
+                      _buildOpenOpportunityAlert(),
                     
                     const SizedBox(height: 24),
                     _buildSectionTitle('بيانات التواصل', FontAwesomeIcons.phoneVolume),
@@ -490,13 +540,11 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
                     const SizedBox(height: 12),
                     _buildStageSection(),
                     
-                    // سبب الخسارة (يظهر فقط لو المرحلة خسارة)
                     if (selectedStageId == 4 || selectedStageId == 5) ...[
                       const SizedBox(height: 16),
                       _buildLostReasonSection(),
                     ],
                     
-                    // المتابعة (تختفي لو المرحلة خسارة)
                     if (selectedStageId != 3 && selectedStageId != 4 && selectedStageId != 5) ...[
                       const SizedBox(height: 24),
                       _buildSectionTitle('المتابعة', FontAwesomeIcons.calendarCheck),
@@ -548,7 +596,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     ).animate().fadeIn(duration: 300.ms);
   }
 
-  // اختيار نوع العميل
   Widget _buildClientTypeSelector() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -573,19 +620,9 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.userCheck,
-                      size: 14,
-                      color: !_isNewClient ? Colors.black : Colors.grey,
-                    ),
+                    FaIcon(FontAwesomeIcons.userCheck, size: 14, color: !_isNewClient ? Colors.black : Colors.grey),
                     const SizedBox(width: 8),
-                    Text(
-                      'عميل موجود',
-                      style: GoogleFonts.cairo(
-                        color: !_isNewClient ? Colors.black : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('عميل موجود', style: GoogleFonts.cairo(color: !_isNewClient ? Colors.black : Colors.grey, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -606,19 +643,9 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.userPlus,
-                      size: 14,
-                      color: _isNewClient ? Colors.black : Colors.grey,
-                    ),
+                    FaIcon(FontAwesomeIcons.userPlus, size: 14, color: _isNewClient ? Colors.black : Colors.grey),
                     const SizedBox(width: 8),
-                    Text(
-                      'عميل جديد',
-                      style: GoogleFonts.cairo(
-                        color: _isNewClient ? Colors.black : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('عميل جديد', style: GoogleFonts.cairo(color: _isNewClient ? Colors.black : Colors.grey, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -646,8 +673,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     _openOpportunity = null;
   }
 
-  // قسم العميل الموجود (البحث)
-  Widget _buildExistingClientSection() {
+  Widget _buildExistingClientSection({bool isLocked = false}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -658,37 +684,33 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // حقل البحث
-          TextField(
-            controller: _searchController,
-            style: GoogleFonts.cairo(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'ابحث بالاسم أو رقم التليفون...',
-              hintStyle: GoogleFonts.cairo(color: Colors.grey),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {
-                          searchResults = [];
-                          _clearExistingClientFields();
-                        });
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          if (!isLocked)
+            TextField(
+              controller: _searchController,
+              style: GoogleFonts.cairo(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'ابحث بالاسم أو رقم التليفون...',
+                hintStyle: GoogleFonts.cairo(color: Colors.grey),
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            searchResults = [];
+                            _clearExistingClientFields();
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
+              onChanged: _searchClients,
             ),
-            onChanged: _searchClients,
-          ),
           
-          // نتائج البحث
           if (searchResults.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(top: 8),
@@ -716,10 +738,10 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
               ),
             ),
           
-          // العميل المختار
           if (_selectedPartyId != null && searchResults.isEmpty)
             Container(
-              margin: const EdgeInsets.only(top: 12),
+              // ✅ التصحيح هنا: حذف const
+              margin: EdgeInsets.only(top: isLocked ? 0 : 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFD700).withOpacity(0.1),
@@ -734,15 +756,17 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_selectedClientName ?? '', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
-                        Text(_selectedClientPhone ?? '', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)),
+                        Text(_selectedClientName ?? 'عميل محدد', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
+                        if (_selectedClientPhone != null)
+                          Text(_selectedClientPhone!, style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
-                    onPressed: () => setState(() => _clearExistingClientFields()),
-                  ),
+                  if (!isLocked)
+                    IconButton(
+                      icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
+                      onPressed: () => setState(() => _clearExistingClientFields()),
+                    ),
                 ],
               ),
             ),
@@ -751,7 +775,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     );
   }
 
-  // قسم العميل الجديد
   Widget _buildNewClientSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -762,34 +785,15 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       ),
       child: Column(
         children: [
-          _buildTextField(
-            controller: _clientNameController,
-            label: 'اسم العميل *',
-            icon: FontAwesomeIcons.user,
-          ),
-          _buildTextField(
-            controller: _phone1Controller,
-            label: 'رقم التليفون *',
-            icon: FontAwesomeIcons.phone,
-            keyboardType: TextInputType.phone,
-          ),
-          _buildTextField(
-            controller: _phone2Controller,
-            label: 'رقم تليفون آخر',
-            icon: FontAwesomeIcons.phoneFlip,
-            keyboardType: TextInputType.phone,
-          ),
-          _buildTextField(
-            controller: _addressController,
-            label: 'العنوان',
-            icon: FontAwesomeIcons.locationDot,
-          ),
+          _buildTextField(controller: _clientNameController, label: 'اسم العميل *', icon: FontAwesomeIcons.user),
+          _buildTextField(controller: _phone1Controller, label: 'رقم التليفون *', icon: FontAwesomeIcons.phone, keyboardType: TextInputType.phone),
+          _buildTextField(controller: _phone2Controller, label: 'رقم تليفون آخر', icon: FontAwesomeIcons.phoneFlip, keyboardType: TextInputType.phone),
+          _buildTextField(controller: _addressController, label: 'العنوان', icon: FontAwesomeIcons.locationDot),
         ],
       ),
     );
   }
 
-  // تنبيه فرصة مفتوحة
   Widget _buildOpenOpportunityAlert() {
     return Container(
       margin: const EdgeInsets.only(top: 12),
@@ -808,13 +812,14 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'يوجد فرصة مفتوحة لهذا العميل',
+                  'سيتم إضافة التواصل للفرصة الحالية',
                   style: GoogleFonts.cairo(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
-                Text(
-                  'سيتم إضافة التواصل لنفس الفرصة (${_openOpportunity?['StageNameAr'] ?? ''})',
-                  style: GoogleFonts.cairo(color: Colors.orange.withOpacity(0.8), fontSize: 11),
-                ),
+                if (_openOpportunity != null && _openOpportunity!['InterestedProduct'] != null)
+                  Text(
+                    'المنتج: ${_openOpportunity!['InterestedProduct']}',
+                    style: GoogleFonts.cairo(color: Colors.orange.withOpacity(0.8), fontSize: 11),
+                  ),
               ],
             ),
           ),
@@ -823,9 +828,8 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     ).animate().fadeIn().shake();
   }
 
-  // قسم بيانات التواصل
   Widget _buildContactSection() {
-    return Container(
+      return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
@@ -869,7 +873,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     );
   }
 
-  // قسم المرحلة والحالة
   Widget _buildStageSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -890,13 +893,11 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
             )).toList(),
             onChanged: (v) => setState(() {
               selectedStageId = v;
-              // لو المرحلة مكسب أو خسر، امسح تاريخ المتابعة
               if (v == 3 || v == 4 || v == 5) {
                 selectedFollowUpDate = null;
                 selectedFollowUpTime = null;
                 selectedTaskTypeId = null;
               }
-              // لو المرحلة مش خسر، امسح سبب الخسارة
               if (v != 4 && v != 5) {
                 selectedLostReasonId = null;
               }
@@ -927,7 +928,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     );
   }
 
-  // قسم سبب الخسارة
   Widget _buildLostReasonSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -949,7 +949,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     ).animate().fadeIn().shake();
   }
 
-  // قسم المتابعة
   Widget _buildFollowUpSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -960,7 +959,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       ),
       child: Column(
         children: [
-          // تاريخ المتابعة
           InkWell(
             onTap: _pickFollowUpDateTime,
             borderRadius: BorderRadius.circular(12),
@@ -1020,7 +1018,6 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     );
   }
 
-  // قسم التفاصيل
   Widget _buildDetailsSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1031,36 +1028,15 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       ),
       child: Column(
         children: [
-          _buildTextField(
-            controller: _interestedProductController,
-            label: 'المنتج المهتم به',
-            icon: FontAwesomeIcons.box,
-          ),
-          _buildTextField(
-            controller: _expectedValueController,
-            label: 'القيمة المتوقعة',
-            icon: FontAwesomeIcons.coins,
-            keyboardType: TextInputType.number,
-            suffixText: 'ج.م',
-          ),
-          _buildTextField(
-            controller: _summaryController,
-            label: 'ملخص المكالمة',
-            icon: FontAwesomeIcons.comment,
-            maxLines: 3,
-          ),
-          _buildTextField(
-            controller: _guidanceController,
-            label: 'توجيهات للمتابعة',
-            icon: FontAwesomeIcons.compass,
-            maxLines: 2,
-          ),
+          _buildTextField(controller: _interestedProductController, label: 'المنتج المهتم به', icon: FontAwesomeIcons.box),
+          _buildTextField(controller: _expectedValueController, label: 'القيمة المتوقعة', icon: FontAwesomeIcons.coins, keyboardType: TextInputType.number, suffixText: 'ج.م'),
+          _buildTextField(controller: _summaryController, label: 'ملخص المكالمة', icon: FontAwesomeIcons.comment, maxLines: 3),
+          _buildTextField(controller: _guidanceController, label: 'توجيهات للمتابعة', icon: FontAwesomeIcons.compass, maxLines: 2),
         ],
       ),
     );
   }
 
-  // أزرار الحفظ
   Widget _buildSubmitButtons() {
     return Row(
       children: [
@@ -1091,15 +1067,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0);
   }
 
-  // TextField مشترك
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-    String? suffixText,
-  }) {
+  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType, int maxLines = 1, String? suffixText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -1110,39 +1078,20 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: GoogleFonts.cairo(color: Colors.grey),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.all(12),
-            child: FaIcon(icon, color: Colors.grey, size: 16),
-          ),
+          prefixIcon: Padding(padding: const EdgeInsets.all(12), child: FaIcon(icon, color: Colors.grey, size: 16)),
           suffixText: suffixText,
           suffixStyle: GoogleFonts.cairo(color: Colors.grey),
           filled: true,
           fillColor: Colors.white.withOpacity(0.05),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFFFD700)),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFFD700))),
         ),
       ),
     );
   }
 
-  // Dropdown مشترك
-  Widget _buildDropdown<T>({
-    required String label,
-    required IconData icon,
-    required T? value,
-    required List<DropdownMenuItem<T>> items,
-    required void Function(T?) onChanged,
-  }) {
+  Widget _buildDropdown<T>({required String label, required IconData icon, required T? value, required List<DropdownMenuItem<T>> items, required void Function(T?) onChanged}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<T>(
@@ -1154,24 +1103,12 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: GoogleFonts.cairo(color: Colors.grey),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.all(12),
-            child: FaIcon(icon, color: Colors.grey, size: 16),
-          ),
+          prefixIcon: Padding(padding: const EdgeInsets.all(12), child: FaIcon(icon, color: Colors.grey, size: 16)),
           filled: true,
           fillColor: Colors.white.withOpacity(0.05),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFFFD700)),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFFD700))),
         ),
       ),
     );

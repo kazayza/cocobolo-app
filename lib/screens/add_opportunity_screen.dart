@@ -10,11 +10,13 @@ import '../constants.dart';
 class AddOpportunityScreen extends StatefulWidget {
   final int userId;
   final String username;
+  final Map<String, dynamic>? opportunityToEdit;
 
   const AddOpportunityScreen({
     super.key,
     required this.userId,
     required this.username,
+    this.opportunityToEdit,
   });
 
   @override
@@ -90,9 +92,51 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       _fetchCurrentEmployee(),
     ]);
     
+     // ✅ التعديل المهم هنا: التأكد من ملء البيانات
+    if (widget.opportunityToEdit != null) {
+      _fillDataForEdit();
+    }
+
+
     setState(() => _isLoadingData = false);
   }
+  
+    void _fillDataForEdit() {
+    final opp = widget.opportunityToEdit!;
+    // مش محتاجين setState هنا لأننا بالفعل بنناديها جوه setState في _loadAllData
+    // أو لأن _loadAllData بتعمل setState بعدها علطول
+    
+    _clientFound = true;
+    _existingClientId = opp['PartyID'];
+    
+    _clientNameController.text = opp['ClientName'] ?? '';
+    _phone1Controller.text = opp['Phone1'] ?? '';
+    _phone2Controller.text = opp['Phone2'] ?? '';
+    _addressController.text = opp['Address'] ?? '';
+    
+    _interestedProductController.text = opp['InterestedProduct'] ?? '';
+    _expectedValueController.text = opp['ExpectedValue']?.toString() ?? '';
+    _locationController.text = opp['Location'] ?? '';
+    _notesController.text = opp['Notes'] ?? '';
+    _guidanceController.text = opp['Guidance'] ?? '';
 
+    selectedSourceId = opp['SourceID'];
+    selectedStageId = opp['StageID'];
+    selectedStatusId = opp['StatusID'];
+    selectedAdTypeId = opp['AdTypeID'];
+    selectedCategoryId = opp['CategoryID'];
+    selectedEmployeeId = opp['EmployeeID'];
+
+    if (opp['NextFollowUpDate'] != null) {
+      try {
+        final dt = DateTime.parse(opp['NextFollowUpDate']);
+        selectedFollowUpDate = dt;
+        selectedFollowUpTime = TimeOfDay.fromDateTime(dt);
+      } catch (_) {}
+    }
+  }
+
+  
   Future<void> _fetchSources() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/api/opportunities/sources'));

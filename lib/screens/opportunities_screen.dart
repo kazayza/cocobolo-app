@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import 'add_opportunity_screen.dart';
 import 'add_interaction_screen.dart';
-
+import 'opportunity_details_screen.dart'; 
 
 class OpportunitiesScreen extends StatefulWidget {
   final int userId;
@@ -1345,25 +1345,21 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     );
   }
 
-  void _openOpportunityDetails(dynamic opportunity) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const FaIcon(FontAwesomeIcons.circleInfo, color: Colors.white, size: 16),
-            const SizedBox(width: 10),
-            Text(
-              'تفاصيل: ${opportunity['ClientName']}',
-              style: GoogleFonts.cairo(),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+void _openOpportunityDetails(dynamic opportunity) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => OpportunityDetailsScreen(
+        opportunity: opportunity,
+        userId: widget.userId,
+        username: widget.username,
       ),
-    );
-  }
+    ),
+  ).then((_) {
+    // تحديث القائمة عند العودة (عشان لو تم تغيير المرحلة أو إضافة تفاعل)
+    _fetchOpportunities();
+  });
+}
 
   void _addNewOpportunity() async {
   final result = await Navigator.push(

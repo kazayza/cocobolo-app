@@ -23,36 +23,105 @@ class ExpensesScreen extends StatefulWidget {
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
   List<dynamic> expenses = [];
-  List<dynamic> expenseGroups = [];
+  List<dynamic> allGroups = [];
+  List<dynamic> parentGroups = [];
+  List<dynamic> childGroups = [];
   Map<String, dynamic> summary = {};
   bool loading = true;
 
   final TextEditingController _searchController = TextEditingController();
   int? selectedGroupId;
+  int? selectedParentId;
   String searchQuery = '';
+  
+  // فلتر التاريخ
+  DateTime? selectedStartDate;
+  DateTime? selectedEndDate;
+
+  // البحث المتقدم
+  final TextEditingController _amountFromController = TextEditingController();
+  final TextEditingController _amountToController = TextEditingController();
+  String? selectedCashBox;
+  List<dynamic> cashBoxes = [];
 
   @override
   void initState() {
     super.initState();
+    _initializeDates();
     fetchExpenseGroups();
+    fetchCashBoxes();
     fetchSummary();
     fetchExpenses();
+  }
+
+  void _initializeDates() {
+    final now = DateTime.now();
+    selectedStartDate = DateTime(now.year, now.month, 1);
+    selectedEndDate = now;
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _amountFromController.dispose();
+    _amountToController.dispose();
     super.dispose();
   }
 
   Future<void> fetchExpenseGroups() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/expense-groups'));
+      final res = await http.get(Uri.parse('$baseUrl/api/expenses/groups'));
       if (res.statusCode == 200) {
-        setState(() => expenseGroups = jsonDecode(res.body));
+        final data = jsonDecode(res.body);
+        
+        setState(() {
+          allGroups = data;
+          parentGroups = data.where((group) => 
+            group['ParentGroupID'] == null
+          ).toList();
+          childGroups = data.where((group) => 
+            group['ParentGroupID'] != null
+          ).toList();
+        });
       }
     } catch (e) {
       print('Error fetching expense groups: $e');
+    }
+  }
+
+  Future<void> fetchCashBoxes() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/cashboxes'));
+      if (res.statusCode == 200) {
+        setState(() {
+          cashBoxes = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      print('Error fetching cash boxes: $e');
+    }
+  }
+
+  Future<void> fetchChildGroupsByParent(int? parentId) async {
+    try {
+      if (parentId != null) {
+        final childGroupsLocal = allGroups.where((group) => 
+          group['ParentGroupID'] == parentId
+        ).toList();
+        
+        setState(() {
+          childGroups = childGroupsLocal;
+          selectedGroupId = null;
+        });
+      } else {
+        setState(() {
+          childGroups = allGroups.where((group) => 
+            group['ParentGroupID'] != null
+          ).toList();
+        });
+      }
+    } catch (e) {
+      print('Error fetching child groups: $e');
     }
   }
 
@@ -77,9 +146,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         url += 'search=${Uri.encodeComponent(searchQuery)}&';
       }
       if (selectedGroupId != null) {
-        url += 'groupId=$selectedGroupId';
+        url += 'groupId=$selectedGroupId&';
+      }
+      if (selectedStartDate != null) {
+        url += 'startDate=${selectedStartDate!.toIso8601String()}&';
+      }
+      if (selectedEndDate != null) {
+        url += 'endDate=${selectedEndDate!.toIso8601String()}&';
       }
 
+      // البحث المتقدم - إصلاح الباراميترات
+      if (_amountFromController.text.isNotEmpty) {
+        url += 'minAmount=${_amountFromController.text}&';
+      }
+      if (_amountToController.text.isNotEmpty) {
+        url += 'maxAmount=${_amountToController.text}&';
+      }
+      if (selectedCashBox != null) {
+        url += 'cashBoxId=$selectedCashBox&';
+      }
+
+      print('Fetching URL: $url'); // Debugging
       final res = await http.get(Uri.parse(url));
 
       if (res.statusCode == 200) {
@@ -87,6 +174,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           expenses = jsonDecode(res.body);
           loading = false;
         });
+      } else {
+        print('API Error: ${res.statusCode} - ${res.body}');
+        setState(() => loading = false);
       }
     } catch (e) {
       print('Error fetching expenses: $e');
@@ -104,9 +194,97 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     fetchExpenses();
   }
 
-  void _onFilterChanged(int? groupId) {
-    setState(() => selectedGroupId = groupId);
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? selectedStartDate! : selectedEndDate!,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFFFD700),
+              surface: Color(0xFF1A1A1A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          selectedStartDate = picked;
+        } else {
+          selectedEndDate = picked;
+        }
+      });
+      fetchExpenses();
+    }
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _searchController.clear();
+      searchQuery = '';
+      selectedParentId = null;
+      selectedGroupId = null;
+      selectedStartDate = DateTime.now().subtract(const Duration(days: 30));
+      selectedEndDate = DateTime.now();
+      _amountFromController.clear();
+      _amountToController.clear();
+      selectedCashBox = null;
+      
+      childGroups = allGroups.where((group) => 
+        group['ParentGroupID'] != null
+      ).toList();
+    });
+    
     fetchExpenses();
+  }
+
+  // دالة لتحديد اللون حسب حالة المصروف
+  Color _getExpenseStatusColor(Map<String, dynamic> expense) {
+    final amount = double.tryParse(expense['Amount'].toString()) ?? 0;
+    final dateStr = expense['ExpenseDate'];
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    
+    if (date != null) {
+      final now = DateTime.now();
+      final difference = now.difference(date);
+      
+      // إذا كان المصروف حديث (أقل من 3 أيام)
+      if (difference.inDays < 3) {
+        return Colors.green.withOpacity(0.3);
+      }
+      
+      // إذا كان المصروف قديم (أكثر من 30 يوم)
+      if (difference.inDays > 30) {
+        return Colors.grey.withOpacity(0.2);
+      }
+    }
+    
+    // لون حسب المبلغ
+    if (amount > 10000) {
+      return Colors.red.withOpacity(0.15);
+    } else if (amount > 5000) {
+      return Colors.orange.withOpacity(0.15);
+    } else if (amount > 1000) {
+      return Colors.yellow.withOpacity(0.15);
+    }
+    
+    return Colors.white.withOpacity(0.05);
+  }
+
+  // أيقونة حسب حالة المصروف
+  IconData _getExpenseStatusIcon(Map<String, dynamic> expense) {
+    final amount = double.tryParse(expense['Amount'].toString()) ?? 0;
+    
+    if (amount > 10000) return Icons.warning;
+    if (amount > 5000) return Icons.trending_up;
+    return Icons.attach_money;
   }
 
   @override
@@ -144,6 +322,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       iconTheme: const IconThemeData(color: Colors.black),
       actions: [
         IconButton(
+          icon: const Icon(Icons.filter_alt_off),
+          onPressed: _clearAllFilters,
+          tooltip: 'مسح كل الفلاتر',
+        ),
+        IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _refreshAll,
         ),
@@ -151,8 +334,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  // ✅ Summary Section معدل
   Widget _buildSummarySection() {
+    double filteredAmount = 0;
+    if (expenses.isNotEmpty) {
+      filteredAmount = expenses
+          .map<double>((e) => double.tryParse(e['Amount'].toString()) ?? 0)
+          .reduce((a, b) => a + b);
+    }
+
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
@@ -172,8 +361,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Expanded(
               child: _buildSummaryItem(
                 'مصروفات اليوم',
-                _formatCurrency(summary['todayAmount']),
+                _formatCurrency(summary['todayAmount'] ?? 0),
                 Icons.today,
+                Colors.green,
               ),
             ),
             VerticalDivider(
@@ -183,9 +373,23 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             ),
             Expanded(
               child: _buildSummaryItem(
-                'إجمالي المصروفات',
-                _formatCurrency(summary['totalAmount']),
-                Icons.account_balance_wallet,
+                'مصروفات الشهر',
+                _formatCurrency(summary['monthAmount'] ?? 0),
+                Icons.calendar_month,
+                Colors.blue,
+              ),
+            ),
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: Colors.white24,
+            ),
+            Expanded(
+              child: _buildSummaryItem(
+                'إجمالي الفترة',
+                _formatCurrency(filteredAmount),
+                Icons.filter_alt,
+                Colors.orange,
               ),
             ),
           ],
@@ -194,15 +398,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
   }
 
-  // ✅ Summary Item معدل مع FittedBox
-  Widget _buildSummaryItem(String label, String value, IconData icon) {
+  Widget _buildSummaryItem(String label, String value, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.red[300], size: 20),
+          Icon(icon, color: color, size: 22),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -236,69 +439,494 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          TextField(
-            controller: _searchController,
-            style: GoogleFonts.cairo(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'بحث بالاسم أو المستلم...',
-              hintStyle: GoogleFonts.cairo(color: Colors.white54),
-              prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.white54),
-                      onPressed: () {
-                        _searchController.clear();
-                        _onSearch('');
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.1),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            onChanged: _onSearch,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int?>(
-                value: selectedGroupId,
-                isExpanded: true,
-                hint: Text(
-                  'كل التصنيفات',
-                  style: GoogleFonts.cairo(color: Colors.white70),
-                ),
-                dropdownColor: const Color(0xFF1A1A1A),
-                icon: const Icon(Icons.filter_list, color: Color(0xFFFFD700)),
-                items: [
-                  DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text(
-                      'كل التصنيفات',
-                      style: GoogleFonts.cairo(color: Colors.white),
+          // الصف الأول: البحث + البحث المتقدم
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  style: GoogleFonts.cairo(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'بحث بالاسم أو المستلم...',
+                    hintStyle: GoogleFonts.cairo(color: Colors.white54),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.white54),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearch('');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.1),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
                   ),
-                  ...expenseGroups.map((group) => DropdownMenuItem<int?>(
-                        value: group['ExpenseGroupID'],
-                        child: Text(
-                          group['ExpenseGroupName'],
-                          style: GoogleFonts.cairo(color: Colors.white),
-                        ),
-                      )),
-                ],
-                onChanged: _onFilterChanged,
+                  onChanged: _onSearch,
+                ),
               ),
+              const SizedBox(width: 8),
+              // زر البحث المتقدم كـ dropdown
+              PopupMenuButton<String>(
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.tune, color: Color(0xFFFFD700)),
+                ),
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'advanced',
+                    height: 40,
+                    child: Row(
+                      children: [
+                        Icon(Icons.attach_money, size: 18, color: Color(0xFFFFD700)),
+                        SizedBox(width: 8),
+                        Text('نطاق المبلغ', style: GoogleFonts.cairo(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  if (cashBoxes.isNotEmpty)
+                    PopupMenuItem(
+                      value: 'cashbox',
+                      height: 40,
+                      child: Row(
+                        children: [
+                          Icon(Icons.account_balance_wallet, size: 18, color: Color(0xFFFFD700)),
+                          SizedBox(width: 8),
+                          Text('الخزينة', style: GoogleFonts.cairo(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                ],
+                onSelected: (value) {
+                  if (value == 'advanced') {
+                    _showAmountRangeDialog();
+                  } else if (value == 'cashbox') {
+                    _showCashBoxDialog();
+                  }
+                },
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // فلتر التاريخ (مصغر)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                // من تاريخ مع أيقونة
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectDate(context, true),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: Color(0xFFFFD700)),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              selectedStartDate != null
+                                  ? '${selectedStartDate!.day}/${selectedStartDate!.month}'
+                                  : 'من',
+                              style: GoogleFonts.cairo(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // سهم الفاصل
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.arrow_forward, size: 14, color: Colors.grey),
+                ),
+                
+                // إلى تاريخ مع أيقونة
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectDate(context, false),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: Color(0xFFFFD700)),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              selectedEndDate != null
+                                  ? '${selectedEndDate!.day}/${selectedEndDate!.month}'
+                                  : 'إلى',
+                              style: GoogleFonts.cairo(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.start,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // أزرار تاريخ سريعة مصغرة
+                SizedBox(width: 8),
+                Wrap(
+                  spacing: 4,
+                  children: [
+                    _buildSmallDateButton('اليوم', 0),
+                    _buildSmallDateButton('7 أيام', 7),
+                    _buildSmallDateButton('شهر', 30),
+                  ],
+                ),
+              ],
             ),
           ),
+          
+          const SizedBox(height: 12),
+          
+          // الصف الثالث: المجموعات الأساسية والفرعية في سطر واحد
+          Row(
+            children: [
+              // المجموعة الأساسية
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int?>(
+                      value: selectedParentId,
+                      isExpanded: true,
+                      hint: Text(
+                        'المجموعة الأساسية',
+                        style: GoogleFonts.cairo(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                      dropdownColor: const Color(0xFF1A1A1A),
+                      icon: const Icon(Icons.arrow_drop_down, size: 20, color: Color(0xFFFFD700)),
+                      items: [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(
+                            'الكل',
+                            style: GoogleFonts.cairo(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        ...parentGroups.map((parent) => DropdownMenuItem<int?>(
+                              value: parent['ExpenseGroupID'],
+                              child: Text(
+                                parent['ExpenseGroupName'],
+                                style: GoogleFonts.cairo(color: Colors.white, fontSize: 12),
+                              ),
+                            )),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedParentId = value;
+                        });
+                        
+                        fetchChildGroupsByParent(value);
+                        fetchExpenses();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              
+              SizedBox(width: 8),
+              
+              // المجموعة الفرعية
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int?>(
+                      value: selectedGroupId,
+                      isExpanded: true,
+                      hint: Text(
+                        'المجموعة الفرعية',
+                        style: GoogleFonts.cairo(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                      dropdownColor: const Color(0xFF1A1A1A),
+                      icon: const Icon(Icons.arrow_drop_down, size: 20, color: Color(0xFFFFD700)),
+                      items: [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(
+                            'الكل',
+                            style: GoogleFonts.cairo(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        ...childGroups.map((group) => DropdownMenuItem<int?>(
+                              value: group['ExpenseGroupID'],
+                              child: Text(
+                                group['ExpenseGroupName'],
+                                style: GoogleFonts.cairo(color: Colors.white, fontSize: 12),
+                              ),
+                            )),
+                      ],
+                      onChanged: (value) {
+                        setState(() => selectedGroupId = value);
+                        fetchExpenses();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSmallDateButton(String label, int days) {
+    return GestureDetector(
+      onTap: () {
+        final now = DateTime.now();
+        setState(() {
+          selectedStartDate = now.subtract(Duration(days: days));
+          selectedEndDate = now;
+        });
+        fetchExpenses();
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Color(0xFFFFD700).withOpacity(0.3)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 10,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAmountRangeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(
+          'نطاق المبلغ',
+          style: GoogleFonts.cairo(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _amountFromController,
+                    style: GoogleFonts.cairo(color: Colors.white),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'الحد الأدنى',
+                      hintStyle: GoogleFonts.cairo(color: Colors.white54),
+                      prefixIcon: Icon(Icons.arrow_upward, color: Color(0xFFFFD700)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _amountToController,
+                    style: GoogleFonts.cairo(color: Colors.white),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'الحد الأقصى',
+                      hintStyle: GoogleFonts.cairo(color: Colors.white54),
+                      prefixIcon: Icon(Icons.arrow_downward, color: Color(0xFFFFD700)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            // أزرار مبلغ سريعة
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildAmountButton('1000+', 1000, null),
+                _buildAmountButton('5000+', 5000, null),
+                _buildAmountButton('10000+', 10000, null),
+                _buildAmountButton('> 50000', 50000, null),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _amountFromController.clear();
+                _amountToController.clear();
+              });
+              Navigator.pop(context);
+              fetchExpenses();
+            },
+            child: Text('مسح', style: GoogleFonts.cairo(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // التأكد من أن القيم صحيحة
+              if (_amountFromController.text.isNotEmpty && 
+                  double.tryParse(_amountFromController.text) == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('القيمة الدنيا غير صالحة'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              if (_amountToController.text.isNotEmpty && 
+                  double.tryParse(_amountToController.text) == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('القيمة العليا غير صالحة'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              fetchExpenses();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+            ),
+            child: Text('تطبيق', style: GoogleFonts.cairo(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountButton(String label, double? from, double? to) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _amountFromController.text = from?.toString() ?? '';
+          _amountToController.text = '';
+        });
+        fetchExpenses();
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Color(0xFFFFD700).withOpacity(0.3)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 11,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCashBoxDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(
+          'اختر الخزينة',
+          style: GoogleFonts.cairo(color: Colors.white),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: cashBoxes.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return ListTile(
+                  title: Text(
+                    'كل الخزائن',
+                    style: GoogleFonts.cairo(color: Colors.white),
+                  ),
+                  leading: Icon(Icons.all_inclusive, color: Color(0xFFFFD700)),
+                  onTap: () {
+                    setState(() => selectedCashBox = null);
+                    Navigator.pop(context);
+                    fetchExpenses();
+                  },
+                );
+              }
+              
+              final cashBox = cashBoxes[index - 1];
+              return ListTile(
+                title: Text(
+                  cashBox['CashBoxName'],
+                  style: GoogleFonts.cairo(color: Colors.white),
+                ),
+                leading: Icon(Icons.account_balance_wallet, color: Color(0xFFFFD700)),
+                onTap: () {
+                  setState(() => selectedCashBox = cashBox['CashBoxID'].toString());
+                  Navigator.pop(context);
+                  fetchExpenses();
+                },
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -339,7 +967,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  // ✅ Expense Card معدل
   Widget _buildExpenseCard(Map<String, dynamic> expense, int index) {
     final date = DateTime.tryParse(expense['ExpenseDate'] ?? '');
     final formattedDate = date != null
@@ -347,7 +974,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         : '';
 
     return Card(
-      color: Colors.white.withOpacity(0.08),
+      color: _getExpenseStatusColor(expense),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -361,36 +988,64 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // الأيقونة
+              // المؤشر اللوني للحالة
               Container(
                 width: 45,
                 height: 45,
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.red.withOpacity(0.4),
+                      Colors.red.withOpacity(0.1),
+                    ],
+                  ),
                 ),
-                child: const Icon(
-                  Icons.arrow_upward,
+                child: Icon(
+                  _getExpenseStatusIcon(expense),
                   color: Colors.red,
                   size: 22,
                 ),
               ),
               const SizedBox(width: 12),
               
-              // التفاصيل
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      expense['ExpenseName'] ?? '',
-                      style: GoogleFonts.cairo(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            expense['ExpenseName'] ?? '',
+                            style: GoogleFonts.cairo(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // مؤشر حالة صغير
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getExpenseStatusColor(expense).withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getExpenseStatusText(expense),
+                            style: GoogleFonts.cairo(
+                              color: Colors.white,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -437,7 +1092,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               
               const SizedBox(width: 8),
               
-              // المبلغ والتاريخ
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
@@ -473,7 +1127,37 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         .slideX(begin: 0.1, end: 0);
   }
 
+  // دالة للحصول على نص الحالة
+  String _getExpenseStatusText(Map<String, dynamic> expense) {
+    final amount = double.tryParse(expense['Amount'].toString()) ?? 0;
+    final dateStr = expense['ExpenseDate'];
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    
+    if (date != null) {
+      final now = DateTime.now();
+      final difference = now.difference(date);
+      
+      if (difference.inDays < 3) return 'جديد';
+      if (difference.inDays > 30) return 'قديم';
+    }
+    
+    if (amount > 10000) return 'كبير';
+    if (amount > 5000) return 'متوسط';
+    if (amount > 1000) return 'صغير';
+    
+    return 'عادي';
+  }
+
   void _showExpenseDetails(Map<String, dynamic> expense) {
+    final createdDate = DateTime.tryParse(expense['CreatedAt'] ?? '');
+    final formattedCreatedDate = createdDate != null
+        ? '${createdDate.day}/${createdDate.month}/${createdDate.year} ${createdDate.hour}:${createdDate.minute.toString().padLeft(2, '0')}'
+        : 'غير متوفر';
+    
+    // تحديد لون الحالة
+    final statusColor = _getExpenseStatusColor(expense);
+    final statusText = _getExpenseStatusText(expense);
+    
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -497,27 +1181,55 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
-              expense['ExpenseName'] ?? '',
-              style: GoogleFonts.cairo(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+            
+            // رأس البطاقة مع مؤشر الحالة
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    expense['ExpenseName'] ?? '',
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            
             const SizedBox(height: 16),
             _buildDetailRow(
-                Icons.attach_money, 'المبلغ', '${expense['Amount']} ج.م'),
+                Icons.attach_money, 'المبلغ', '${_formatNumber(expense['Amount'])} ج.م'),
             _buildDetailRow(
                 Icons.category, 'التصنيف', expense['ExpenseGroupName'] ?? ''),
             _buildDetailRow(
                 Icons.account_balance_wallet, 'الخزينة', expense['CashBoxName'] ?? ''),
+            if (expense['PaymentMethod'] != null)
+              _buildDetailRow(
+                  Icons.payment, 'طريقة الدفع', expense['PaymentMethod']),
             if (expense['Torecipient'] != null)
               _buildDetailRow(
                   Icons.person, 'المستلم', expense['Torecipient']),
             if (expense['Notes'] != null && expense['Notes'].toString().isNotEmpty)
               _buildDetailRow(Icons.notes, 'ملاحظات', expense['Notes']),
-            _buildDetailRow(Icons.person_outline, 'بواسطة', expense['CreatedBy'] ?? ''),
+            _buildDetailRow(Icons.person_outline, 'تم الإضافة بواسطة', expense['CreatedBy'] ?? ''),
+            _buildDetailRow(Icons.access_time, 'تاريخ الإضافة', formattedCreatedDate),
             const SizedBox(height: 20),
           ],
         ),
@@ -659,27 +1371,28 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Widget _buildFAB() {
-    if (!PermissionService().canAdd(FormNames.expensesAdd)) {
-      return const SizedBox.shrink();
-    }
-    
-    return FloatingActionButton.extended(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AddExpenseScreen(username: widget.username),
-          ),
-        ).then((_) => _refreshAll());
-      },
-      backgroundColor: const Color(0xFFE8B923),
-      icon: const Icon(Icons.add, color: Colors.black),
-      label: Text(
-        'إضافة مصروف',
-        style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
-      ),
-    );
+  // ⭐⭐⭐ التحقق من صلاحية الإضافة ⭐⭐⭐
+  if (!PermissionService().canAdd('frm_Expenses')) {
+    return const SizedBox.shrink();
   }
+  
+  return FloatingActionButton.extended(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddExpenseScreen(username: widget.username),
+        ),
+      ).then((_) => _refreshAll());
+    },
+    backgroundColor: const Color(0xFFE8B923),
+    icon: const Icon(Icons.add, color: Colors.black),
+    label: Text(
+      'إضافة مصروف',
+      style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+    ),
+  );
+}
 
   String _formatNumber(dynamic number) {
     if (number == null) return '0';
