@@ -19,7 +19,8 @@ import 'add_client_screen.dart';
 import 'opportunities_screen.dart';
 import 'add_opportunity_screen.dart';
 import 'add_interaction_screen.dart';
-
+import 'dashboard/financial_dashboard.dart';
+import 'tasks_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -660,7 +661,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // ✅ قسم الإجراءات السريعة
+  // ✅ قسم الإجراءات السريعة - ⭐⭐ أضفنا الداشبورد هنا ⭐⭐
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildQuickActionsSection() {
@@ -697,20 +698,43 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (result == true) fetchDashboard();
                 });
               }),
+              
               _buildQuickAction('فرصة جديدة', Icons.lightbulb, const Color(0xFFFF9800), () {
-                 Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => OpportunitiesScreen(
-        userId: widget.userId,
-        username: widget.username,
-      ),
-    ),
-  );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OpportunitiesScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
               }),
-              _buildQuickAction('مهمة جديدة', Icons.add_task, const Color(0xFF9C27B0), () {
-                _showComingSoon('المهام');
+
+              _buildQuickAction('المهام', Icons.list_alt, const Color(0xFF9C27B0), () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TasksScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
               }),
+              // ⭐⭐ إضافة الداشبورد في الإجراءات السريعة ⭐⭐
+              _buildQuickAction('لوحة التحكم', Icons.dashboard, const Color(0xFF2196F3), () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FinancialDashboard(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              }),
+              
               _buildQuickAction('مصروف', Icons.money_off, Colors.red, () {
                 Navigator.push(
                   context,
@@ -772,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // ✅ قسم الأزرار الرئيسية
+  // ✅ قسم الأزرار الرئيسية - ⭐⭐ أضفنا الداشبورد هنا ⭐⭐
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildMainButtonsSection() {
@@ -797,8 +821,8 @@ class _HomeScreenState extends State<HomeScreen> {
         GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          childAspectRatio: 1.4,
+          crossAxisCount: 3,  // ⭐⭐ غيرنا لـ 3 أعمدة ⭐⭐
+          childAspectRatio: 1.0,  // ⭐⭐ عدلنا النسبة ⭐⭐
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           children: [
@@ -819,6 +843,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               0,
             ),
+            
             _buildMainButton(
               'المصروفات',
               Icons.money_off,
@@ -836,6 +861,26 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               1,
             ),
+            
+            // ⭐⭐ إضافة الداشبورد في الأقسام الرئيسية ⭐⭐
+            _buildMainButton(
+              'لوحة التحكم',
+              Icons.dashboard,
+              const Color(0xFF2196F3),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FinancialDashboard(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+              2,
+            ),
+            
             _buildMainButton(
               'العملاء',
               Icons.people_outline,
@@ -851,24 +896,43 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               },
-              2,
-            ),
-            _buildMainButton(
-               'الفرص',
-               Icons.trending_up,
-              const Color(0xFFFF9800),
-               () {
-               Navigator.push(
-               context,
-               MaterialPageRoute(
-               builder: (context) => OpportunitiesScreen(
-               userId: widget.userId,
-               username: widget.username,
-               ),
-               ),
-               );
-               },
               3,
+            ),
+            
+            _buildMainButton(
+              'التقارير',
+              Icons.analytics,
+              const Color(0xFF9C27B0),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+              4,
+            ),
+            
+            _buildMainButton(
+              'الفرص',
+              Icons.trending_up,
+              const Color(0xFFFF9800),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OpportunitiesScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+              5,
             ),
           ],
         ),
@@ -1236,30 +1300,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
-           _buildQuickAddItem(
-  icon: Icons.lightbulb,
-  label: 'فرصة جديدة',
-  color: const Color(0xFFFF9800),
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => OpportunitiesScreen(
-          userId: widget.userId,
-          username: widget.username,
-        ),
-      ),
-    );
-  },
-),
             _buildQuickAddItem(
-              icon: Icons.add_task,
-              label: 'مهمة جديدة',
+              icon: Icons.lightbulb,
+              label: 'فرصة جديدة',
+              color: const Color(0xFFFF9800),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OpportunitiesScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
+              },
+            ),
+_buildQuickAddItem(
+              icon: Icons.list_alt,
+              label: 'المهام',
               color: const Color(0xFF9C27B0),
               onTap: () {
                 Navigator.pop(context);
-                _showComingSoon('المهام');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TasksScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                );
               },
             ),
             _buildQuickAddItem(

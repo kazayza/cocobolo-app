@@ -451,8 +451,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
             _buildAboutRow('الإصدار', '1.0.0'),
-            _buildAboutRow('المطور', 'فريق التطوير'),
-            _buildAboutRow('تاريخ الإصدار', '2025'),
+            _buildAboutRow('المطور', 'احمد الرفاعى'),
+            _buildAboutRow('تاريخ الإصدار', '2026'),
           ],
         ),
         actions: [

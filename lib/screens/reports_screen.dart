@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../services/permission_service.dart';
+import './Reports/expense_reports.dart';
 
 class ReportsScreen extends StatefulWidget {
   final int userId;
@@ -18,6 +18,20 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  // دالة فتح تقارير المصروفات
+  void _openExpenseReports(String period) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExpenseReportsScreen(
+          userId: widget.userId,
+          username: widget.username,
+          initialPeriod: period,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,25 +122,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 title: 'مصروفات اليوم',
                 icon: Icons.today,
                 color: Colors.red,
-                onTap: () => _showComingSoon('تقرير مصروفات اليوم'),
+                onTap: () => _openExpenseReports('اليوم'),
               ),
               _ReportItem(
                 title: 'مصروفات الشهر',
                 icon: Icons.calendar_month,
                 color: Colors.redAccent,
-                onTap: () => _showComingSoon('تقرير مصروفات الشهر'),
+                onTap: () => _openExpenseReports('هذا الشهر'),
               ),
               _ReportItem(
                 title: 'تحليل المصروفات',
                 icon: Icons.donut_large,
                 color: Colors.deepOrange,
-                onTap: () => _showComingSoon('تحليل المصروفات'),
+                onTap: () => _openExpenseReports('هذا الشهر'),
               ),
               _ReportItem(
                 title: 'مقارنة شهرية',
                 icon: Icons.compare_arrows,
                 color: Colors.orange,
-                onTap: () => _showComingSoon('مقارنة شهرية'),
+                onTap: () => _openExpenseReports('الشهر الماضي'),
               ),
             ]),
 

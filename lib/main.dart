@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:intl/date_symbol_data_local.dart'; 
 import 'screens/login_screen.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
