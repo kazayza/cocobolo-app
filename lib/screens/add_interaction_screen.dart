@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
+import '../widgets/speech_text_field.dart';
 
 class AddInteractionScreen extends StatefulWidget {
   final int userId;
@@ -1028,10 +1029,27 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       ),
       child: Column(
         children: [
-          _buildTextField(controller: _interestedProductController, label: 'المنتج المهتم به', icon: FontAwesomeIcons.box),
-          _buildTextField(controller: _expectedValueController, label: 'القيمة المتوقعة', icon: FontAwesomeIcons.coins, keyboardType: TextInputType.number, suffixText: 'ج.م'),
-          _buildTextField(controller: _summaryController, label: 'ملخص المكالمة', icon: FontAwesomeIcons.comment, maxLines: 3),
-          _buildTextField(controller: _guidanceController, label: 'توجيهات للمتابعة', icon: FontAwesomeIcons.compass, maxLines: 2),
+         SpeechTextField(
+  controller: _interestedProductController,
+  label: 'المنتج المهتم به',
+  hint: 'أو اضغط المايك 🎤',
+  icon: FontAwesomeIcons.box,
+),
+_buildTextField(controller: _expectedValueController, label: 'القيمة المتوقعة', icon: FontAwesomeIcons.coins, keyboardType: TextInputType.number, suffixText: 'ج.م'),
+SpeechTextField(
+  controller: _summaryController,
+  label: 'ملخص المكالمة',
+  hint: 'اكتب أو اضغط المايك 🎤',
+  icon: FontAwesomeIcons.comment,
+  maxLines: 3,
+),
+SpeechTextField(
+  controller: _guidanceController,
+  label: 'توجيهات للمتابعة',
+  hint: 'اكتب أو اضغط المايك 🎤',
+  icon: FontAwesomeIcons.compass,
+  maxLines: 2,
+),
         ],
       ),
     );

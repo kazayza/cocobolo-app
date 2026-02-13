@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // ✅ إضافة المكتبة دي
 import './Reports/expense_reports.dart';
+import 'reports/crm_dashboard_screen.dart'; // ✅ إضافة شاشة الداشبورد
 
 class ReportsScreen extends StatefulWidget {
   final int userId;
@@ -146,6 +148,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
             const SizedBox(height: 24),
 
+            // ===== تقارير المبيعات والعملاء (CRM) - قسم جديد ✅ =====
+            _buildSectionTitle('تحليلات الـ CRM', FontAwesomeIcons.chartLine),
+            const SizedBox(height: 12),
+            _buildReportsGrid([
+              // ✅ ده الكارت الجديد (لوحة القيادة)
+              _ReportItem(
+                title: 'لوحة القيادة (Dashboard)',
+                icon: FontAwesomeIcons.chartPie,
+                color: const Color(0xFFFFD700),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CRMDashboardScreen(
+                        userId: widget.userId,
+                        username: widget.username,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // ممكن تضيف تقارير CRM تانية هنا مستقبلاً
+            ]),
+
+            const SizedBox(height: 24),
+
             // ===== تقارير الخزينة =====
             _buildSectionTitle('تقارير الخزينة', Icons.account_balance),
             const SizedBox(height: 12),
@@ -170,6 +198,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
     );
   }
+
+  // 🧩 دوال بناء الواجهة
 
   Widget _buildSectionTitle(String title, IconData icon) {
     return Row(
@@ -264,6 +294,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 }
 
+// كلاس البيانات (مودل صغير)
 class _ReportItem {
   final String title;
   final IconData icon;

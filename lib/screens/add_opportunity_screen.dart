@@ -6,6 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../constants.dart';
+import '../widgets/speech_text_field.dart';
 
 class AddOpportunityScreen extends StatefulWidget {
   final int userId;
@@ -40,6 +41,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
   final _guidanceController = TextEditingController();
+  final _emailController = TextEditingController();
 
   // Dropdown Data
   List<dynamic> sources = [];
@@ -48,6 +50,11 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   List<dynamic> adTypes = [];
   List<dynamic> categories = [];
   List<dynamic> employees = [];
+  
+  // ✅ إظهار/إخفاء الحقول الاختيارية
+  bool _showPhone2 = false;
+  bool _showAddress = false;
+  bool _showEmail = false;
 
   // Selected Values
   int? selectedSourceId;
@@ -76,6 +83,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     _locationController.dispose();
     _notesController.dispose();
     _guidanceController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -134,6 +142,19 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
         selectedFollowUpTime = TimeOfDay.fromDateTime(dt);
       } catch (_) {}
     }
+    
+    // ✅ إظهار الحقول الاختيارية لو فيها بيانات
+if (opp['Phone2'] != null && opp['Phone2'].toString().isNotEmpty) {
+  _showPhone2 = true;
+}
+if (opp['Address'] != null && opp['Address'].toString().isNotEmpty) {
+  _showAddress = true;
+}
+if (opp['Email'] != null && opp['Email'].toString().isNotEmpty) {
+  _showEmail = true;
+  _emailController.text = opp['Email'] ?? '';
+}
+
   }
 
   
@@ -210,7 +231,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   Future<void> _fetchCurrentEmployee() async {
     try {
       final res = await http.get(
-        Uri.parse('$baseUrl/api/users/${widget.userId}/employee')
+        Uri.parse('$baseUrl/api/auth/users/${widget.userId}/employee')
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -228,7 +249,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     
     try {
       final res = await http.get(
-        Uri.parse('$baseUrl/api/clients/search-by-phone?phone=$phone')
+        Uri.parse('$baseUrl/api/opportunities/search-by-phone?phone=$phone')
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -292,28 +313,80 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     }
   }
 
-  Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
-    
-    setState(() => _isLoading = true);
-    
-    try {
-      DateTime? followUpDateTime;
-      if (selectedFollowUpDate != null) {
-        followUpDateTime = DateTime(
-          selectedFollowUpDate!.year,
-          selectedFollowUpDate!.month,
-          selectedFollowUpDate!.day,
-          selectedFollowUpTime?.hour ?? 9,
-          selectedFollowUpTime?.minute ?? 0,
-        );
+Future<void> _submitForm() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    DateTime? followUpDateTime;
+    if (selectedFollowUpDate != null) {
+      followUpDateTime = DateTime(
+        selectedFollowUpDate!.year,
+        selectedFollowUpDate!.month,
+        selectedFollowUpDate!.day,
+        selectedFollowUpTime?.hour ?? 9,
+        selectedFollowUpTime?.minute ?? 0,
+      );
+    }
+
+    final bool isEdit = widget.opportunityToEdit != null;
+
+    if (isEdit) {
+      // 🛠️ حالة التعديل
+      final oppId = widget.opportunityToEdit!['OpportunityID'];
+
+      final body = {
+        // 🔒 ملاحظة: لا نرسل الموظف أو المصدر أو الإعلان للحفاظ على البيانات الأصلية
+        'stageId': selectedStageId ?? 1,
+        'statusId': selectedStatusId,
+        'categoryId': selectedCategoryId,
+        'interestedProduct': _interestedProductController.text.trim(),
+        'expectedValue': double.tryParse(_expectedValueController.text) ?? 0,
+        'location': _locationController.text.trim(),
+        'nextFollowUpDate': followUpDateTime?.toIso8601String(),
+        'notes': _notesController.text.trim(),
+        'guidance': _guidanceController.text.trim(),
+        'updatedBy': widget.username,
+      };
+
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/opportunities/$oppId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(res.body);
+
+      if (data['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const FaIcon(FontAwesomeIcons.circleCheck, color: Colors.white, size: 16),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('تم تعديل الفرصة بنجاح', style: GoogleFonts.cairo())),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } else {
+        throw Exception(data['message'] ?? 'حدث خطأ');
       }
-      
+
+    } else {
+      // ➕ حالة الإضافة
       final body = {
         'clientName': _clientNameController.text.trim(),
         'phone1': _phone1Controller.text.trim(),
         'phone2': _phone2Controller.text.trim(),
         'address': _addressController.text.trim(),
+        'email': _emailController.text.trim(),
         'employeeId': selectedEmployeeId,
         'sourceId': selectedSourceId,
         'adTypeId': selectedAdTypeId,
@@ -328,15 +401,15 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
         'guidance': _guidanceController.text.trim(),
         'createdBy': widget.username,
       };
-      
+
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/create-with-client'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
-      
+
       final data = jsonDecode(res.body);
-      
+
       if (data['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -364,21 +437,23 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       } else {
         throw Exception(data['message'] ?? 'حدث خطأ');
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطأ: $e', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    }
+
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ: $e', style: GoogleFonts.cairo()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -466,76 +541,106 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     ).animate().fadeIn(duration: 300.ms);
   }
 
-  Widget _buildClientSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          // رقم الهاتف الأساسي
-          _buildTextField(
-            controller: _phone1Controller,
-            label: 'رقم الهاتف *',
-            hint: '01xxxxxxxxx',
-            icon: FontAwesomeIcons.phone,
-            keyboardType: TextInputType.phone,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'رقم الهاتف مطلوب';
-              }
-              return null;
-            },
-            onChanged: (value) {
-              if (value.length >= 8) {
-                _searchClientByPhone(value);
-              }
-            },
-          ),
-          
-          // إشعار العميل موجود
-          if (_clientFound)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const FaIcon(FontAwesomeIcons.circleInfo, color: Colors.orange, size: 16),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'العميل موجود مسبقاً - سيتم ربط الفرصة به',
-                      style: GoogleFonts.cairo(color: Colors.orange, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
+Widget _buildClientSection() {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
+    ),
+    child: Column(
+      children: [
+        // رقم الهاتف الأساسي
+        _buildTextField(
+          controller: _phone1Controller,
+          label: 'رقم الهاتف *',
+          hint: '01xxxxxxxxx',
+          icon: FontAwesomeIcons.phone,
+          keyboardType: TextInputType.phone,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'رقم الهاتف مطلوب';
+            }
+            return null;
+          },
+          onChanged: (value) {
+            if (value.length >= 8) {
+              _searchClientByPhone(value);
+            }
+          },
+        ),
+        
+        // إشعار العميل موجود
+        if (_clientFound)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
-          
-          // اسم العميل
-          _buildTextField(
-            controller: _clientNameController,
-            label: 'اسم العميل *',
-            hint: 'أدخل اسم العميل',
-            icon: FontAwesomeIcons.user,
-            enabled: !_clientFound,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'اسم العميل مطلوب';
-              }
-              return null;
-            },
+            child: Row(
+              children: [
+                const FaIcon(FontAwesomeIcons.circleInfo, color: Colors.orange, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'العميل موجود مسبقاً - سيتم ربط الفرصة به',
+                    style: GoogleFonts.cairo(color: Colors.orange, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
-          
-          // رقم الهاتف الثاني
+        
+        // اسم العميل
+        _buildTextField(
+          controller: _clientNameController,
+          label: 'اسم العميل *',
+          hint: 'أدخل اسم العميل',
+          icon: FontAwesomeIcons.user,
+          enabled: !_clientFound,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'اسم العميل مطلوب';
+            }
+            return null;
+          },
+        ),
+        
+        // ✅ أزرار إضافة الحقول الاختيارية
+        if (!_clientFound)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (!_showPhone2)
+                _buildOptionalFieldButton(
+                  label: 'رقم آخر',
+                  icon: FontAwesomeIcons.phoneFlip,
+                  onTap: () => setState(() => _showPhone2 = true),
+                ),
+              if (!_showAddress)
+                _buildOptionalFieldButton(
+                  label: 'العنوان',
+                  icon: FontAwesomeIcons.locationDot,
+                  onTap: () => setState(() => _showAddress = true),
+                ),
+              if (!_showEmail)
+                _buildOptionalFieldButton(
+                  label: 'البريد الإلكتروني',
+                  icon: FontAwesomeIcons.envelope,
+                  onTap: () => setState(() => _showEmail = true),
+                ),
+            ],
+          ),
+        
+        if (!_clientFound) const SizedBox(height: 12),
+
+        // ✅ الحقول الاختيارية
+        if (_showPhone2)
           _buildTextField(
             controller: _phone2Controller,
             label: 'رقم هاتف آخر',
@@ -544,8 +649,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             keyboardType: TextInputType.phone,
             enabled: !_clientFound,
           ),
-          
-          // العنوان
+        
+        if (_showAddress)
           _buildTextField(
             controller: _addressController,
             label: 'العنوان',
@@ -553,10 +658,55 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             icon: FontAwesomeIcons.locationDot,
             enabled: !_clientFound,
           ),
+        
+        if (_showEmail)
+          _buildTextField(
+            controller: _emailController,
+            label: 'البريد الإلكتروني',
+            hint: 'example@email.com',
+            icon: FontAwesomeIcons.envelope,
+            keyboardType: TextInputType.emailAddress,
+            enabled: !_clientFound,
+          ),
+      ],
+    ),
+  );
+}
+
+// ✅ زرار إضافة حقل اختياري
+Widget _buildOptionalFieldButton({
+  required String label,
+  required IconData icon,
+  required VoidCallback onTap,
+}) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(20),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFD700).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FaIcon(icon, color: const Color(0xFFFFD700), size: 12),
+          const SizedBox(width: 6),
+          Text(
+            '+ $label',
+            style: GoogleFonts.cairo(
+              color: const Color(0xFFFFD700),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildOpportunitySection() {
     return Container(
@@ -568,6 +718,18 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       ),
       child: Column(
         children: [
+                    // الموظف المسؤول
+          _buildDropdown<int>(
+            label: 'الموظف المسؤول',
+            icon: FontAwesomeIcons.userTie,
+            value: selectedEmployeeId,
+            items: employees.map((e) => DropdownMenuItem<int>(
+              value: e['EmployeeID'],
+              child: Text(e['FullName']),
+            )).toList(),
+            onChanged: (value) => setState(() => selectedEmployeeId = value),
+          ),
+
           // المصدر
           _buildDropdown<int>(
             label: 'مصدر التواصل',
@@ -616,13 +778,14 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             onChanged: (value) => setState(() => selectedCategoryId = value),
           ),
           
+         
           // المنتج المهتم به
-          _buildTextField(
-            controller: _interestedProductController,
-            label: 'المنتج المهتم به',
-            hint: 'مثال: مطبخ ألوميتال',
-            icon: FontAwesomeIcons.box,
-          ),
+SpeechTextField(
+  controller: _interestedProductController,
+  label: 'المنتج المهتم به',
+  hint: 'مثال: مطبخ ألوميتال... أو اضغط المايك 🎤',
+  icon: FontAwesomeIcons.box,
+),
           
           // القيمة المتوقعة
           _buildTextField(
@@ -642,17 +805,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             icon: FontAwesomeIcons.mapLocationDot,
           ),
           
-          // الموظف المسؤول
-          _buildDropdown<int>(
-            label: 'الموظف المسؤول',
-            icon: FontAwesomeIcons.userTie,
-            value: selectedEmployeeId,
-            items: employees.map((e) => DropdownMenuItem<int>(
-              value: e['EmployeeID'],
-              child: Text(e['FullName']),
-            )).toList(),
-            onChanged: (value) => setState(() => selectedEmployeeId = value),
-          ),
+
         ],
       ),
     );
@@ -732,34 +885,34 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     );
   }
 
-  Widget _buildNotesSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          _buildTextField(
-            controller: _notesController,
-            label: 'ملاحظات',
-            hint: 'أي ملاحظات إضافية...',
-            icon: FontAwesomeIcons.noteSticky,
-            maxLines: 3,
-          ),
-          _buildTextField(
-            controller: _guidanceController,
-            label: 'توجيهات',
-            hint: 'توجيهات للمتابعة...',
-            icon: FontAwesomeIcons.compass,
-            maxLines: 2,
-          ),
-        ],
-      ),
-    );
-  }
+Widget _buildNotesSection() {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(0.1)),
+    ),
+    child: Column(
+      children: [
+        SpeechTextField(
+          controller: _notesController,
+          label: 'ملاحظات',
+          hint: 'أي ملاحظات إضافية... أو اضغط المايك 🎤',
+          icon: FontAwesomeIcons.noteSticky,
+          maxLines: 3,
+        ),
+        SpeechTextField(
+          controller: _guidanceController,
+          label: 'توجيهات',
+          hint: 'توجيهات للمتابعة... أو اضغط المايك 🎤',
+          icon: FontAwesomeIcons.compass,
+          maxLines: 2,
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildTextField({
     required TextEditingController controller,
