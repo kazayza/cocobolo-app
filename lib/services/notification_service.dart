@@ -65,6 +65,9 @@ class NotificationService {
     // فحص فوري
     _checkForNewNotifications();
     
+    // ✅ فحص التسليمات القريبة
+    checkDeliveryNotifications();
+    
     // فحص دوري
     _pollingTimer = Timer.periodic(interval, (_) {
       _checkForNewNotifications();
@@ -116,6 +119,80 @@ class NotificationService {
       }
     } catch (e) {
       print('❌ خطأ في فحص الإشعارات: $e');
+    }
+  }
+
+  // ===================================
+  // ✅ إشعارات التسليمات
+  // ===================================
+  Future<void> checkDeliveryNotifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/delivery/stats'),
+      );
+
+      if (response.statusCode == 200) {
+        final stats = jsonDecode(response.body);
+        
+        final overdue = stats['Overdue'] ?? 0;
+        final today = stats['Today'] ?? 0;
+        final soon = stats['Soon'] ?? 0;
+        final totalPending = stats['TotalPending'] ?? 0;
+
+        // إشعار للفواتير المتأخرة
+        if (overdue > 0) {
+          await _showLocalNotification(
+            id: 90001,
+            title: '⚠️ تسليمات متأخرة!',
+            body: 'لديك $overdue فاتورة متأخرة عن موعد التسليم',
+            payload: jsonEncode({
+              'formName': 'frmInvoiceDeliveryStatus',
+              'filter': 'overdue',
+            }),
+          );
+        }
+
+        // إشعار للفواتير اليوم
+        if (today > 0) {
+          await _showLocalNotification(
+            id: 90002,
+            title: '🔔 تسليمات اليوم',
+            body: 'لديك $today فاتورة موعد تسليمها اليوم',
+            payload: jsonEncode({
+              'formName': 'frmInvoiceDeliveryStatus',
+              'filter': 'today',
+            }),
+          );
+        }
+
+        // إشعار للفواتير القريبة (خلال 3 أيام)
+        if (soon > 0) {
+          await _showLocalNotification(
+            id: 90003,
+            title: '📦 تسليمات قريبة',
+            body: 'لديك $soon فاتورة تحتاج تسليم خلال 3 أيام',
+            payload: jsonEncode({
+              'formName': 'frmInvoiceDeliveryStatus',
+              'filter': 'soon',
+            }),
+          );
+        }
+
+        // ملخص عام لو في تسليمات معلقة
+        if (totalPending > 0 && overdue == 0 && today == 0 && soon == 0) {
+          await _showLocalNotification(
+            id: 90004,
+            title: '📋 تسليمات معلقة',
+            body: 'لديك $totalPending فاتورة في انتظار التسليم',
+            payload: jsonEncode({
+              'formName': 'frmInvoiceDeliveryStatus',
+              'filter': 'all',
+            }),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ خطأ في فحص إشعارات التسليم: $e');
     }
   }
 

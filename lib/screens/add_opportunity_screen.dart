@@ -113,7 +113,13 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     final opp = widget.opportunityToEdit!;
     // مش محتاجين setState هنا لأننا بالفعل بنناديها جوه setState في _loadAllData
     // أو لأن _loadAllData بتعمل setState بعدها علطول
-    
+      // ✅ ده للتأكد بس - امسحه بعدين
+    // ✅ للتأكد
+  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  print('fillDataForEdit called');
+  print('AdTypeID: ${opp['AdTypeID']}');
+  print('كل البيانات: $opp');
+  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     _clientFound = true;
     _existingClientId = opp['PartyID'];
     
@@ -333,11 +339,12 @@ Future<void> _submitForm() async {
     final bool isEdit = widget.opportunityToEdit != null;
 
     if (isEdit) {
-      // 🛠️ حالة التعديل
+      // ============================================
+      // 🛠️ حالة التعديل - تفضل زي ما هي
+      // ============================================
       final oppId = widget.opportunityToEdit!['OpportunityID'];
 
       final body = {
-        // 🔒 ملاحظة: لا نرسل الموظف أو المصدر أو الإعلان للحفاظ على البيانات الأصلية
         'stageId': selectedStageId ?? 1,
         'statusId': selectedStatusId,
         'categoryId': selectedCategoryId,
@@ -380,13 +387,22 @@ Future<void> _submitForm() async {
       }
 
     } else {
-      // ➕ حالة الإضافة
+      // ============================================
+      // ➕ حالة الإضافة - الجديد هنا! 🎯
+      // نستخدم /api/interactions/create بدل create-with-client
+      // عشان يحفظ: عميل + فرصة + سجل تواصل + مهمة
+      // ============================================
       final body = {
+        // بيانات العميل
+        'isNewClient': !_clientFound,
         'clientName': _clientNameController.text.trim(),
         'phone1': _phone1Controller.text.trim(),
         'phone2': _phone2Controller.text.trim(),
         'address': _addressController.text.trim(),
         'email': _emailController.text.trim(),
+        'partyId': _existingClientId,
+
+        // بيانات الفرصة
         'employeeId': selectedEmployeeId,
         'sourceId': selectedSourceId,
         'adTypeId': selectedAdTypeId,
@@ -396,14 +412,18 @@ Future<void> _submitForm() async {
         'interestedProduct': _interestedProductController.text.trim(),
         'expectedValue': double.tryParse(_expectedValueController.text) ?? 0,
         'location': _locationController.text.trim(),
-        'nextFollowUpDate': followUpDateTime?.toIso8601String(),
-        'notes': _notesController.text.trim(),
+
+        // بيانات التواصل والمتابعة
+        'summary': _notesController.text.trim(),
         'guidance': _guidanceController.text.trim(),
+        'nextFollowUpDate': followUpDateTime?.toIso8601String(),
+
+        // المستخدم
         'createdBy': widget.username,
       };
 
       final res = await http.post(
-        Uri.parse('$baseUrl/api/opportunities/create-with-client'),
+        Uri.parse('$baseUrl/api/interactions/create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
@@ -420,9 +440,7 @@ Future<void> _submitForm() async {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      data['isNewClient'] == true
-                          ? 'تم إضافة الفرصة والعميل بنجاح'
-                          : 'تم إضافة الفرصة بنجاح',
+                      'تم تسجيل التواصل والفرصة بنجاح ✅',
                       style: GoogleFonts.cairo(),
                     ),
                   ),
@@ -732,7 +750,7 @@ Widget _buildOptionalFieldButton({
 
           // المصدر
           _buildDropdown<int>(
-            label: 'مصدر التواصل',
+            label: 'مصدر العميل',
             icon: FontAwesomeIcons.share,
             value: selectedSourceId,
             items: sources.map((s) => DropdownMenuItem<int>(

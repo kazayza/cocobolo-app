@@ -72,6 +72,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
   int? selectedLostReasonId;
   int? selectedTaskTypeId;
   int? selectedEmployeeId;
+  int? currentUserEmployeeId; // ✅ الموظف التابع لليوزر الحالي
   DateTime? selectedFollowUpDate;
   TimeOfDay? selectedFollowUpTime;
 
@@ -212,48 +213,51 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
     }
   }
 
-  Future<void> _fetchCurrentEmployee() async {
-    try {
-      // لو فيه موظف مختار بالفعل (من الفرصة) منتغيروش
-      if (selectedEmployeeId != null) return;
-
-      final res = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}/employee'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data['employeeID'] != null) {
+Future<void> _fetchCurrentEmployee() async {
+  try {
+    final res = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}/employee'));
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      if (data['employeeID'] != null) {
+        currentUserEmployeeId = data['employeeID']; // ✅ دايماً نحفظ اليوزر الحالي
+        
+        // لو مفيش موظف مختار (فرصة جديدة)، نحط اليوزر الحالي
+        if (selectedEmployeeId == null) {
           selectedEmployeeId = data['employeeID'];
         }
       }
-    } catch (e) {
-      debugPrint('Error fetching current employee: $e');
     }
+  } catch (e) {
+    debugPrint('Error fetching current employee: $e');
   }
+}
 
   // جلب تفاصيل الفرصة المحددة مسبقاً
   Future<void> _fetchOpportunityDetails(int oppId) async {
-    try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$oppId'));
-      if (res.statusCode == 200) {
-        final opp = jsonDecode(res.body);
-        setState(() {
-          _openOpportunity = opp; 
-          _hasOpenOpportunity = true;
-          
-          // تعبئة البيانات
-          selectedStageId = opp['StageID'];
-          selectedSourceId = opp['SourceID'];
-          selectedEmployeeId = opp['EmployeeID'];
-          selectedCategoryId = opp['CategoryID'];
-          _interestedProductController.text = opp['InterestedProduct'] ?? '';
-          if (opp['ExpectedValue'] != null) {
-            _expectedValueController.text = opp['ExpectedValue'].toString();
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading opportunity details: $e');
+  try {
+    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$oppId'));
+    if (res.statusCode == 200) {
+      final opp = jsonDecode(res.body);
+      setState(() {
+        _openOpportunity = opp; 
+        _hasOpenOpportunity = true;
+        
+        // ✅ بيانات الفرصة كاملة
+        selectedStageId = opp['StageID'];
+        selectedSourceId = opp['SourceID'];
+        selectedAdTypeId = opp['AdTypeID'];       // ✅ نوع الإعلان
+        selectedCategoryId = opp['CategoryID'];
+        selectedEmployeeId = opp['EmployeeID'];    // ✅ الموظف المسؤول عن الفرصة (للعرض)
+        _interestedProductController.text = opp['InterestedProduct'] ?? '';
+        if (opp['ExpectedValue'] != null) {
+          _expectedValueController.text = opp['ExpectedValue'].toString();
+        }
+      });
     }
+  } catch (e) {
+    debugPrint('Error loading opportunity details: $e');
   }
+}
 
   // البحث عن عميل
   void _searchClients(String query) {
@@ -307,29 +311,31 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   // التحقق من فرصة مفتوحة
   Future<void> _checkOpenOpportunity(int partyId) async {
-    try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/check-open/$partyId'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _hasOpenOpportunity = data['hasOpenOpportunity'] ?? false;
-          _openOpportunity = data['opportunity'];
-          
-          if (_hasOpenOpportunity && _openOpportunity != null) {
-            selectedEmployeeId = _openOpportunity!['EmployeeID'];
-            selectedStageId = _openOpportunity!['StageID'];
-            selectedCategoryId = _openOpportunity!['CategoryID'];
-            _interestedProductController.text = _openOpportunity!['InterestedProduct'] ?? '';
-            if (_openOpportunity!['ExpectedValue'] != null) {
-              _expectedValueController.text = _openOpportunity!['ExpectedValue'].toString();
-            }
+  try {
+    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/check-open/$partyId'));
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      setState(() {
+        _hasOpenOpportunity = data['hasOpenOpportunity'] ?? false;
+        _openOpportunity = data['opportunity'];
+        
+        if (_hasOpenOpportunity && _openOpportunity != null) {
+          selectedEmployeeId = _openOpportunity!['EmployeeID'];
+          selectedStageId = _openOpportunity!['StageID'];
+          selectedSourceId = _openOpportunity!['SourceID'];
+          selectedAdTypeId = _openOpportunity!['AdTypeID'];
+          selectedCategoryId = _openOpportunity!['CategoryID'];
+          _interestedProductController.text = _openOpportunity!['InterestedProduct'] ?? '';
+          if (_openOpportunity!['ExpectedValue'] != null) {
+            _expectedValueController.text = _openOpportunity!['ExpectedValue'].toString();
           }
-        });
-      }
-    } catch (e) {
-      debugPrint('Error checking open opportunity: $e');
+        }
+      });
     }
+  } catch (e) {
+    debugPrint('Error checking open opportunity: $e');
   }
+}
 
   // اختيار تاريخ ووقت المتابعة
   Future<void> _pickFollowUpDateTime() async {
@@ -448,7 +454,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
         'phone2': _phone2Controller.text.trim(),
         'address': _addressController.text.trim(),
         'partyId': _selectedPartyId,
-        'employeeId': selectedEmployeeId,
+        'employeeId': currentUserEmployeeId ?? selectedEmployeeId,  // ✅ اليوزر الحالي للتواصل
         'sourceId': selectedSourceId,
         'adTypeId': selectedAdTypeId,
         'stageId': selectedStageId,
@@ -840,7 +846,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
       child: Column(
         children: [
           _buildDropdown<int>(
-            label: 'مصدر التواصل *',
+            label: 'مصدر العميل *',
             icon: FontAwesomeIcons.share,
             value: selectedSourceId,
             items: sources.map((s) => DropdownMenuItem<int>(

@@ -7,6 +7,7 @@ import '../constants.dart';
 import 'product_details_screen.dart';
 import 'add_product_screen.dart';
 import '../services/permission_service.dart';
+import 'price_requests_screen.dart';
 
 
 class ProductsScreen extends StatefulWidget {
@@ -125,6 +126,234 @@ Future<void> fetchProducts() async {
   void _onFilterChanged(int? groupId) {
     setState(() => selectedGroupId = groupId);
     fetchProducts();
+  }
+
+  Future<void> _deleteProduct(int productId, String productName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber, color: Colors.red, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              'تأكيد الحذف',
+              style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'هل تريد حذف المنتج "$productName"؟\nلا يمكن التراجع عن هذا الإجراء.',
+          style: GoogleFonts.cairo(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('حذف', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/products/$productId'),
+      );
+
+      if (res.statusCode == 200) {
+        final result = jsonDecode(res.body);
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Text('تم حذف المنتج بنجاح', style: GoogleFonts.cairo()),
+                ],
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          fetchProducts();
+        } else {
+          _showError(result['message'] ?? 'فشل حذف المنتج');
+        }
+      } else {
+        _showError('فشل حذف المنتج');
+      }
+    } catch (e) {
+      print('Error deleting product: $e');
+      _showError('فشل حذف المنتج');
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(message, style: GoogleFonts.cairo()),
+          ],
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showProductOptions(Map<String, dynamic> product) {
+    final perm = PermissionService();
+    final productId = product['ProductID'];
+    final productName = product['ProductName'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // العنوان
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              productName,
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // فتح التفاصيل
+            _buildOptionTile(
+              icon: Icons.visibility,
+              title: 'عرض التفاصيل',
+              color: const Color(0xFFFFD700),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProductDetailsScreen(
+                      productId: productId,
+                      username: widget.username,
+                    ),
+                  ),
+                ).then((_) => fetchProducts());
+              },
+            ),
+
+            // تعديل (لو عنده صلاحية)
+            if (perm.canEdit(FormNames.productsAdd) || perm.isFactory)
+              _buildOptionTile(
+                icon: Icons.edit,
+                title: 'تعديل المنتج',
+                color: Colors.blueAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddProductScreen(
+                        username: widget.username,
+                        productId: productId,
+                        existingProduct: product,
+                      ),
+                    ),
+                  ).then((_) => fetchProducts());
+                },
+              ),
+
+            // طلب تعديل سعر (Sales فقط)
+            if (perm.canRequestPriceChange)
+              _buildOptionTile(
+                icon: Icons.price_change,
+                title: 'طلب تعديل سعر',
+                color: Colors.orangeAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProductDetailsScreen(
+                        productId: productId,
+                        username: widget.username,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            // حذف (لو عنده صلاحية)
+            if (perm.canDelete(FormNames.productsAdd))
+              _buildOptionTile(
+                icon: Icons.delete,
+                title: 'حذف المنتج',
+                color: Colors.red,
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteProduct(productId, productName);
+                },
+              ),
+
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionTile({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+      onTap: onTap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
   }
 
   @override
@@ -336,7 +565,7 @@ Future<void> fetchProducts() async {
           color: const Color(0xFFFFD700).withOpacity(0.2),
         ),
       ),
-      child: InkWell(
+       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
           Navigator.push(
@@ -348,6 +577,10 @@ Future<void> fetchProducts() async {
               ),
             ),
           ).then((_) => fetchProducts());
+        },
+        onLongPress: () {
+          // Long Press لعرض خيارات
+          _showProductOptions(product);
         },
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -584,11 +817,19 @@ Future<void> fetchProducts() async {
 
   // ✅ تم التعديل - إضافة الصلاحيات
   Widget _buildFAB() {
-    // ✅ لو مش عنده صلاحية الإضافة، ما يظهرش الزر
-    if (!PermissionService().canAdd(FormNames.productsAdd)) {
+    final perm = PermissionService();
+
+    // Factory مش بيضيف منتجات
+    // Account مش بيضيف منتجات
+    if (perm.isFactory || perm.isAccount) {
       return const SizedBox.shrink();
     }
-    
+
+    // لو مش عنده صلاحية الإضافة
+    if (!perm.canAdd(FormNames.productsAdd)) {
+      return const SizedBox.shrink();
+    }
+
     return FloatingActionButton.extended(
       onPressed: () {
         Navigator.push(

@@ -335,6 +335,12 @@ void _copyToClipboard(String? text) {
                   icon: FontAwesomeIcons.penToSquare,
                   color: Colors.blue,
                   onTap: () async {
+                      // ✅ للتأكد
+  print('##############################');
+  print('AdTypeID: ${currentOpp['AdTypeID']}');
+  print('SourceID: ${currentOpp['SourceID']}');
+  print('EmployeeID: ${currentOpp['EmployeeID']}');
+  print('##############################');
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(

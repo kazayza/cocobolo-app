@@ -100,6 +100,13 @@ class _LoginScreenState extends State<LoginScreen> {
         // حفظ "تذكرني"
         await _saveCredentials();
 
+        // ✅ حفظ بيانات الجلسة عشان الـ Auto Login
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_logged_in', true);
+        await prefs.setInt('userId', data['user']['UserID'] as int);
+        await prefs.setString('username', data['user']['Username'] as String);
+        await prefs.setString('fullName', data['user']['FullName'] as String? ?? '');
+
         // FCM Token للموبايل فقط
         if (!kIsWeb) {
           try {
@@ -134,10 +141,13 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => HomeScreen(
-              userId: data['user']['UserID'] as int,
-              username: data['user']['Username'] as String,
-              fullName: data['user']['FullName'] as String?,
+               builder: (context) => HomeScreen(
+      userId: data['user']['UserID'],
+      username: data['user']['Username'],
+      fullName: data['user']['FullName'], // ده كان موجود عندك
+      
+      // 👇 ضيف ده، وتأكد إن الاسم EmployeeID زي ما راجع من الباك اند
+      
             ),
           ),
         );
@@ -155,64 +165,115 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showSuccessDialog() {
-    final isDark = ThemeService().isDarkMode;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(30),
-          margin: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface(isDark),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.gold, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.gold.withOpacity(0.3),
-                blurRadius: 20,
-                spreadRadius: 2,
+  final isDark = ThemeService().isDarkMode;
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black.withOpacity(0.7),
+    builder: (context) => Center(
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.surface(isDark),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.gold.withOpacity(0.2),
+              blurRadius: 30,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // اللوجو
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.navy,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.gold.withOpacity(0.4),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: AppColors.gold,
-                  size: 50,
-                ),
-              ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
-              const SizedBox(height: 20),
-              Text(
-                'تم تسجيل الدخول بنجاح!',
-                style: GoogleFonts.cairo(
-                  color: AppColors.text(isDark),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'مرحباً ${_username.text}',
-                style: GoogleFonts.cairo(
-                  color: AppColors.textSecondary(isDark),
-                  fontSize: 14,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  width: 70,
+                  height: 70,
+                  fit: BoxFit.contain,
                 ),
               ),
-            ],
-          ),
+            )
+                .animate()
+                .scale(duration: 500.ms, curve: Curves.elasticOut)
+                .then()
+                .shimmer(duration: 1200.ms, color: AppColors.gold.withOpacity(0.3)),
+            
+            const SizedBox(height: 24),
+            
+            // أيقونة النجاح
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: Colors.green,
+                size: 28,
+              ),
+            ).animate().fadeIn(delay: 300.ms).scale(delay: 300.ms),
+            
+            const SizedBox(height: 16),
+            
+            // النص
+            Text(
+              'تم تسجيل الدخول بنجاح!',
+              style: GoogleFonts.cairo(
+                color: AppColors.text(isDark),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ).animate().fadeIn(delay: 400.ms),
+            
+            const SizedBox(height: 6),
+            
+            Text(
+              'مرحباً ${_username.text}',
+              style: GoogleFonts.cairo(
+                color: AppColors.gold,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ).animate().fadeIn(delay: 500.ms),
+            
+            const SizedBox(height: 8),
+            
+            // Loading indicator
+            SizedBox(
+              width: 100,
+              child: LinearProgressIndicator(
+                backgroundColor: AppColors.gold.withOpacity(0.2),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ).animate().fadeIn(delay: 600.ms),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -354,34 +415,26 @@ class _LoginScreenState extends State<LoginScreen> {
               height: 140,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: AppColors.navy,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.diamond,
-                        color: AppColors.gold,
-                        size: 60,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'COCOBOLO',
-                        style: GoogleFonts.playfairDisplay(
-                          color: AppColors.gold,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+  return Container(
+    width: 140,
+    height: 140,
+    decoration: BoxDecoration(
+      color: AppColors.navy,
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Center(
+      child: Text(
+        'COCOBOLO',
+        style: GoogleFonts.playfairDisplay(
+          color: AppColors.gold,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 2,
+        ),
+      ),
+    ),
+  );
+},
             ),
           ),
         )
@@ -682,11 +735,20 @@ class _LoginScreenState extends State<LoginScreen> {
               color: AppColors.divider(isDark),
             ),
             const SizedBox(width: 12),
-            Icon(
-              Icons.diamond_outlined,
-              color: AppColors.gold.withOpacity(0.6),
-              size: 16,
-            ),
+            ClipRRect(
+  borderRadius: BorderRadius.circular(4),
+  child: Image.asset(
+    'assets/images/logo.png',
+    width: 20,
+    height: 20,
+    fit: BoxFit.contain,
+    errorBuilder: (_, __, ___) => Icon(
+      Icons.star_rounded,
+      color: AppColors.gold.withOpacity(0.6),
+      size: 16,
+    ),
+  ),
+),
             const SizedBox(width: 12),
             Container(
               width: 35,

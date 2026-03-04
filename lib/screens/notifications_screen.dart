@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
+import 'add_expense_screen.dart';
+import 'products_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final int userId;
@@ -163,7 +165,39 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (!isRead) {
             markAsRead(notification['NotificationID']);
           }
-          // TODO: فتح الشاشة المرتبطة حسب RelatedTable
+                    // التوجيه الذكي 🧠
+          final formName = notification['FormName'];
+          final relatedId = notification['RelatedID'];
+
+          print('🔔 Tap on: $formName, ID: $relatedId'); // للتأكد
+
+          if (formName == 'frm_Expenses') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddExpenseScreen(
+                  username: widget.username ?? 'User',
+                  expenseId: relatedId, // 👈 ده اللي هيخلي الشاشة تحمل البيانات
+                ),
+              ),
+            );
+          } 
+          else if (formName == 'frm_ProductPricing' || formName == 'frm_Products') {
+             Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProductsScreen(
+                  userId: widget.userId,
+                  username: widget.username ?? 'User',
+                ),
+              ),
+            );
+          }
+          else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('لا يوجد إجراء لهذا الإشعار: $formName'), backgroundColor: Colors.grey),
+            );
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(16),

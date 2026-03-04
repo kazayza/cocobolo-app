@@ -7,6 +7,14 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:excel/excel.dart' as excel; // ✅ أضف as excel
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 import '../constants.dart';
 import 'add_opportunity_screen.dart';
 import 'add_interaction_screen.dart';
@@ -88,14 +96,379 @@ void initState() {
     }
   });
 }
+// ===================================
+// 🖨️ دوال التصدير والطباعة (تم التعديل لجلب الداتا من السيرفر)
+// ===================================
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _debounceTimer?.cancel();
-    _scrollController.dispose();
-    super.dispose();
+/// ✅ دالة جديدة: تجلب كل البيانات من السيرفر حسب الفلاتر الحالية
+Future<List<dynamic>> _fetchAllDataForReport() async {
+  try {
+    // نجهز الرابط بنفس الفلاتر المستخدمة في الشاشة
+    String url = '$baseUrl/api/opportunities?limit=10000'; // رقم كبير لجلب الكل
+
+    if (searchQuery.isNotEmpty) url += '&search=$searchQuery';
+    if (selectedStageId != null) url += '&stageId=$selectedStageId';
+    if (selectedSourceId != null) url += '&sourceId=$selectedSourceId';
+    if (selectedAdTypeId != null) url += '&adTypeId=$selectedAdTypeId';
+    if (selectedEmployeeId != null) url += '&employeeId=$selectedEmployeeId';
+    if (selectedFollowUpStatus != null) url += '&followUpStatus=$selectedFollowUpStatus';
+    if (sortBy != null) url += '&sortBy=$sortBy';
+    if (dateFrom != null) url += '&dateFrom=${_formatDateForApi(dateFrom!)}';
+    if (dateTo != null) url += '&dateTo=${_formatDateForApi(dateTo!)}';
+
+    final res = await http.get(Uri.parse(url));
+
+    if (res.statusCode == 200) {
+      final responseData = jsonDecode(res.body);
+      // تأكد أن الاستجابة تحتوي على Data list
+      return responseData['data'] ?? [];
+    } else {
+      debugPrint('Error fetching report data: ${res.statusCode}');
+      return [];
+    }
+  } catch (e) {
+    debugPrint('Exception in report fetch: $e');
+    return [];
   }
+}
+
+Future<void> _exportToExcel() async {
+  try {
+    _showSnackBar('جاري تحضير ملف Excel...', Colors.blue);
+    
+    // 1️⃣ جلب البيانات من السيرفر
+    final data = await _fetchAllDataForReport();
+    
+    if (data.isEmpty) {
+      _showSnackBar('لا توجد بيانات للتصدير', Colors.orange);
+      return;
+    }
+
+    var excelFile = excel.Excel.createExcel();
+    excel.Sheet sheetObject = excelFile['الفرص'];
+
+    // إضافة العناوين
+    sheetObject.appendRow([
+      excel.TextCellValue('العميل'),
+      excel.TextCellValue('الهاتف'),
+      excel.TextCellValue('المرحلة'),
+      excel.TextCellValue('المصدر'),
+      excel.TextCellValue('الحملة'),
+      excel.TextCellValue('الموظف'),
+      excel.TextCellValue('القيمة'),
+      excel.TextCellValue('أول تواصل'),
+      excel.TextCellValue('آخر تواصل'),
+      excel.TextCellValue('عدد التواصلات'),
+      excel.TextCellValue('حالة المتابعة'),
+      excel.TextCellValue('المنتج المهتم به'),
+    ]);
+
+    for (var opp in data) {
+      sheetObject.appendRow([
+        excel.TextCellValue(opp['ClientName'] ?? ''),
+        excel.TextCellValue(opp['Phone1'] ?? ''),
+        excel.TextCellValue(opp['StageNameAr'] ?? opp['StageName'] ?? ''),
+        excel.TextCellValue(opp['SourceNameAr'] ?? opp['SourceName'] ?? ''),
+        excel.TextCellValue(opp['AdTypeName'] ?? ''),
+        excel.TextCellValue(opp['EmployeeName'] ?? ''),
+        excel.TextCellValue(_formatCurrency(opp['ExpectedValue'] ?? 0)),
+        excel.TextCellValue(_formatDateShort(opp['FirstContactDate'])),
+        excel.TextCellValue(_formatDateShort(opp['LastContactDate'])),
+        excel.TextCellValue('${opp['InteractionCount'] ?? 0}'),
+        excel.TextCellValue(_getFollowUpStatusText(opp['FollowUpStatus'])),
+        excel.TextCellValue(opp['InterestedProduct'] ?? ''),
+      ]);
+    }
+
+    var fileBytes = excelFile.save();
+    if (fileBytes == null) return;
+
+    final directory = await getApplicationDocumentsDirectory();
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = 'opportunities_report_$timestamp.xlsx';
+    final file = File('${directory.path}/$fileName');
+    
+    await file.writeAsBytes(fileBytes);
+    
+    await Share.shareXFiles([XFile(file.path)], 
+        text: 'تقرير الفرص - ${_getDateRangeForReport()}');
+    
+    _showSnackBar('تم تصدير الملف بنجاح', Colors.green);
+  } catch (e) {
+    _showSnackBar('حدث خطأ أثناء التصدير: $e', Colors.red);
+  }
+}
+
+Future<void> _exportToPDF() async {
+  try {
+    _showSnackBar('جاري تحضير ملف PDF...', Colors.blue);
+
+    final data = await _fetchAllDataForReport();
+
+    if (data.isEmpty) {
+      _showSnackBar('لا توجد بيانات للتصدير', Colors.orange);
+      return;
+    }
+
+    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final ttf = pw.Font.ttf(fontData);
+
+    // 1️⃣ عكسنا ترتيب البيانات (المنتج في الأول -> العميل في الآخر)
+    final List<List<String>> tableData = data.map((item) {
+      return <String>[
+        (item['InterestedProduct'] ?? '').toString(),      // 0. المنتج (يسار الصفحة)
+        _getFollowUpStatusText(item['FollowUpStatus']),    // 1. المتابعة
+        '${item['InteractionCount'] ?? 0}',                // 2. العدد
+        _formatDateShort(item['LastContactDate']),         // 3. آخر تواصل
+        _formatDateShort(item['FirstContactDate']),        // 4. أول تواصل
+        _formatCurrency(item['ExpectedValue'] ?? 0),       // 5. القيمة
+        (item['EmployeeName'] ?? '').toString(),           // 6. الموظف
+        (item['AdTypeName'] ?? '').toString(),             // 7. الحملة
+        (item['SourceNameAr'] ?? item['SourceName'] ?? '').toString(), // 8. المصدر
+        (item['StageNameAr'] ?? item['StageName'] ?? '').toString(),   // 9. المرحلة
+        (item['Phone1'] ?? '').toString(),                 // 10. الهاتف
+        (item['ClientName'] ?? '').toString(),             // 11. العميل (يمين الصفحة)
+      ];
+    }).toList();
+
+    // 2️⃣ عكسنا ترتيب العناوين ليطابق البيانات
+    const headers = [
+      'المنتج',
+      'المتابعة',
+      'العدد',
+      'آخر تواصل',
+      'أول تواصل',
+      'القيمة',
+      'الموظف',
+      'الحملة',
+      'المصدر',
+      'المرحلة',
+      'الهاتف',
+      'العميل'
+    ];
+
+    final pdf = pw.Document();
+    
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(10),
+        theme: pw.ThemeData.withFont(base: ttf),
+        textDirection: pw.TextDirection.rtl, // اتجاه الصفحة ككل
+
+        header: (context) => pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 10),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey, width: 0.5)),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'تقرير فرص البيع',
+                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, font: ttf),
+                    textDirection: pw.TextDirection.rtl,
+                  ),
+                  pw.Text(
+                    _getDateRangeForReport(),
+                    style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700, font: ttf),
+                    textDirection: pw.TextDirection.rtl,
+                  ),
+                ],
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    'COCOBOLO FURNITURE',
+                    style: pw.TextStyle(fontSize: 10, color: PdfColors.amber700, font: ttf),
+                    textDirection: pw.TextDirection.rtl,
+                  ),
+                  pw.Text(
+                    DateFormat('yyyy/MM/dd - HH:mm').format(DateTime.now()),
+                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        build: (context) => [
+          pw.Table.fromTextArray(
+            context: context,
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            headers: headers,
+            data: tableData,
+            
+            // ✅ عكسنا توزيع المساحات (رقم 0 هو المنتج، رقم 11 هو العميل)
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2.0), // المنتج
+              1: const pw.FlexColumnWidth(1.5), // المتابعة
+              2: const pw.FlexColumnWidth(0.8), // العدد
+              3: const pw.FlexColumnWidth(1.3), // آخر تواصل
+              4: const pw.FlexColumnWidth(1.3), // أول تواصل
+              5: const pw.FlexColumnWidth(1.4), // القيمة
+              6: const pw.FlexColumnWidth(1.8), // الموظف
+              7: const pw.FlexColumnWidth(1.5), // الحملة
+              8: const pw.FlexColumnWidth(1.5), // المصدر
+              9: const pw.FlexColumnWidth(1.5), // المرحلة
+              10: const pw.FlexColumnWidth(1.8), // الهاتف
+              11: const pw.FlexColumnWidth(2.5), // العميل (أعرض واحد)
+            },
+
+            headerStyle: pw.TextStyle(
+              font: ttf, 
+              fontSize: 9, 
+              fontWeight: pw.FontWeight.bold, 
+              color: PdfColors.white
+            ),
+            cellStyle: pw.TextStyle(font: ttf, fontSize: 7),
+            headerAlignment: pw.Alignment.center,
+            cellAlignment: pw.Alignment.center,
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+            oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+          ),
+        ],
+
+        footer: (context) => pw.Container(
+          alignment: pw.Alignment.center,
+          margin: const pw.EdgeInsets.only(top: 10),
+          child: pw.Text(
+            'صفحة ${context.pageNumber} من ${context.pagesCount}',
+            style: pw.TextStyle(color: PdfColors.grey, fontSize: 8, font: ttf),
+            textDirection: pw.TextDirection.rtl,
+          ),
+        ),
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+      name: 'opportunities_report.pdf',
+    );
+    
+  } catch (e) {
+    _showSnackBar('حدث خطأ: $e', Colors.red);
+  }
+}
+
+
+Future<void> _printReport() async {
+  try {
+    _showSnackBar('جاري تحضير الطباعة...', Colors.blue);
+    
+    // 1️⃣ جلب البيانات من السيرفر
+    final data = await _fetchAllDataForReport();
+    
+    if (data.isEmpty) {
+      _showSnackBar('لا توجد بيانات للطباعة', Colors.orange);
+      return;
+    }
+
+    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final ttf = pw.Font.ttf(fontData);
+
+    final pdf = pw.Document();
+    
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (context) => [
+          pw.Center(
+             child: pw.Text('تقرير الفرص', 
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, font: ttf), textDirection: pw.TextDirection.rtl),
+          ),
+          pw.SizedBox(height: 20),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300),
+            children: [
+               pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  _buildTableCell('العميل', ttf, isHeader: true),
+                  _buildTableCell('الهاتف', ttf, isHeader: true),
+                  _buildTableCell('المرحلة', ttf, isHeader: true),
+                  _buildTableCell('آخر تواصل', ttf, isHeader: true),
+                ],
+              ),
+              ...data.map((opp) => pw.TableRow(
+                children: [
+                   _buildTableCell(opp['ClientName'] ?? '', ttf),
+                   _buildTableCell(opp['Phone1'] ?? '', ttf),
+                   _buildTableCell(opp['StageNameAr'] ?? opp['StageName'] ?? '', ttf),
+                   _buildTableCell(_formatDaysAgo(opp['LastContactDate']), ttf),
+                ]
+              )).toList(),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+      name: 'opportunities_report.pdf',
+    );
+    
+  } catch (e) {
+    _showSnackBar('حدث خطأ أثناء الطباعة: $e', Colors.red);
+  }
+}
+
+// ===================================
+// 🔧 دوال مساعدة للـ PDF (توضع مرة واحدة فقط في نهاية الكلاس)
+// ===================================
+
+// ✅ دالة بناء الخلية (معدلة لتناسب الـ 12 عمود)
+pw.Widget _buildTableCell(String text, pw.Font font, {bool isHeader = false}) {
+  return pw.Container(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+    alignment: pw.Alignment.center, // توسيط المحتوى
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(
+        font: font,
+        fontSize: isHeader ? 8 : 7, // خط صغير عشان يكفي الصفحة
+        fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: isHeader ? PdfColors.black : PdfColors.grey800,
+      ),
+      textDirection: pw.TextDirection.rtl,
+      textAlign: pw.TextAlign.center,
+      maxLines: 2, // لو النص طويل ينزل سطر
+    ),
+  );
+}
+
+// ✅ دالة الإحصائيات (لو لسه بتستخدمها في مكان تاني)
+pw.Widget _buildPdfStat(String label, String value, pw.Font font) {
+  return pw.Column(
+    children: [
+      pw.Text(
+        value, 
+        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, font: font, fontSize: 12),
+        textDirection: pw.TextDirection.rtl,
+      ),
+      pw.SizedBox(height: 2),
+      pw.Text(
+        label, 
+        style: pw.TextStyle(color: PdfColors.grey, font: font, fontSize: 8),
+        textDirection: pw.TextDirection.rtl,
+      ),
+    ],
+  );
+}
+@override
+void dispose() {
+  _searchController.dispose();
+  _debounceTimer?.cancel();
+  _scrollController.dispose();
+  super.dispose();
+}
 
   Future<void> _loadData() async {
     setState(() => loading = true);
@@ -214,6 +587,68 @@ Future<void> _fetchOpportunities({bool reset = true}) async {
   } catch (e) {
     print('❌ Error: $e');
   }
+}
+
+List<Map<String, dynamic>> _prepareReportData() {
+  // بنفس الفلاتر المستخدمة في الشاشة
+  var filteredData = opportunities.where((opp) {
+    // فلتر البحث في الاسم أو الهاتف
+    if (searchQuery.isNotEmpty) {
+      final name = (opp['ClientName'] ?? '').toString().toLowerCase();
+      final phone = (opp['Phone1'] ?? '').toString().toLowerCase();
+      if (!name.contains(searchQuery.toLowerCase()) && 
+          !phone.contains(searchQuery.toLowerCase())) {
+        return false;
+      }
+    }
+    
+    // فلتر المرحلة
+    if (selectedStageId != null && opp['StageID'] != selectedStageId) {
+      return false;
+    }
+    
+    // فلتر المصدر
+    if (selectedSourceId != null && opp['SourceID'] != selectedSourceId) {
+      return false;
+    }
+    
+    // فلتر الحملة
+    if (selectedAdTypeId != null && opp['AdTypeID'] != selectedAdTypeId) {
+      return false;
+    }
+    
+    // فلتر الموظف
+    if (selectedEmployeeId != null && opp['EmployeeID'] != selectedEmployeeId) {
+      return false;
+    }
+    
+    // فلتر حالة المتابعة
+    if (selectedFollowUpStatus != null && opp['FollowUpStatus'] != selectedFollowUpStatus) {
+      return false;
+    }
+    
+    // فلتر التاريخ
+    if (dateFrom != null) {
+      final createdAt = opp['CreatedAt'] != null 
+          ? DateTime.parse(opp['CreatedAt']) 
+          : null;
+      if (createdAt != null && createdAt.isBefore(dateFrom!)) {
+        return false;
+      }
+    }
+    if (dateTo != null) {
+      final createdAt = opp['CreatedAt'] != null 
+          ? DateTime.parse(opp['CreatedAt']) 
+          : null;
+      if (createdAt != null && createdAt.isAfter(dateTo!)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }).toList();
+
+  return filteredData.cast<Map<String, dynamic>>();
 }
 
 Future<void> _loadMoreOpportunities() async {
@@ -409,6 +844,31 @@ String _formatDateShort(String? dateStr) {
   } catch (e) {
     return '';
   }
+}
+
+String _getDateRangeForReport() {
+  if (dateFrom != null && dateTo != null) {
+    return 'من ${_formatDate(dateFrom!)} إلى ${_formatDate(dateTo!)}';
+  } else if (dateFrom != null) {
+    return 'من ${_formatDate(dateFrom!)}';
+  } else if (dateTo != null) {
+    return 'إلى ${_formatDate(dateTo!)}';
+  } else {
+    return 'كل الفترات';
+  }
+}
+
+String _getFormattedDate() {
+  final now = DateTime.now();
+  const days = [
+    'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس',
+    'الجمعة', 'السبت', 'الأحد',
+  ];
+  const months = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+  return '${days[now.weekday - 1]}، ${now.day} ${months[now.month - 1]}';
 }
 
 // التحقق إذا كانت الفرصة جديدة (أقل من 3 أيام)
@@ -708,59 +1168,113 @@ if (loadingMore)
   }
 
   PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: const Color(0xFF1A1A1A),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const FaIcon(FontAwesomeIcons.lightbulb, color: Color(0xFFFFD700), size: 20),
-          const SizedBox(width: 10),
-          Text(
-            'فرص البيع',
-            style: GoogleFonts.cairo(
-              color: const Color(0xFFFFD700),
-              fontWeight: FontWeight.bold,
+  return AppBar(
+    backgroundColor: const Color(0xFF1A1A1A),
+    title: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const FaIcon(FontAwesomeIcons.lightbulb, color: Color(0xFFFFD700), size: 20),
+        const SizedBox(width: 10),
+        Text(
+          'فرص البيع',
+          style: GoogleFonts.cairo(
+            color: const Color(0xFFFFD700),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+    centerTitle: true,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+      onPressed: () => Navigator.pop(context),
+    ),
+    actions: [
+      // ✅ زر التقرير الجديد
+      PopupMenuButton<String>(
+        icon: const FaIcon(FontAwesomeIcons.fileExport, color: Colors.white, size: 18),
+        color: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        onSelected: (value) {
+          switch (value) {
+            case 'excel':
+              _exportToExcel();
+              break;
+            case 'pdf':
+              _exportToPDF();
+              break;
+            case 'print':
+              _printReport();
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: 'excel',
+            child: Row(
+              children: [
+                FaIcon(FontAwesomeIcons.fileExcel, color: Colors.green, size: 16),
+                const SizedBox(width: 10),
+                Text('تصدير Excel', style: GoogleFonts.cairo(color: Colors.white)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'pdf',
+            child: Row(
+              children: [
+                FaIcon(FontAwesomeIcons.filePdf, color: Colors.red, size: 16),
+                const SizedBox(width: 10),
+                Text('تصدير PDF', style: GoogleFonts.cairo(color: Colors.white)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'print',
+            child: Row(
+              children: [
+                FaIcon(FontAwesomeIcons.print, color: Colors.blue, size: 16),
+                const SizedBox(width: 10),
+                Text('طباعة', style: GoogleFonts.cairo(color: Colors.white)),
+              ],
             ),
           ),
         ],
       ),
-      centerTitle: true,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
-      actions: [
-        Stack(
-          children: [
-            IconButton(
-              icon: const FaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
-              onPressed: _showFilterBottomSheet,
-            ),
-            if (_activeFiltersCount > 0)
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFD700),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '$_activeFiltersCount',
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+      const SizedBox(width: 8),
+      
+      // ✅ الفلتر الموجود (زي ما هو)
+      Stack(
+        children: [
+          IconButton(
+            icon: const FaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
+            onPressed: _showFilterBottomSheet,
+          ),
+          if (_activeFiltersCount > 0)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFD700),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$_activeFiltersCount',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-          ],
-        ),
-      ],
-    );
-  }
+            ),
+        ],
+      ),
+    ],
+  );
+}
 
 // ===================================
 // 🎠 Summary Carousel
@@ -953,6 +1467,7 @@ Widget _buildArtisticCard({
     ),
   );
 }
+  
 
 Widget _buildRow(String label, String value, {bool isValueBold = false, Color valueColor = Colors.white}) {
   return Padding(
@@ -2172,25 +2687,25 @@ Row(
   }
 
   Widget _buildDateQuickChip(String label, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.cyan.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.cyan.withOpacity(0.3)),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.cairo(color: Colors.cyan, fontSize: 11),
-          ),
+  return Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.cyan.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+          // ✅ شيل border تماماً
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(color: Colors.cyan, fontSize: 11),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildFollowUpChip(String label, String? value, Color color, StateSetter setModalState) {
     final isSelected = selectedFollowUpStatus == value;

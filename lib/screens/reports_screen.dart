@@ -161,7 +161,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CRMDashboardScreen(
+                      builder: (context) => CrmDashboardScreen(
                         userId: widget.userId,
                         username: widget.username,
                       ),

@@ -9,11 +9,14 @@ import '../services/permission_service.dart';
 class AddExpenseScreen extends StatefulWidget {
   final String username;
   final Map<String, dynamic>? existingExpense;
+  final int? expenseId;
+  
 
   const AddExpenseScreen({
     Key? key,
     required this.username,
     this.existingExpense,
+    this.expenseId,
   }) : super(key: key);
 
   @override
@@ -49,24 +52,67 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _advanceMonthsController = TextEditingController();
   final FocusNode _advanceMonthsFocus = FocusNode();
 
-  @override
+   @override
   void initState() {
     super.initState();
-    _isEditing = widget.existingExpense != null;
+    
+    // التعديل لو فيه كائن كامل أو ID جاي
+    _isEditing = widget.existingExpense != null || widget.expenseId != null;
     
     print('🚀 بدء شاشة ${_isEditing ? 'تعديل' : 'إضافة'} مصروف');
     
-    _fetchDropdownData();
+    _fetchDropdownData(); // تحميل القوائم
 
-    if (_isEditing) {
-      _populateFields();
+    if (widget.existingExpense != null) {
+      _populateFields(); // لو البيانات جاية كاملة (من القائمة)
+    } else if (widget.expenseId != null) {
+      _fetchExpenseById(widget.expenseId!); // لو جاي ID بس (من الإشعار)
     } else {
       // للإضافة فقط
       selectedGroupId = null;
       selectedCashBoxId = null;
     }
   }
-
+  
+    // جلب بيانات المصروف من السيرفر باستخدام الـ ID
+  Future<void> _fetchExpenseById(int id) async {
+    print('🔄 Fetching ID: $id');
+  try {
+    final response = await http.get(Uri.parse('$baseUrl/api/expenses/$id'));
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('DATA FROM SERVER: $data');
+      
+      setState(() {
+        _nameController.text = data['ExpenseName'] ?? '';
+        _amountController.text = data['Amount'].toString();
+        _notesController.text = data['Notes'] ?? '';
+        _recipientController.text = data['Torecipient'] ?? '';
+        
+        selectedGroupId = data['ExpenseGroupID'];
+        selectedCashBoxId = data['CashBoxID'];
+        
+        if (data['ExpenseDate'] != null) {
+          selectedDate = DateTime.parse(data['ExpenseDate']);
+        }
+        
+        isAdvance = data['IsAdvance'] ?? false;
+        if (isAdvance) {
+          _advanceMonthsController.text = (data['AdvanceMonths'] ?? 1).toString();
+        }
+      });
+      
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('فشل تحميل بيانات المصروف'), backgroundColor: Colors.red),
+      );
+    }
+  } catch (e) {
+    print('Error fetching expense: $e');
+  }
+}
+  
   void _populateFields() {
     final e = widget.existingExpense!;
     

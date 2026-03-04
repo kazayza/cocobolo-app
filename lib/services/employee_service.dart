@@ -1,0 +1,36 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/employee_model.dart';
+import '../constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class EmployeeService {
+  final String baseUrl = ApiConstants.baseUrl;
+
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  Future<List<EmployeeModel>> getActiveEmployees() async {
+    try {
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/employees/active'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = json.decode(response.body);
+        return data.map((json) => EmployeeModel.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('خطأ في جلب الموظفين: $e');
+      return [];
+    }
+  }
+}

@@ -957,7 +957,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       onRefresh: _refreshAll,
       color: const Color(0xFFE8B923),
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        // add extra bottom padding so the FAB doesn't hide the last item
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: expenses.length,
         itemBuilder: (context, index) {
           final expense = expenses[index];
@@ -1376,7 +1377,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return const SizedBox.shrink();
   }
   
-  return FloatingActionButton.extended(
+  // Use a smaller circular FAB so it doesn't cover much of the list.
+  return FloatingActionButton(
+    mini: true,
+    tooltip: 'إضافة مصروف',
     onPressed: () {
       Navigator.push(
         context,
@@ -1386,11 +1390,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       ).then((_) => _refreshAll());
     },
     backgroundColor: const Color(0xFFE8B923),
-    icon: const Icon(Icons.add, color: Colors.black),
-    label: Text(
-      'إضافة مصروف',
-      style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
-    ),
+    child: const Icon(Icons.add, color: Colors.black),
   );
 }
 

@@ -1,30 +1,41 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../models/dashboard_model.dart';
 
 class DashboardService {
-  Future<Map<String, dynamic>> getDashboardData({
+  Future<DashboardData> getDashboardData({
     String? dateFrom,
     String? dateTo,
     int? employeeId,
+    int? sourceId,
+    int? stageId,
+    int? adTypeId,
   }) async {
     try {
-      String url = '$baseUrl/api/reports/dashboard?';
-      if (dateFrom != null) url += 'dateFrom=$dateFrom&';
-      if (dateTo != null) url += 'dateTo=$dateTo&';
-      if (employeeId != null) url += 'employeeId=$employeeId';
+      final params = <String, String>{};
+      if (dateFrom != null) params['dateFrom'] = dateFrom;
+      if (dateTo != null) params['dateTo'] = dateTo;
+      if (employeeId != null) params['employeeId'] = employeeId.toString();
+      if (sourceId != null) params['sourceId'] = sourceId.toString();
+      if (stageId != null) params['stageId'] = stageId.toString();
+      if (adTypeId != null) params['adTypeId'] = adTypeId.toString();
 
-      final response = await http.get(Uri.parse(url));
+      final uri = Uri.parse('$baseUrl/api/reports/dashboard')
+          .replace(queryParameters: params.isNotEmpty ? params : null);
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         if (json['success'] == true) {
-          return json['data'];
+          return DashboardData.fromJson(json['data']);
         }
+        throw Exception(json['message'] ?? 'فشل تحميل البيانات');
       }
-      throw Exception('فشل تحميل البيانات');
+      throw Exception('خطأ ${response.statusCode}');
     } catch (e) {
-      throw Exception('خطأ في الاتصال: $e');
+      throw Exception('$e');
     }
   }
 }

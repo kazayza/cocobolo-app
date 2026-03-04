@@ -3,9 +3,13 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import 'add_product_screen.dart';
 import '../services/permission_service.dart';
+import '../screens/price_history_screen.dart';
+import '../screens/price_requests_screen.dart';
+import '../screens/pdf_viewer_screen.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final int productId;
@@ -28,6 +32,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool loading = true;
   int currentImageIndex = 0;
   final PageController _pageController = PageController();
+  bool _hasPdf = false;
 
   @override
   void initState() {
@@ -53,6 +58,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           product = data;
           images = data['images'] ?? [];
           components = data['components'] ?? [];
+          _hasPdf = data['PDFFile'] != null;
           loading = false;
         });
       }
@@ -128,6 +134,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
                 const SizedBox(height: 24),
 
+                  // أزرار إجراءات الأسعار
+                _buildPriceActionsSection(),
+                const SizedBox(height: 24),
+
                 // معلومات أساسية
                 _buildInfoSection(),
 
@@ -150,7 +160,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 // المكونات
                 if (components.isNotEmpty) _buildComponentsSection(),
 
-                const SizedBox(height: 100),
+                const SizedBox(height: 24),
+                     // PDF
+                if (_hasPdf) _buildPDFSection(),
+
+                if (_hasPdf) const SizedBox(height: 24),
               ],
             ),
           ),
@@ -160,28 +174,49 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildSliverAppBar() {
+    final perm = PermissionService();
+
     return SliverAppBar(
       expandedHeight: 350,
       pinned: true,
       backgroundColor: const Color(0xFF1A1A1A),
       iconTheme: const IconThemeData(color: Colors.white),
       actions: [
-        // زر التعديل
-        IconButton(
-          icon: const Icon(Icons.edit, color: Color(0xFFFFD700)),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddProductScreen(
-                  username: widget.username,
-                  productId: widget.productId,
-                  existingProduct: product,
+        // زر تاريخ الأسعار (للكل ماعدا Account)
+        if (perm.canSeeFullProductPricing)
+          IconButton(
+            icon: const Icon(Icons.history, color: Color(0xFFFFD700)),
+            tooltip: 'تاريخ الأسعار',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PriceHistoryScreen(
+                    productId: widget.productId,
+                    productName: product?['ProductName'] ?? '',
+                  ),
                 ),
-              ),
-            ).then((_) => fetchProductDetails());
-          },
-        ),
+              );
+            },
+          ),
+
+        // زر التعديل (حسب الصلاحية)
+        if (perm.canEdit(FormNames.productsAdd) || perm.isFactory)
+          IconButton(
+            icon: const Icon(Icons.edit, color: Color(0xFFFFD700)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddProductScreen(
+                    username: widget.username,
+                    productId: widget.productId,
+                    existingProduct: product,
+                  ),
+                ),
+              ).then((_) => fetchProductDetails());
+            },
+          ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: _buildImageGallery(),
@@ -446,6 +481,608 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ],
         ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
       ],
+    );
+  }
+  
+  Widget _buildPriceActionsSection() {
+    final perm = PermissionService();
+    final List<Widget> buttons = [];
+
+    // زر طلب تعديل سعر (Sales فقط)
+    if (perm.canRequestPriceChange) {
+      buttons.add(
+        Expanded(
+          child: _buildActionButton(
+            icon: Icons.price_change,
+            label: 'طلب تعديل سعر',
+            color: Colors.orangeAccent,
+            onTap: () => _showPriceChangeRequestDialog(),
+          ),
+        ),
+      );
+    }
+
+    // زر تعديل سعر البيع مباشرة (Admin / AccountManager)
+    if (perm.canEditSalePrice) {
+      buttons.add(
+        Expanded(
+          child: _buildActionButton(
+            icon: Icons.edit_note,
+            label: 'تعديل سعر البيع',
+            color: const Color(0xFFFFD700),
+            onTap: () => _showEditSalePriceDialog(),
+          ),
+        ),
+      );
+    }
+
+    // زر تاريخ الأسعار (للكل ماعدا Account)
+    if (perm.canSeeFullProductPricing) {
+      buttons.add(
+        Expanded(
+          child: _buildActionButton(
+            icon: Icons.history,
+            label: 'تاريخ الأسعار',
+            color: Colors.blueAccent,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PriceHistoryScreen(
+                    productId: widget.productId,
+                    productName: product?['ProductName'] ?? '',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    if (buttons.isEmpty) return const SizedBox.shrink();
+
+    // إضافة SizedBox بين الأزرار
+    final List<Widget> spacedButtons = [];
+    for (int i = 0; i < buttons.length; i++) {
+      spacedButtons.add(buttons[i]);
+      if (i < buttons.length - 1) {
+        spacedButtons.add(const SizedBox(width: 10));
+      }
+    }
+
+    return Row(children: spacedButtons)
+        .animate()
+        .fadeIn(delay: 250.ms)
+        .slideY(begin: 0.1, end: 0);
+  }
+
+  void _showPriceChangeRequestDialog() {
+    final priceTypeController = ValueNotifier<String>('Premium');
+    final requestedPriceController = TextEditingController();
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.price_change, color: Colors.orangeAccent, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'طلب تعديل سعر',
+              style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // اختيار نوع الباقة
+              ValueListenableBuilder<String>(
+                valueListenable: priceTypeController,
+                builder: (context, priceType, _) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildTypeChip(
+                          'Premium',
+                          priceType == 'Premium',
+                          const Color(0xFFFFD700),
+                          () => priceTypeController.value = 'Premium',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildTypeChip(
+                          'Elite',
+                          priceType == 'Elite',
+                          Colors.greenAccent,
+                          () => priceTypeController.value = 'Elite',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // السعر الحالي (عرض فقط)
+              ValueListenableBuilder<String>(
+                valueListenable: priceTypeController,
+                builder: (context, priceType, _) {
+                  final currentPrice = priceType == 'Premium'
+                      ? (product?['SuggestedSalePrice'] ?? 0)
+                      : (product?['SuggestedSalePriceElite'] ?? 0);
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('السعر الحالي:', style: GoogleFonts.cairo(color: Colors.grey)),
+                        Text(
+                          '${_formatNumber(currentPrice)} ج.م',
+                          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // السعر المطلوب
+              TextFormField(
+                controller: requestedPriceController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: GoogleFonts.cairo(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'السعر المطلوب *',
+                  labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.attach_money, color: Color(0xFFFFD700)),
+                  suffixText: 'ج.م',
+                  suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.08),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // السبب
+              TextFormField(
+                controller: reasonController,
+                maxLines: 3,
+                style: GoogleFonts.cairo(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'سبب الطلب *',
+                  labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.note, color: Color(0xFFFFD700)),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.08),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final requestedPrice = double.tryParse(requestedPriceController.text);
+              if (requestedPrice == null || requestedPrice <= 0) {
+                _showError('يرجى إدخال سعر صحيح');
+                return;
+              }
+              if (reasonController.text.isEmpty) {
+                _showError('يرجى كتابة سبب الطلب');
+                return;
+              }
+
+              Navigator.pop(context);
+              await _submitPriceChangeRequest(
+                priceType: priceTypeController.value,
+                currentPrice: priceTypeController.value == 'Premium'
+                    ? (product?['SuggestedSalePrice'] ?? 0).toDouble()
+                    : (product?['SuggestedSalePriceElite'] ?? 0).toDouble(),
+                requestedPrice: requestedPrice,
+                reason: reasonController.text,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE8B923),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('إرسال الطلب', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeChip(String label, bool selected, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? color : Colors.white.withOpacity(0.1)),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.cairo(
+              color: selected ? color : Colors.grey,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitPriceChangeRequest({
+    required String priceType,
+    required double currentPrice,
+    required double requestedPrice,
+    required String reason,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/price-request'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'priceType': priceType,
+          'currentPrice': currentPrice,
+          'requestedPrice': requestedPrice,
+          'reason': reason,
+          'requestedBy': widget.username,
+          'clientTime': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      final result = jsonDecode(res.body);
+      if (result['success'] == true) {
+        _showSuccess('تم إرسال طلب التعديل بنجاح');
+      } else {
+        _showError(result['message'] ?? 'فشل إرسال الطلب');
+      }
+    } catch (e) {
+      _showError('فشل إرسال الطلب');
+    }
+  }
+
+   void _showEditSalePriceDialog() {
+    final priceTypeController = ValueNotifier<String>('Premium');
+    final newPriceController = TextEditingController();
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.edit_note, color: Color(0xFFFFD700), size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'تعديل سعر البيع',
+              style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // اختيار نوع الباقة
+              ValueListenableBuilder<String>(
+                valueListenable: priceTypeController,
+                builder: (context, priceType, _) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildTypeChip(
+                          'Premium',
+                          priceType == 'Premium',
+                          const Color(0xFFFFD700),
+                          () => priceTypeController.value = 'Premium',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildTypeChip(
+                          'Elite',
+                          priceType == 'Elite',
+                          Colors.greenAccent,
+                          () => priceTypeController.value = 'Elite',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // السعر الحالي
+              ValueListenableBuilder<String>(
+                valueListenable: priceTypeController,
+                builder: (context, priceType, _) {
+                  final currentPrice = priceType == 'Premium'
+                      ? (product?['SuggestedSalePrice'] ?? 0)
+                      : (product?['SuggestedSalePriceElite'] ?? 0);
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('السعر الحالي:', style: GoogleFonts.cairo(color: Colors.grey)),
+                        Text(
+                          '${_formatNumber(currentPrice)} ج.م',
+                          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // السعر الجديد
+              TextFormField(
+                controller: newPriceController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: GoogleFonts.cairo(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'السعر الجديد *',
+                  labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.attach_money, color: Color(0xFFFFD700)),
+                  suffixText: 'ج.م',
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.08),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // السبب
+              TextFormField(
+                controller: reasonController,
+                maxLines: 2,
+                style: GoogleFonts.cairo(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'سبب التعديل (اختياري)',
+                  labelStyle: GoogleFonts.cairo(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.note, color: Color(0xFFFFD700)),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.08),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newPrice = double.tryParse(newPriceController.text);
+              if (newPrice == null || newPrice <= 0) {
+                _showError('يرجى إدخال سعر صحيح');
+                return;
+              }
+
+              Navigator.pop(context);
+              await _updateSalePriceDirectly(
+                priceType: priceTypeController.value,
+                newPrice: newPrice,
+                reason: reasonController.text,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE8B923),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('تحديث السعر', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateSalePriceDirectly({
+    required String priceType,
+    required double newPrice,
+    required String reason,
+  }) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/sale-price'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'priceType': priceType,
+          'newSalePrice': newPrice,
+          'changedBy': widget.username,
+          'reason': reason.isNotEmpty ? reason : 'تعديل مباشر',
+          'clientTime': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      final result = jsonDecode(res.body);
+      if (result['success'] == true) {
+        _showSuccess('تم تحديث سعر البيع بنجاح');
+        fetchProductDetails(); // إعادة تحميل البيانات
+      } else {
+        _showError(result['message'] ?? 'فشل تحديث السعر');
+      }
+    } catch (e) {
+      _showError('فشل تحديث السعر');
+    }
+  }
+
+    Widget _buildPDFSection() {
+    return _buildSection(
+      'ملف PDF',
+      Icons.picture_as_pdf,
+      InkWell(
+        onTap: () {
+          final pdfUrl = '$baseUrl/api/products/${widget.productId}/pdf';
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PdfViewerScreen(
+                url: pdfUrl, // ✅ الرابط
+                title: 'كتالوج المنتج', // ✅ العنوان
+              ),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.picture_as_pdf, color: Colors.red, size: 36),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ملف PDF مرفق',
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'اضغط لفتح الملف',
+                    style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.open_in_new, color: Colors.red, size: 22),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(delay: 700.ms).slideY(begin: 0.1, end: 0);
+  }
+
+    Future<void> _openPdfFile() async { // 👈 سميناها _openPdfFile عشان نضمن الاسم
+    final url = '$baseUrl/api/products/${widget.productId}/pdf';
+    final uri = Uri.parse(url);
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشل فتح ملف الـ PDF')),
+        );
+      }
+    }
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(message, style: GoogleFonts.cairo()),
+          ],
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
