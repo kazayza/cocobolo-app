@@ -4,6 +4,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // ✅ إضافة المكتبة دي
 import './Reports/expense_reports.dart';
 import 'reports/crm_dashboard_screen.dart'; // ✅ إضافة شاشة الداشبورد
+import 'cashbox_transactions_screen.dart';
+import 'cashbox_dashboard_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
   final int userId;
@@ -175,22 +177,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 24),
 
             // ===== تقارير الخزينة =====
-            _buildSectionTitle('تقارير الخزينة', Icons.account_balance),
-            const SizedBox(height: 12),
-            _buildReportsGrid([
-              _ReportItem(
-                title: 'حركة الخزينة',
-                icon: Icons.swap_horiz,
-                color: const Color(0xFF607D8B),
-                onTap: () => _showComingSoon('تقرير حركة الخزينة'),
-              ),
-              _ReportItem(
-                title: 'الأرصدة الحالية',
-                icon: Icons.account_balance_wallet,
-                color: const Color(0xFF795548),
-                onTap: () => _showComingSoon('تقرير الأرصدة الحالية'),
-              ),
-            ]),
+_buildSectionTitle('تقارير الخزينة', Icons.account_balance),
+const SizedBox(height: 12),
+_buildReportsGrid([
+  _ReportItem(
+    title: 'حركة الخزينة',
+    icon: Icons.swap_horiz,
+    color: const Color(0xFF607D8B),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CashboxTransactionsScreen(
+            userId: widget.userId,
+            username: widget.username,
+          ),
+        ),
+      );
+    },
+  ),
+  _ReportItem(
+    title: 'مؤشرات الخزينة',
+    icon: Icons.analytics,
+    color: const Color(0xFF795548),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CashboxDashboardScreen(
+            userId: widget.userId,
+            username: widget.username,
+          ),
+        ),
+      );
+    },
+  ),
+]),
 
             const SizedBox(height: 40),
           ],

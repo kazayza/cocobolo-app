@@ -27,6 +27,7 @@ import 'attendance_report_screen.dart';      // أو المسار الصحيح
 import 'permissions_list_screen.dart';       // أو المسار الصحيح
 import 'delivery_tracking_screen.dart';
 import 'my_schedule_screen.dart';
+import 'complaints_screen.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import '../services/update_service.dart';
@@ -215,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     if (_perms.canView(FormNames.priceRequests)) order.add('price_requests');
     if (_perms.canView(FormNames.employeesList)) order.add('employees');
     if (_perms.canView(FormNames.invoiceDeliveryStatus)) order.add('delivery');
+    if (_perms.canView(FormNames.complaintsMain)) order.add('complaints');
     if (_perms.canView(FormNames.myschedule)) order.add('my_schedule');
       order.add('attendance_report');   // تقرير الحضور
   order.add('my_permissions'); 
@@ -1386,6 +1388,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       return _SectionData('أذوناتي', Icons.verified_user, Colors.indigoAccent, 'my_permissions', null);
     case 'delivery':
       return _SectionData('متابعة التسليم', Icons.local_shipping, Colors.green, 'delivery', null);
+    case 'complaints':
+      return _SectionData('الشكاوى والصيانه', Icons.report_problem, Colors.redAccent, 'complaints', null);
     case 'my_schedule':
       return _SectionData('جدول مواعيدي', Icons.calendar_month, Colors.blue, 'my_schedule', null);
         default:
@@ -1992,6 +1996,9 @@ Widget _buildBottomNav() {
       // ✅ الشاشات الجديدة
       case 'delivery':
         screen = DeliveryTrackingScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'complaints':
+        screen = ComplaintsScreen(userId: widget.userId, username: widget.username);
         break;
       case 'my_schedule':
         screen = MyScheduleScreen(userId: widget.userId, username: widget.username);

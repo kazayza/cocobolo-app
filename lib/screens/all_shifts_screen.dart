@@ -6,10 +6,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../constants.dart';
-import '../services/permission_service.dart'; // ✅ استيراد الصلاحيات
+import '../services/permission_service.dart';
 
 class AllShiftsScreen extends StatefulWidget {
-  // ✅ إضافة المتغيرات دي
   final int? userId;
   final String? username;
 
@@ -27,40 +26,39 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
   List<dynamic> shifts = [];
   bool loading = true;
 
-  // إحصائيات
   int morningCount = 0;
   int eveningCount = 0;
   int activeCount = 0;
   int expiredCount = 0;
 
-  // Filters
   String searchQuery = '';
   String selectedShiftType = 'الكل';
   DateTime fromDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime toDate = DateTime.now().add(const Duration(days: 30));
-  
-  // للـ Debounce
+
   Timer? _debounceTimer;
 
-  // ✅ التحقق من الصلاحيات (هل هو مدير؟)
+  // ✅ تعديل 1: متغير لحفظ اسم الموظف الحقيقي من الشيفتات
+  String? _employeeFullName;
+
   bool get isManager {
     final perms = PermissionService();
-    // حدد الأدوار اللي مسموح لها تشوف كل الشيفتات
-    return perms.isAdmin || 
-           perms.isSalesManager || 
-           perms.isAccountManager || 
-           perms.isWarehouse ||
-           (perms.role?.toLowerCase() == 'hr'); // لو عندك دور HR
+    return perms.isAdmin ||
+        perms.isSalesManager ||
+        perms.isAccountManager ||
+        perms.isWarehouse ||
+        (perms.role?.toLowerCase() == 'hr');
   }
 
   @override
   void initState() {
     super.initState();
-    // ✅ لو موظف عادي، نثبت البحث على اسمه
+    // ✅ تعديل 2: لو موظف عادي نستدعي الدالة الجديدة
     if (!isManager) {
-      searchQuery = PermissionService().fullName ?? '';
+      _loadEmployeeDataThenFetch();
+    } else {
+      fetchShifts();
     }
-    fetchShifts();
   }
 
   @override
@@ -69,17 +67,117 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
     super.dispose();
   }
 
+  // ✅ تعديل 3: دالة جديدة - تجيب كل الشيفتات وتفلتر للموظف
+  // ✅ الدالة الجديدة - حطها بدل _loadEmployeeDataThenFetch القديمة
+Future<void> _loadEmployeeDataThenFetch() async {
+  setState(() => loading = true);
+  try {
+    final perms = PermissionService();
+    final int? empId = perms.employeeId;
+
+    print('══════════════════════════════════════');
+    print('🔍 employeeId من PermissionService: $empId');
+    print('══════════════════════════════════════');
+
+    // ═══════════════════════════════════════════════════
+    // الخطوة 1: نجيب اسم الموظف الحقيقي من جدول Employees
+    // ═══════════════════════════════════════════════════
+    if (empId != null) {
+      try {
+        final empRes = await http.get(
+          Uri.parse('$baseUrl/api/employees/$empId'),
+        );
+
+        if (empRes.statusCode == 200) {
+          final empData = jsonDecode(empRes.body);
+          // جرب كل الاحتمالات للاسم
+          _employeeFullName = empData['FullName'] ??
+              empData['fullName'] ??
+              empData['full_name'] ??
+              empData['Name'] ??
+              empData['name'] ??
+              '';
+
+          print('✅ اسم الموظف الحقيقي من API: $_employeeFullName');
+        } else {
+          print('⚠️ فشل جلب بيانات الموظف: ${empRes.statusCode}');
+          print('⚠️ Response: ${empRes.body}');
+        }
+      } catch (e) {
+        print('⚠️ خطأ في جلب بيانات الموظف: $e');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // الخطوة 2: نبحث في الشيفتات باسم الموظف الحقيقي
+    // ═══════════════════════════════════════════════════
+    final queryParams = <String, String>{
+      'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
+      'toDate': DateFormat('yyyy-MM-dd').format(toDate),
+    };
+
+    if (selectedShiftType != 'الكل') {
+      queryParams['shiftType'] = selectedShiftType;
+    }
+
+    // ✅ نبعت اسم الموظف الحقيقي في البحث
+    if (_employeeFullName != null && _employeeFullName!.isNotEmpty) {
+      queryParams['employeeName'] = _employeeFullName!;
+    }
+
+    final uri = Uri.parse('$baseUrl/api/shifts/search')
+        .replace(queryParameters: queryParams);
+
+    print('🌐 بحث الشيفتات بالاسم: $_employeeFullName');
+    print('🌐 URL: $uri');
+
+    final res = await http.get(uri);
+
+    if (res.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(res.body);
+
+      print('✅ عدد الشيفتات: ${data.length}');
+
+      setState(() {
+        shifts = data;
+        _calculateStats(data);
+        loading = false;
+      });
+    } else {
+      setState(() => loading = false);
+      print('❌ Error: ${res.statusCode}');
+    }
+  } catch (e) {
+    setState(() => loading = false);
+    print('❌ Exception: $e');
+  }
+}
+
+  // ✅ تعديل 4: fetchShifts - لو موظف عادي يروح للدالة الجديدة
   Future<void> fetchShifts() async {
+    // لو موظف عادي، نستخدم الدالة الخاصة بيه
+    if (!isManager) {
+      _loadEmployeeDataThenFetch();
+      return;
+    }
+
+    // المدير يجيب كل الشيفتات عادي
     setState(() => loading = true);
     try {
-      final queryParams = {
+      final queryParams = <String, String>{
         'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
         'toDate': DateFormat('yyyy-MM-dd').format(toDate),
-        if (selectedShiftType != 'الكل') 'shiftType': selectedShiftType,
-        if (searchQuery.isNotEmpty) 'employeeName': searchQuery,
       };
 
-      final uri = Uri.parse('$baseUrl/api/shifts/search').replace(queryParameters: queryParams);
+      if (selectedShiftType != 'الكل') {
+        queryParams['shiftType'] = selectedShiftType;
+      }
+      if (searchQuery.isNotEmpty) {
+        queryParams['employeeName'] = searchQuery;
+      }
+
+      final uri = Uri.parse('$baseUrl/api/shifts/search')
+          .replace(queryParameters: queryParams);
       final res = await http.get(uri);
 
       if (res.statusCode == 200) {
@@ -99,7 +197,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
   void _calculateStats(List<dynamic> shiftsData) {
     morningCount = shiftsData.where((s) => s['ShiftType'] == 'صباحى').length;
     eveningCount = shiftsData.where((s) => s['ShiftType'] == 'مسائى').length;
-    
+
     final now = DateTime.now();
     activeCount = shiftsData.where((s) {
       if (s['EndDate'] == null) return true;
@@ -110,7 +208,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
         return true;
       }
     }).length;
-    
+
     expiredCount = shiftsData.length - activeCount;
   }
 
@@ -134,14 +232,16 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
     );
     if (picked != null) {
       setState(() {
-        if (isFrom) fromDate = picked; else toDate = picked;
+        if (isFrom)
+          fromDate = picked;
+        else
+          toDate = picked;
       });
       fetchShifts();
     }
   }
 
   void _onSearchChanged(String query) {
-    // ✅ لو موظف عادي، نمنعه يغير البحث
     if (!isManager) return;
 
     setState(() => searchQuery = query);
@@ -151,10 +251,10 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
     });
   }
 
+  // ✅ تعديل 5: مسح الفلاتر
   void _clearFilters() {
     setState(() {
-      // ✅ لو موظف عادي، نرجع اسمه في البحث
-      searchQuery = isManager ? '' : (PermissionService().fullName ?? '');
+      searchQuery = '';
       selectedShiftType = 'الكل';
       fromDate = DateTime.now().subtract(const Duration(days: 30));
       toDate = DateTime.now().add(const Duration(days: 30));
@@ -175,12 +275,17 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                 color: const Color(0xFFE8B923).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.calendar_month, color: Color(0xFFE8B923), size: 18),
+              child: const Icon(Icons.calendar_month,
+                  color: Color(0xFFE8B923), size: 18),
             ),
             const SizedBox(width: 10),
             Text(
-              'متابعة الشيفتات',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+              // ✅ تعديل 6: عنوان مختلف للموظف
+              isManager ? 'متابعة الشيفتات' : 'شيفتاتي',
+              style: GoogleFonts.cairo(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 16),
             ),
           ],
         ),
@@ -240,16 +345,21 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatItem('صباحى', morningCount.toString(), Icons.wb_sunny, Colors.orange),
-          _buildStatItem('مسائى', eveningCount.toString(), Icons.nights_stay, Colors.blue),
-          _buildStatItem('ساري', activeCount.toString(), Icons.check_circle, Colors.green),
-          _buildStatItem('منتهي', expiredCount.toString(), Icons.history, Colors.grey),
+          _buildStatItem(
+              'صباحى', morningCount.toString(), Icons.wb_sunny, Colors.orange),
+          _buildStatItem('مسائى', eveningCount.toString(), Icons.nights_stay,
+              Colors.blue),
+          _buildStatItem(
+              'ساري', activeCount.toString(), Icons.check_circle, Colors.green),
+          _buildStatItem(
+              'منتهي', expiredCount.toString(), Icons.history, Colors.grey),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Icon(icon, color: color, size: 18),
@@ -273,6 +383,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
     );
   }
 
+  // ✅ تعديل 7: شريط الفلاتر
   Widget _buildFiltersBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -285,17 +396,20 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
       ),
       child: Column(
         children: [
-          // ✅ شريط البحث (يظهر فقط للمدير)
+          // البحث للمدير فقط
           if (isManager)
             TextField(
               style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'ابحث باسم الموظف...',
-                hintStyle: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFFE8B923), size: 20),
+                hintStyle:
+                    GoogleFonts.cairo(color: Colors.grey[600], fontSize: 14),
+                prefixIcon: const Icon(Icons.search,
+                    color: Color(0xFFE8B923), size: 20),
                 suffixIcon: searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
+                        icon: const Icon(Icons.clear,
+                            color: Colors.grey, size: 18),
                         onPressed: () {
                           setState(() => searchQuery = '');
                           fetchShifts();
@@ -308,40 +422,82 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                   borderRadius: BorderRadius.circular(15),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
               onChanged: _onSearchChanged,
             )
           else
-            // ✅ للموظف العادي: عرض اسمه فقط
+            // ✅ للموظف العادي: اسمه الحقيقي + عدد شيفتاته
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: const Color(0xFFE8B923).withOpacity(0.3)),
+                border: Border.all(
+                    color: const Color(0xFFE8B923).withOpacity(0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.person, color: Color(0xFFE8B923), size: 20),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8B923).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.person,
+                        color: Color(0xFFE8B923), size: 18),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'شيفتاتك الخاصة',
+                          style: GoogleFonts.cairo(
+                            color: Colors.grey[400],
+                            fontSize: 10,
+                          ),
+                        ),
+                        Text(
+                          // ✅ الاسم الحقيقي مش اليوزرنيم
+                          _employeeFullName ?? 'جاري التحميل...',
+                          style: GoogleFonts.cairo(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8B923).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Text(
-                      'شيفتاتك الخاصة: ${PermissionService().fullName ?? widget.username ?? ""}',
-                      style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+                      '${shifts.length} شيفت',
+                      style: GoogleFonts.cairo(
+                        color: const Color(0xFFE8B923),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          
+
           const SizedBox(height: 16),
-          
-          // صف التاريخ والفلتر
+
+          // صف التاريخ
           Row(
             children: [
-              // أزرار التاريخ
               Expanded(
                 child: _buildDateButton(
                   'من: ${DateFormat('yyyy/MM/dd').format(fromDate)}',
@@ -359,13 +515,12 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 12),
-          
-          // صف الأنواع ومسح الفلاتر
+
+          // صف الأنواع
           Row(
             children: [
-              // أنواع الشيفت
               Expanded(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -380,11 +535,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                   ),
                 ),
               ),
-              
-              // زر مسح الفلاتر (يظهر لو فيه فلتر نشط)
-              if (isManager && (searchQuery.isNotEmpty || selectedShiftType != 'الكل' || 
-                  fromDate != DateTime.now().subtract(const Duration(days: 30)) ||
-                  toDate != DateTime.now().add(const Duration(days: 30))))
+              if (searchQuery.isNotEmpty || selectedShiftType != 'الكل')
                 Container(
                   margin: const EdgeInsets.only(left: 8),
                   decoration: BoxDecoration(
@@ -392,7 +543,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.clear_all, color: Colors.red, size: 18),
+                    icon: const Icon(Icons.clear_all,
+                        color: Colors.red, size: 18),
                     onPressed: _clearFilters,
                     tooltip: 'مسح الفلاتر',
                   ),
@@ -435,8 +587,10 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
 
   Widget _buildTypeChip(String label) {
     final isSelected = selectedShiftType == label;
-    final Color color = label == 'صباحى' ? Colors.orange : (label == 'مسائى' ? Colors.blue : Colors.grey);
-    
+    final Color color = label == 'صباحى'
+        ? Colors.orange
+        : (label == 'مسائى' ? Colors.blue : Colors.grey);
+
     return GestureDetector(
       onTap: () {
         setState(() => selectedShiftType = label);
@@ -445,7 +599,9 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+          color: isSelected
+              ? color.withOpacity(0.2)
+              : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(30),
           border: Border.all(
             color: isSelected ? color : Colors.white.withOpacity(0.1),
@@ -467,8 +623,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
   Widget _buildShiftCard(Map<String, dynamic> shift, int index) {
     final isMorning = shift['ShiftType'] == 'صباحى';
     final Color shiftColor = isMorning ? Colors.orange : Colors.blue;
-    
-    // التحقق من انتهاء الشيفت
+
     bool isExpired = false;
     if (shift['EndDate'] != null) {
       try {
@@ -505,10 +660,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // السطر الأول: الاسم والحالة
             Row(
               children: [
-                // الصورة المصغرة
                 Container(
                   width: 40,
                   height: 40,
@@ -528,8 +681,6 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
-                // الاسم والوظيفة
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,12 +708,13 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                     ],
                   ),
                 ),
-                
-                // حالة الشيفت
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isExpired ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    color: isExpired
+                        ? Colors.red.withOpacity(0.1)
+                        : Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -587,12 +739,9 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                 ),
               ],
             ),
-            
             const SizedBox(height: 16),
             Divider(color: Colors.white.withOpacity(0.05), height: 1),
             const SizedBox(height: 12),
-
-            // وقت الشيفت
             Row(
               children: [
                 Container(
@@ -601,7 +750,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                     color: const Color(0xFFE8B923).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.access_time, size: 14, color: Color(0xFFE8B923)),
+                  child: const Icon(Icons.access_time,
+                      size: 14, color: Color(0xFFE8B923)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -627,7 +777,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: shiftColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -643,10 +794,7 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                 ),
               ],
             ),
-            
             const SizedBox(height: 12),
-
-            // تاريخ الشيفت
             Row(
               children: [
                 Container(
@@ -655,7 +803,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                     color: Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.date_range, size: 14, color: Colors.green),
+                  child: const Icon(Icons.date_range,
+                      size: 14, color: Colors.green),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -680,14 +829,19 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.arrow_forward, color: Colors.grey, size: 10),
+                          const Icon(Icons.arrow_forward,
+                              color: Colors.grey, size: 10),
                           const SizedBox(width: 6),
                           Text(
                             shift['EndDate'] ?? 'الى تاريخه',
                             style: GoogleFonts.cairo(
-                              color: shift['EndDate'] == null ? Colors.green : Colors.grey[400],
+                              color: shift['EndDate'] == null
+                                  ? Colors.green
+                                  : Colors.grey[400],
                               fontSize: 12,
-                              fontWeight: shift['EndDate'] == null ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: shift['EndDate'] == null
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                         ],
@@ -708,8 +862,11 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(color: Color(0xFFE8B923), strokeWidth: 2)
-              .animate().fadeIn().scale(),
+          const CircularProgressIndicator(
+                  color: Color(0xFFE8B923), strokeWidth: 2)
+              .animate()
+              .fadeIn()
+              .scale(),
           const SizedBox(height: 16),
           Text(
             'جاري تحميل الشيفتات...',
@@ -731,7 +888,8 @@ class _AllShiftsScreenState extends State<AllShiftsScreen> {
               color: Colors.grey.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.calendar_month, size: 50, color: Colors.grey[600]),
+            child:
+                Icon(Icons.calendar_month, size: 50, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
           Text(

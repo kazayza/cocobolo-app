@@ -609,115 +609,153 @@ class _EmployeeShiftsScreenState extends State<EmployeeShiftsScreen> {
   }
 
   Widget _buildShiftDetails(Map<String, dynamic> emp) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE8B923).withOpacity(0.1),
-        ),
+  return Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.black.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: const Color(0xFFE8B923).withOpacity(0.1),
       ),
-      child: Column(
-        children: [
-          // وقت الشيفت
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8B923).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.access_time, color: Color(0xFFE8B923), size: 14),
+    ),
+    child: Column(
+      children: [
+        // وقت الشيفت
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8B923).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'موعد الشيفت',
-                      style: GoogleFonts.cairo(
-                        color: Colors.grey[500],
-                        fontSize: 9,
-                      ),
+              child: const Icon(Icons.access_time, color: Color(0xFFE8B923), size: 14),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'موعد الشيفت',
+                    style: GoogleFonts.cairo(
+                      color: Colors.grey[500],
+                      fontSize: 9,
                     ),
-                    Text(
-                      (emp['StartTime'] != null && emp['EndTime'] != null)
-                          ? '${emp['StartTime']} - ${emp['EndTime']}'
-                          : 'الوقت غير محدد',
-                      style: GoogleFonts.cairo(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8B923).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  emp['ShiftType'] ?? 'شيفت',
-                  style: GoogleFonts.cairo(
-                    color: const Color(0xFFE8B923),
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Divider(color: Colors.white.withOpacity(0.05), height: 1),
-          const SizedBox(height: 10),
-          
-          // تاريخ البداية
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.calendar_today, color: Color(0xFF4CAF50), size: 14),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'تاريخ البداية',
-                      style: GoogleFonts.cairo(
-                        color: Colors.grey[500],
-                        fontSize: 9,
-                      ),
+                  Text(
+                    (emp['StartTime'] != null && emp['EndTime'] != null)
+                        ? '${emp['StartTime']} - ${emp['EndTime']}'
+                        : 'الوقت غير محدد',
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
                     ),
-                    Text(
-                      emp['StartDate'] ?? 'غير محدد',
-                      style: GoogleFonts.cairo(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8B923).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                emp['ShiftType'] ?? 'شيفت',
+                style: GoogleFonts.cairo(
+                  color: const Color(0xFFE8B923),
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(Icons.edit_calendar, color: Colors.grey[600], size: 16),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Divider(color: Colors.white.withOpacity(0.05), height: 1),
+        const SizedBox(height: 10),
+        
+        // ✅ تاريخ البداية - الاسم الصحيح
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.play_circle, color: Color(0xFF4CAF50), size: 14),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'بداية الشيفت',
+                    style: GoogleFonts.cairo(
+                      color: Colors.grey[500],
+                      fontSize: 9,
+                    ),
+                  ),
+                  Text(
+                    emp['EffectiveFrom'] ?? 'غير محدد',  // ✅ الاسم الصحيح
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        
+        // ✅ تاريخ النهاية - جديد
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE91E63).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.stop_circle, color: Color(0xFFE91E63), size: 14),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'نهاية الشيفت',
+                    style: GoogleFonts.cairo(
+                      color: Colors.grey[500],
+                      fontSize: 9,
+                    ),
+                  ),
+                  Text(
+                    emp['EffectiveTo'] ?? 'حتى تاريخه',  // ✅ الاسم الصحيح
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.edit_calendar, color: Colors.grey[600], size: 16),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildAddShiftButton() {
     return Container(

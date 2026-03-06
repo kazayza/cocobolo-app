@@ -63,62 +63,50 @@ class _AddShiftScreenState extends State<AddShiftScreen> with TickerProviderStat
   }
 
   void _loadShiftData() {
-    final shift = widget.currentShift!;
+  final shift = widget.currentShift!;
+  
+  setState(() {
+    // 1. نوع الشيفت
+    String shiftType = shift['ShiftType'] ?? '';
+    if (shiftType.contains('صباح') || shiftType.toLowerCase().contains('morning')) {
+      selectedShiftType = 'صباحى';
+    } else {
+      selectedShiftType = 'مسائى';
+    }
     
-    // 🔍 اطبع جميع البيانات المستقبلة لمعرفة ما يحدث
-    print('═══════════════════════════════════');
-    print('📥 Received Shift Data:');
-    shift.forEach((key, value) {
-      print('  $key: $value (type: ${value.runtimeType})');
-    });
-    print('═══════════════════════════════════');
+    // 2. الأوقات
+    if (shift['StartTime'] != null) {
+      startTime = _parseTimeString(shift['StartTime'].toString());
+    }
+    if (shift['EndTime'] != null) {
+      endTime = _parseTimeString(shift['EndTime'].toString());
+    }
     
-    setState(() {
-      // 1. قراءة نوع الشيفت بشكل صحيح
-      String shiftType = shift['ShiftType'] ?? '';
-      print('✅ Shift type from API: $shiftType');
-      
-      if (shiftType.contains('صباح') || 
-          shiftType == 'صباحى' || 
-          shiftType == 'صباحي' || 
-          shiftType.toLowerCase().contains('morning')) {
-        selectedShiftType = 'صباحى';
-      } else if (shiftType.contains('مساء') || 
-                 shiftType == 'مسائى' || 
-                 shiftType == 'مسائي' || 
-                 shiftType.toLowerCase().contains('evening') || 
-                 shiftType.toLowerCase().contains('night')) {
-        selectedShiftType = 'مسائى';
+    // 3. تاريخ البداية ✅
+    final fromDate = shift['EffectiveFrom'];
+    if (fromDate != null && fromDate.toString().isNotEmpty) {
+      try {
+        effectiveFrom = DateTime.parse(fromDate.toString());
+      } catch (e) {
+        effectiveFrom = DateTime.now();
       }
-      
-      // 2. قراءة الأوقات
-      if (shift['StartTime'] != null) {
-        startTime = _parseTimeString(shift['StartTime']);
-        print('✅ StartTime: $startTime');
-      }
-      if (shift['EndTime'] != null) {
-        endTime = _parseTimeString(shift['EndTime']);
-        print('✅ EndTime: $endTime');
-      }
-      
-      // 3. قراءة التواريخ - جرب جميع الأسماء الممكنة
-      // محاولة 1: StartDate / EndDate
-      _loadDate('StartDate', 'effectiveFrom', true) ?? 
-        _loadDate('EffectiveFrom', 'effectiveFrom', true);
-        
-      // ⭐ معالجة EndDate: إذا كان null، استخدم تاريخ بعد 30 يوم
-      final dateLoaded = _loadDate('EndDate', 'effectiveTo', false) ?? 
-        _loadDate('EffectiveTo', 'effectiveTo', false) ??
-        _loadDate('ExpiredDate', 'effectiveTo', false) ??
-        _loadDate('EndEffectiveDate', 'effectiveTo', false);
-      
-      // إذا لم يتم تحميل أي تاريخ نهاية، ابقِ effectiveTo = null
-      if (dateLoaded == false || dateLoaded == null) {
-        print('ℹ️ EndDate is null - keeping as null (no default value)');
+    }
+    
+    // 4. تاريخ النهاية ✅
+    final toDate = shift['EffectiveTo'];
+    if (toDate != null && 
+        toDate.toString().isNotEmpty && 
+        toDate.toString().toLowerCase() != 'null') {
+      try {
+        effectiveTo = DateTime.parse(toDate.toString());
+      } catch (e) {
         effectiveTo = null;
       }
-    });
-  }
+    } else {
+      effectiveTo = null;
+    }
+  });
+}
 
   /// دالة مساعدة لتحميل التاريخ مع معالجة شاملة
   bool? _loadDate(String apiKey, String variableName, bool isStart) {
@@ -178,58 +166,64 @@ class _AddShiftScreenState extends State<AddShiftScreen> with TickerProviderStat
   }
 
   Future<void> _saveShift() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (startTime == null || endTime == null) {
-      _showErrorSnackBar('يرجى تحديد وقت البداية والنهاية');
-      return;
-    }
+  if (!_formKey.currentState!.validate()) return;
+  if (startTime == null || endTime == null) {
+    _showErrorSnackBar('يرجى تحديد وقت البداية والنهاية');
+    return;
+  }
 
-    // التحقق من أن وقت النهاية أكبر من وقت البداية
-    if (endTime!.hour < startTime!.hour || 
-        (endTime!.hour == startTime!.hour && endTime!.minute <= startTime!.minute)) {
-      _showErrorSnackBar('وقت النهاية يجب أن يكون بعد وقت البداية');
-      return;
-    }
+  setState(() => _isLoading = true);
 
-    setState(() => _isLoading = true);
+  try {
+    final body = {
+      'employeeId': widget.employeeId,
+      'shiftType': selectedShiftType,
+      'startTime': _formatTime(startTime!),
+      'endTime': _formatTime(endTime!),
+      'effectiveFrom': effectiveFrom.toIso8601String(),  // ✅ تغيير التنسيق
+      'effectiveTo': effectiveTo?.toIso8601String(),      // ✅ تغيير التنسيق
+      'createdBy': widget.username,
+    };
 
-    try {
-      final body = {
-        'employeeId': widget.employeeId,
-        'shiftType': selectedShiftType,
-        'startTime': _formatTime(startTime!),
-        'endTime': _formatTime(endTime!),
-        'startDate': DateFormat('yyyy-MM-dd').format(effectiveFrom),
-        'endDate': effectiveTo != null ? DateFormat('yyyy-MM-dd').format(effectiveTo!) : null,
-        'createdBy': widget.username,
-      };
+    print('═══════════════════════════════════════');
+    print('📤 Sending to API:');
+    body.forEach((key, value) {
+      print('  "$key": $value (${value.runtimeType})');
+    });
+    print('═══════════════════════════════════════');
 
-      print('═══════════════════════════════════════');
-      print('📤 Sending to API:');
-      body.forEach((key, value) {
-        print('  "$key": $value');
-      });
-      print('═══════════════════════════════════════');
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/shifts'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
 
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/shifts'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
+    print('📥 Response Status: ${res.statusCode}');
+    print('📥 Response Body: ${res.body}');
 
+    if (res.statusCode == 200) {
       final result = jsonDecode(res.body);
-
-      if (res.statusCode == 200 && result['success'] == true) {
-        _showSuccessDialog();
+      if (result['success'] == true) {
+        if (mounted) {
+          Navigator.pop(context);
+          _showSuccessDialog();
+        }
       } else {
         _showErrorSnackBar(result['message'] ?? 'فشل الحفظ');
       }
-    } catch (e) {
-      _showErrorSnackBar('فشل الاتصال بالسيرفر');
-    } finally {
+    } else {
+      final result = jsonDecode(res.body);
+      _showErrorSnackBar(result['message'] ?? 'خطأ من السيرفر');
+    }
+  } catch (e) {
+    print('❌ Error: $e');
+    _showErrorSnackBar('فشل الاتصال بالسيرفر: ${e.toString()}');
+  } finally {
+    if (mounted) {
       setState(() => _isLoading = false);
     }
   }
+}
 
   String _formatTime(TimeOfDay time) {
     final now = DateTime.now();

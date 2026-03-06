@@ -311,6 +311,7 @@ class FormNames {
   static const String cashBoxManual = 'frm_CashBoxManual';
   static const String inspectionCharge = 'frmInspectionCharge';
   static const String cashBoxTransaction = 'frm_CashBoxTransaction';
+  static const String cashBoxDashboard = 'frm_CashBoxDashboard';
 
   // ═══════════════════════════════════════
   // 6. التقارير
@@ -427,12 +428,7 @@ class MenuStructure {
       children: [
         //SubMenuItem('بيانات الشركة', FormNames.companyInfo, Icons.business),
         //SubMenuItem('مجموعة المنتجات', FormNames.productGroups, Icons.category),
-        
-        
-        
-        
-        
-        
+         
       ],
     ),
 
@@ -514,11 +510,13 @@ class MenuStructure {
       icon: Icons.savings,
       color: const Color(0xFF009688),
       children: [
+        SubMenuItem('مؤشرات الخزينة', FormNames.cashBoxDashboard, Icons.analytics),
+        SubMenuItem('سند قبض / صرف', FormNames.cashBoxManual, Icons.receipt),
+        SubMenuItem('حركات الخزينة', FormNames.cashBoxTransaction, Icons.history),
         SubMenuItem('مدفوعات الفواتير', FormNames.payments, Icons.payment),
         SubMenuItem('سداد الرواتب', FormNames.payrollPayment, Icons.money),
-        SubMenuItem('سند قبض / صرف', FormNames.cashBoxManual, Icons.receipt),
         SubMenuItem('رسوم المعاينة', FormNames.inspectionCharge, Icons.fact_check),
-        SubMenuItem('حركات الخزينة', FormNames.cashBoxTransaction, Icons.history),
+               
       ],
     ),
 

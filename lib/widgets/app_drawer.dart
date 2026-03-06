@@ -33,6 +33,9 @@ import '../screens/permissions_list_screen.dart';
 import '../screens/request_permission_screen.dart';
 import '../screens/complaints_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
+import '../screens/cashbox_transactions_screen.dart';
+import '../screens/cashbox_manual_screen.dart';
+import '../screens/cashbox_dashboard_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final int userId;
@@ -996,6 +999,25 @@ class _AppDrawerState extends State<AppDrawer> {
         userId: widget.userId,
         username: widget.username);
     break;
+    case 'frm_CashBoxTransaction':
+  screen = CashboxTransactionsScreen(
+    userId: widget.userId, 
+    username: widget.username
+  );
+  break;
+
+case 'frm_CashBoxManual':
+  screen = CashboxManualScreen(
+    userId: widget.userId, 
+    username: widget.username
+  );
+  break;
+  case 'frm_CashBoxDashboard':
+  screen = CashboxDashboardScreen(
+    userId: widget.userId,
+    username: widget.username,
+  );
+  break;
     }
 
     if (screen != null) {
