@@ -28,6 +28,8 @@ import 'permissions_list_screen.dart';       // أو المسار الصحيح
 import 'delivery_tracking_screen.dart';
 import 'my_schedule_screen.dart';
 import 'complaints_screen.dart';
+import 'lead_detail_screen.dart';
+import 'leads_screen.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import '../services/update_service.dart';

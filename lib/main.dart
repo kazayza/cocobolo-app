@@ -18,6 +18,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/add_expense_screen.dart';
 import 'screens/products_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/opportunity_detail_screen.dart';
+import 'screens/attendance_screen.dart';
 
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -73,6 +75,25 @@ Future<void> main() async {
                 navigatorKey.currentState?.push(
                   MaterialPageRoute(
                     builder: (_) => ProductsScreen(
+                      userId: savedUserId,
+                      username: savedUsername,
+                    ),
+                  ),
+                );
+              } else if (formName == 'opportunity_detail_screen' && id != null) {
+                navigatorKey.currentState?.push(
+                  MaterialPageRoute(
+                    builder: (_) => OpportunityDetailScreen(
+                      opportunityId: id is int ? id : int.parse(id.toString()),
+                      userId: savedUserId,
+                      username: savedUsername,
+                    ),
+                  ),
+                );
+              } else if (formName == 'attendance_screen') {
+                navigatorKey.currentState?.push(
+                  MaterialPageRoute(
+                    builder: (_) => AttendanceScreen(
                       userId: savedUserId,
                       username: savedUsername,
                     ),

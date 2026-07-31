@@ -489,31 +489,57 @@ class _PipelineScreenState extends State<PipelineScreen> {
 
           // فلتر التاريخ
           InkWell(
-            onTap: () async {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2024),
-                lastDate: DateTime.now(),
-                initialDateRange: _selectedDateRange,
-                locale: const Locale('ar'),
-                builder: (context, child) {
-                  return Theme(
-                    data: Theme.of(context).copyWith(
-                      colorScheme: ColorScheme.light(
-                        primary: AppColors.gold,
-                        onPrimary: AppColors.navy,
-                        surface: Colors.white,
-                      ),
-                    ),
-                    child: child!,
-                  );
-                },
-              );
-              if (picked != null) {
-                setState(() => _selectedDateRange = picked);
-                _loadData();
-              }
-            },
+  onTap: () async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+      initialDateRange: _selectedDateRange,
+      locale: const Locale('ar', 'EG'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme(
+              brightness: _isDark ? Brightness.dark : Brightness.light,
+              primary: AppColors.gold,
+              onPrimary: _isDark ? Colors.black87 : Colors.white,
+              surface: AppColors.card(_isDark),
+              onSurface: AppColors.text(_isDark),
+              onSurfaceVariant: AppColors.textSecondary(_isDark),
+              secondary: AppColors.gold,
+              onSecondary: _isDark ? Colors.black87 : Colors.white,
+              error: const Color(0xFFE74C3C),
+              onError: Colors.white,
+              background: AppColors.background(_isDark),
+              onBackground: AppColors.text(_isDark),
+              shadow: Colors.black,
+              scrim: Colors.black54,
+              surfaceTint: AppColors.gold.withOpacity(0.1),
+            ),
+            dialogBackgroundColor: AppColors.card(_isDark),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.gold,
+                textStyle: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+              ),
+            ),
+            datePickerTheme: DatePickerThemeData(
+              rangeSelectionBackgroundColor: AppColors.gold.withOpacity(_isDark ? 0.28 : 0.15),
+              rangeSelectionOverlayColor: WidgetStateProperty.all(
+                AppColors.gold.withOpacity(_isDark ? 0.15 : 0.10),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _selectedDateRange = picked);
+      _loadData();
+    }
+  },
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -638,7 +664,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
           children: [
             _buildSummaryCard(
               icon: Icons.emoji_events_rounded,
-              label: 'مكسوب',
+              label: ' ناجحه/مكتسبه ',
               value: '$wonCount',
               subtitle: wonValue > 0
                   ? '${NumberFormat('#,###').format(wonValue)} ج.م'

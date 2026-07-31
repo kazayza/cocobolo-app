@@ -42,6 +42,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   final _notesController = TextEditingController();
   final _guidanceController = TextEditingController();
   final _emailController = TextEditingController();
+  final _lostNotesController = TextEditingController();
 
   // Dropdown Data
   List<dynamic> sources = [];
@@ -50,11 +51,33 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   List<dynamic> adTypes = [];
   List<dynamic> categories = [];
   List<dynamic> employees = [];
+  List<dynamic> lostReasons = [];
   
   // ✅ إظهار/إخفاء الحقول الاختيارية
   bool _showPhone2 = false;
   bool _showAddress = false;
   bool _showEmail = false;
+
+    // ✅ كشف هل المرحلة المختارة خسارة
+  bool get _isLostStageSelected {
+    if (selectedStageId == null || stages.isEmpty) return false;
+    try {
+      final stage = stages.firstWhere(
+        (s) => s['StageID'] == selectedStageId,
+        orElse: () => null,
+      );
+      if (stage == null) return false;
+      final nameAr = (stage['StageNameAr'] ?? '').toString();
+      final nameEn = (stage['StageName'] ?? '').toString().toLowerCase();
+      return nameAr.contains('خسارة') ||
+          nameAr.contains('خسار') ||
+          nameAr.contains('مغلق') ||
+          nameEn.contains('lost') ||
+          nameEn.contains('closed lost');
+    } catch (_) {
+      return false;
+    }
+  }
 
   // Selected Values
   int? selectedSourceId;
@@ -63,6 +86,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
   int? selectedAdTypeId;
   int? selectedCategoryId;
   int? selectedEmployeeId;
+  int? selectedLostReasonId;
   DateTime? selectedFollowUpDate;
   TimeOfDay? selectedFollowUpTime;
 
@@ -84,6 +108,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     _notesController.dispose();
     _guidanceController.dispose();
     _emailController.dispose();
+    _lostNotesController.dispose();
     super.dispose();
   }
 
@@ -98,6 +123,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       _fetchCategories(),
       _fetchEmployees(),
       _fetchCurrentEmployee(),
+      _fetchLostReasons(),
     ]);
     
      // ✅ التعديل المهم هنا: التأكد من ملء البيانات
@@ -140,6 +166,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     selectedAdTypeId = opp['AdTypeID'];
     selectedCategoryId = opp['CategoryID'];
     selectedEmployeeId = opp['EmployeeID'];
+    selectedLostReasonId = opp['LostReasonID'];
+    _lostNotesController.text = opp['LostNotes'] ?? '';
 
     if (opp['NextFollowUpDate'] != null) {
       try {
@@ -220,6 +248,20 @@ if (opp['Email'] != null && opp['Email'].toString().isNotEmpty) {
       }
     } catch (e) {
       debugPrint('Error fetching categories: $e');
+    }
+  }
+
+
+    Future<void> _fetchLostReasons() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/opportunities/lost-reasons'),
+      );
+      if (res.statusCode == 200) {
+        lostReasons = jsonDecode(res.body);
+      }
+    } catch (e) {
+      debugPrint('Error fetching lost reasons: $e');
     }
   }
 
@@ -322,6 +364,24 @@ if (opp['Email'] != null && opp['Email'].toString().isNotEmpty) {
 Future<void> _submitForm() async {
   if (!_formKey.currentState!.validate()) return;
 
+  // ✅ تحقق من حقول الخسارة
+    if (_isLostStageSelected && selectedLostReasonId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.white, size: 16),
+              const SizedBox(width: 10),
+              Expanded(child: Text('يجب اختيار سبب الخسارة', style: GoogleFonts.cairo())),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
   setState(() => _isLoading = true);
 
   try {
@@ -354,6 +414,8 @@ Future<void> _submitForm() async {
         'nextFollowUpDate': followUpDateTime?.toIso8601String(),
         'notes': _notesController.text.trim(),
         'guidance': _guidanceController.text.trim(),
+        'lostReasonId': _isLostStageSelected ? selectedLostReasonId : null,
+        'lostNotes': _isLostStageSelected ? _lostNotesController.text.trim() : null,
         'updatedBy': widget.username,
       };
 
@@ -417,6 +479,8 @@ Future<void> _submitForm() async {
         'summary': _notesController.text.trim(),
         'guidance': _guidanceController.text.trim(),
         'nextFollowUpDate': followUpDateTime?.toIso8601String(),
+        'lostReasonId': _isLostStageSelected ? selectedLostReasonId : null,
+        'lostNotes': _isLostStageSelected ? _lostNotesController.text.trim() : null,
 
         // المستخدم
         'createdBy': widget.username,
@@ -773,16 +837,84 @@ Widget _buildOptionalFieldButton({
           ),
           
           // المرحلة
-          _buildDropdown<int>(
-            label: 'المرحلة',
-            icon: FontAwesomeIcons.stairs,
-            value: selectedStageId,
-            items: stages.map((s) => DropdownMenuItem<int>(
-              value: s['StageID'],
-              child: Text(s['StageNameAr'] ?? s['StageName']),
-            )).toList(),
-            onChanged: (value) => setState(() => selectedStageId = value),
+          // المرحلة
+_buildDropdown<int>(
+  label: 'المرحلة',
+  icon: FontAwesomeIcons.stairs,
+  value: selectedStageId,
+  items: stages.map((s) => DropdownMenuItem<int>(
+    value: s['StageID'],
+    child: Text(s['StageNameAr'] ?? s['StageName']),
+  )).toList(),
+  onChanged: (value) {
+    setState(() {
+      selectedStageId = value;
+      // ✅ لو غيرت المرحلة لغير خسارة → امسح بيانات الخسارة
+      if (!_isLostStageSelected) {
+        selectedLostReasonId = null;
+        _lostNotesController.clear();
+      }
+    });
+  },
+),
+
+// ✅ حقول الخسارة - تظهر بس لما المرحلة = خسارة
+if (_isLostStageSelected) ...[
+  Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.red.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.red.withOpacity(0.3)),
+    ),
+    child: Row(
+      children: [
+        const FaIcon(FontAwesomeIcons.triangleExclamation,
+            color: Colors.red, size: 16),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '⚠️ أنت بتسجل خسارة - يرجى توضيح السبب',
+            style: GoogleFonts.cairo(
+              color: Colors.red[300],
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+        ),
+      ],
+    ),
+  ),
+
+  // سبب الخسارة - إجباري
+   // سبب الخسارة - إجباري
+            _buildDropdown<int>(
+              label: 'سبب الخسارة *',
+              icon: FontAwesomeIcons.circleXmark,
+              value: selectedLostReasonId,
+              items: lostReasons.map((r) => DropdownMenuItem<int>(
+                value: r['LostReasonID'],
+                child: Text(r['ReasonNameAr'] ?? r['ReasonName'] ?? ''),
+              )).toList(),
+              onChanged: (value) => setState(() => selectedLostReasonId = value),
+            ),
+
+  // ملاحظات الخسارة - إجباري
+  _buildTextField(
+    controller: _lostNotesController,
+    label: 'تفاصيل الخسارة *',
+    hint: 'اشرح سبب خسارة الفرصة بالتفصيل...',
+    icon: FontAwesomeIcons.commentDots,
+    maxLines: 3,
+    validator: (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'تفاصيل الخسارة مطلوبة';
+      }
+      return null;
+    },
+  ),
+],
           
           // فئة الاهتمام
           _buildDropdown<int>(

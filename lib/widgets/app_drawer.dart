@@ -36,6 +36,8 @@ import '../screens/delivery_tracking_screen.dart';
 import '../screens/cashbox_transactions_screen.dart';
 import '../screens/cashbox_manual_screen.dart';
 import '../screens/cashbox_dashboard_screen.dart';
+import '../screens/leads_screen.dart';
+import '../screens/lead_detail_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final int userId;
