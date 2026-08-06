@@ -30,7 +30,117 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 
-  print('تم استقبال إشعار في الخلفية: ${message.messageId}');
+  // عرض إشعار محلي عند استقبال رسالة data في الخلفية/عند إغلاق التطبيق
+  try {
+    final title = message.notification?.title ??
+        message.data['title'] ??
+        'إشعار جديد';
+    final body = message.notification?.body ??
+        message.data['message'] ??
+        message.data['body'] ??
+        '';
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'high_importance_channel',
+        'إشعارات مهمة',
+        channelDescription: 'قناة الإشعارات المهمة',
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+    );
+    await flutterLocalNotificationsPlugin.show(
+      id: message.hashCode,
+      title: title.toString(),
+      body: body.toString(),
+      notificationDetails: details,
+      payload: jsonEncode(message.data),
+    );
+  } catch (e) {
+    print('❌ خطأ في عرض إشعار الخلفية: $e');
+  }
+}
+
+// ✅ فتح الشاشة الصحيحة عند الضغط على الإشعار
+Future<void> _handleNotificationTap(String? payload) async {
+  if (payload == null) return;
+  try {
+    final data = jsonDecode(payload);
+    final formName = data['formName'];
+    final id = data['relatedId'];
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('username') ?? 'User';
+    final savedUserId = prefs.getInt('userId') ?? 0;
+
+    if (formName == 'frm_Expenses') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => AddExpenseScreen(
+            username: savedUsername,
+            expenseId: id,
+          ),
+        ),
+      );
+    } else if (formName == 'frm_Products' || formName == 'frm_ProductPricing') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => ProductsScreen(
+            userId: savedUserId,
+            username: savedUsername,
+          ),
+        ),
+      );
+    } else if (formName == 'opportunity_detail_screen' && id != null) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => OpportunityDetailScreen(
+            opportunityId: id is int ? id : int.parse(id.toString()),
+            userId: savedUserId,
+            username: savedUsername,
+          ),
+        ),
+      );
+    } else if (formName == 'attendance_screen') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => AttendanceScreen(
+            userId: savedUserId,
+            username: savedUsername,
+          ),
+        ),
+      );
+    } else {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => NotificationsScreen(
+            userId: savedUserId,
+            username: savedUsername,
+          ),
+        ),
+      );
+    }
+  } catch (e) {
+    print('Error parsing notification payload: $e');
+  }
+}
+
+// ✅ تسجيل / تحديث توكن الجهاز في الخادم
+Future<void> _registerDeviceToken() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('userId');
+    if (userId == null || userId == 0) return;
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null) return;
+    await http.post(
+      Uri.parse('$baseUrl/api/users/save-token'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'userId': userId, 'fcmToken': token}),
+    );
+  } catch (e) {
+    print('⚠️ خطأ في تسجيل FCM Token: $e');
+  }
 }
 
 
@@ -50,69 +160,9 @@ Future<void> main() async {
           InitializationSettings(android: androidSettings, iOS: iosSettings);
 
       await flutterLocalNotificationsPlugin.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: (NotificationResponse response) async {
-          if (response.payload != null) {
-            try {
-              final data = jsonDecode(response.payload!);
-              final formName = data['formName'];
-              final id = data['relatedId'];
-
-              final prefs = await SharedPreferences.getInstance();
-              final savedUsername = prefs.getString('username') ?? 'User';
-              final savedUserId = prefs.getInt('userId') ?? 0;
-
-              if (formName == 'frm_Expenses') {
-                navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => AddExpenseScreen(
-                      username: savedUsername,
-                      expenseId: id,
-                    ),
-                  ),
-                );
-              } else if (formName == 'frm_Products' || formName == 'frm_ProductPricing') {
-                navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => ProductsScreen(
-                      userId: savedUserId,
-                      username: savedUsername,
-                    ),
-                  ),
-                );
-              } else if (formName == 'opportunity_detail_screen' && id != null) {
-                navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => OpportunityDetailScreen(
-                      opportunityId: id is int ? id : int.parse(id.toString()),
-                      userId: savedUserId,
-                      username: savedUsername,
-                    ),
-                  ),
-                );
-              } else if (formName == 'attendance_screen') {
-                navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => AttendanceScreen(
-                      userId: savedUserId,
-                      username: savedUsername,
-                    ),
-                  ),
-                );
-              } else {
-                navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => NotificationsScreen(
-                      userId: savedUserId,
-                      username: savedUsername,
-                    ),
-                  ),
-                );
-              }
-            } catch (e) {
-              print('Error parsing notification payload: $e');
-            }
-          }
+        settings: initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          _handleNotificationTap(response.payload);
         },
       );
 
@@ -125,10 +175,10 @@ Future<void> main() async {
 
         if (notification != null && android != null) {
           flutterLocalNotificationsPlugin.show(
-            notification.hashCode,
-            notification.title,
-            notification.body,
-            const NotificationDetails(
+            id: notification.hashCode,
+            title: notification.title,
+            body: notification.body,
+            notificationDetails: const NotificationDetails(
               android: AndroidNotificationDetails(
                 'high_importance_channel',
                 'إشعارات مهمة',
@@ -142,6 +192,27 @@ Future<void> main() async {
           );
         }
       });
+
+      // ✅ فتح التطبيق بالنقر على إشعار وهو كان مقفول تمامًا
+      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null && initialMessage.data.isNotEmpty) {
+        _handleNotificationTap(jsonEncode(initialMessage.data));
+      }
+
+      // ✅ التطبيق في الخلفية وتم فتحه بالنقر على إشعار
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        if (message.data.isNotEmpty) {
+          _handleNotificationTap(jsonEncode(message.data));
+        }
+      });
+
+      // ✅ تحديث التوكن عند تغييره
+      FirebaseMessaging.instance.onTokenRefresh.listen((_) {
+        _registerDeviceToken();
+      });
+
+      // ✅ تسجيل توكن الجهاز عند فتح التطبيق (لو تغيّر منذ آخر مرة)
+      await _registerDeviceToken();
 
       await NotificationService().initialize();
       print('✅ Firebase initialized successfully');

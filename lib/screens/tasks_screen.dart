@@ -241,7 +241,7 @@ class _TasksScreenState extends State<TasksScreen>
   Future<bool> _showConfirmDialog({
     required String title,
     required String message,
-    required IconData icon,
+    required FaIconData icon,
     required Color color,
   }) async {
     HapticFeedback.lightImpact();
@@ -404,7 +404,7 @@ class _TasksScreenState extends State<TasksScreen>
     }
   }
 
-  void _showSnackBar(String message, Color color, IconData icon) {
+  void _showSnackBar(String message, Color color, FaIconData icon) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -660,7 +660,7 @@ class _TasksScreenState extends State<TasksScreen>
     );
   }
 
-  Widget _buildTab(String label, int count, Color color, IconData icon) {
+  Widget _buildTab(String label, int count, Color color, FaIconData icon) {
     return Tab(
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1400,7 +1400,7 @@ class _TaskCard extends StatelessWidget {
 // ══════════════════════════════════════════════
 
 class _MetaChip extends StatelessWidget {
-  final IconData icon;
+  final FaIconData icon;
   final String text;
   final Color color;
 
@@ -1439,7 +1439,7 @@ class _MetaChip extends StatelessWidget {
 
 class _ActionBtn extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final Color color;
   final VoidCallback onTap;
 
@@ -1489,7 +1489,7 @@ class _ActionBtn extends StatelessWidget {
 
 class _SwipeBackground extends StatelessWidget {
   final Color color;
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final Alignment alignment;
 
@@ -1546,7 +1546,7 @@ class _SwipeBackground extends StatelessWidget {
 
 class _TabConfig {
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final Color color;
 
   const _TabConfig(this.label, this.icon, this.color);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/icon_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pipeline_service.dart';
@@ -1111,7 +1112,7 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
                     if (phone.isNotEmpty)
                       _openWhatsApp(phone);
                   },
-                  icon: Icon(
+                  icon: FaIcon(
                     FontAwesomeIcons.whatsapp,
                     color: _isDark
                         ? const Color(0xFF25D366)
@@ -1244,7 +1245,7 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
   }
 
   Widget _buildMiniAction(
-      IconData icon, Color color, VoidCallback onTap) {
+      dynamic icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1254,7 +1255,7 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Icon(icon, size: 16, color: color),
+        child: compatIcon(icon, size: 16, color: color),
       ),
     );
   }

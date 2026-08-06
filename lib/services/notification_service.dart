@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -35,7 +35,7 @@ class NotificationService {
     );
     
     await _localNotifications.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: (response) {
         if (onNotificationTap != null) {
           onNotificationTap!(response.payload);
@@ -98,7 +98,7 @@ class NotificationService {
         
         // عرض إشعار محلي لكل إشعار جديد
         for (var notification in notifications) {
-          final notificationId = notification['NotificationID'] as int;
+          final notificationId = notification['NotificationID'] is int ? notification['NotificationID'] : int.tryParse(notification['NotificationID'].toString()) ?? 0;
           
           // تجنب عرض نفس الإشعار مرتين
           if (notificationId > _lastNotificationId) {
@@ -227,7 +227,13 @@ class NotificationService {
       iOS: iosDetails,
     );
     
-    await _localNotifications.show(id, title, body, details, payload: payload);
+    await _localNotifications.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: payload,
+    );
   }
 
   // جلب عدد الإشعارات غير المقروءة

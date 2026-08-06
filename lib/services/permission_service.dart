@@ -365,6 +365,7 @@ class FormNames {
   // 10. إعدادات CRM
   // ═══════════════════════════════════════
   static const String adCampaigns = 'frmAdCampain';
+  static const String leadsCrm = 'frm_LeadsCRM';
   static const String contactSources = 'frmContactSourses';
   //static const String adCampaigns = 'frmAdCampain';
   //static const String contactSources = 'frmContactSourses';
@@ -559,6 +560,7 @@ class MenuStructure {
         
         //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
         SubMenuItem('إعدادات CRM', FormNames.adCampaigns, Icons.settings_rounded),
+        SubMenuItem('إعلانات Meta Leads', FormNames.leadsCrm, Icons.campaign),
       ],
     ),
 

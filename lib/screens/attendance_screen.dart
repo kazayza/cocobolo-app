@@ -158,7 +158,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       }
 
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       setState(() {
@@ -200,13 +202,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     if (currentLatitude == null || currentLongitude == null) return;
 
     try {
-      final availableMaps = await MapLauncher.installedMaps;
-      if (availableMaps.isNotEmpty) {
-        await availableMaps.first.showMarker(
-          coords: Coords(currentLatitude!, currentLongitude!),
-          title: 'موقع تسجيل الحضور',
-        );
-      }
+      await MapLauncher.marker(
+        LocationCoords(currentLatitude!, currentLongitude!,
+            title: 'موقع تسجيل الحضور'),
+      ).show();
     } catch (e) {
       debugPrint('خطأ في فتح الخريطة: $e');
     }

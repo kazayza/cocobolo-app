@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../services/icon_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pipeline_service.dart';
@@ -905,7 +906,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
   // 🔘 زرار ثانوي
   // ===================================
   Widget _buildSecondaryButton({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -921,7 +922,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 22),
+            compatIcon(icon, color: color, size: 22),
             const SizedBox(height: 4),
             Text(
               label,
@@ -1022,7 +1023,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
                 color: const Color(0xFF25D366).withOpacity(_isDark ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
+              child: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
             ),
           ),
         ],

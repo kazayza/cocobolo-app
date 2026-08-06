@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
 import '../constants.dart';
+import '../services/icon_utils.dart';
 import '../services/opportunities_service.dart';
 import 'add_interaction_screen.dart';
 import 'add_opportunity_screen.dart';
@@ -218,7 +219,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
       SnackBar(
         content: Row(
           children: [
-            const FaIcon(FontAwesomeIcons.copy,
+            const FaFaIcon(FontAwesomeIcons.copy,
                 color: Colors.white, size: 14),
             const SizedBox(width: 8),
             Text('تم نسخ: $text', style: GoogleFonts.cairo()),
@@ -365,7 +366,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const FaIcon(FontAwesomeIcons.clock,
+                          const FaFaIcon(FontAwesomeIcons.clock,
                               color: Colors.grey, size: 11),
                           const SizedBox(width: 6),
                           Text(
@@ -428,7 +429,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                     ),
                     child: Center(
                       child: _isLost
-                          ? const FaIcon(FontAwesomeIcons.xmark,
+                          ? const FaFaIcon(FontAwesomeIcons.xmark,
                               color: Colors.white, size: 20)
                           : Text(
                               _getInitials(
@@ -580,7 +581,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const FaIcon(FontAwesomeIcons.bullhorn,
+                            const FaFaIcon(FontAwesomeIcons.bullhorn,
                                 color: Colors.purple, size: 11),
                             const SizedBox(width: 6),
                             Text('الحملة: ',
@@ -810,7 +811,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
     Color warningColor;
     String warningText;
-    IconData warningIcon;
+    dynamic warningIcon;
 
     if (days >= 30) {
       warningColor = Colors.red;
@@ -836,7 +837,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
       ),
       child: Row(
         children: [
-          FaIcon(warningIcon, color: warningColor, size: 16),
+          compatIcon(warningIcon, color: warningColor, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -883,7 +884,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         children: [
           Row(
             children: [
-              FaIcon(FontAwesomeIcons.chartPie,
+              FaFaIcon(FontAwesomeIcons.chartPie,
                   color: barColor, size: 14),
               const SizedBox(width: 8),
               Text(
@@ -925,7 +926,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     // حالة المتابعة
     String followUpText = 'غير محدد';
     Color followUpColor = Colors.grey;
-    IconData followUpIcon = FontAwesomeIcons.calendar;
+    dynamic followUpIcon = FontAwesomeIcons.calendar;
 
     if (currentOpp['NextFollowUpDate'] != null) {
       try {
@@ -1049,7 +1050,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                       color: followUpColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: FaIcon(followUpIcon,
+                    child: compatIcon(followUpIcon,
                         color: followUpColor, size: 18),
                   ),
                   const SizedBox(width: 12),
@@ -1251,7 +1252,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(FontAwesomeIcons.calendarXmark,
+                    FaIcon(FontAwesomeIcons.calendarXmark,
                         size: 50,
                         color: Colors.grey.withOpacity(0.5)),
                     const SizedBox(height: 20),
@@ -1287,7 +1288,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         item['StageBefore'] != item['StageAfter'];
 
     String contactType = 'تواصل';
-    IconData contactIcon = FontAwesomeIcons.comment;
+    dynamic contactIcon = FontAwesomeIcons.comment;
     Color contactColor = Colors.blue;
 
     final statusId = item['StatusID'];
@@ -1327,7 +1328,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
     final sourceName =
         (item['SourceName'] ?? '').toString().toLowerCase();
-    IconData sourceIcon = FontAwesomeIcons.comment;
+    dynamic sourceIcon = FontAwesomeIcons.comment;
     if (sourceName.contains('whatsapp') ||
         sourceName.contains('واتساب')) {
       sourceIcon = FontAwesomeIcons.whatsapp;
@@ -1365,7 +1366,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                         color: contactColor, width: 2),
                   ),
                   child: Center(
-                    child: FaIcon(contactIcon,
+                    child: compatIcon(contactIcon,
                         color: contactColor, size: 14),
                   ),
                 ),
@@ -1419,7 +1420,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                FaIcon(contactIcon,
+                                compatIcon(contactIcon,
                                     color: contactColor,
                                     size: 10),
                                 const SizedBox(width: 4),
@@ -1455,7 +1456,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                             borderRadius:
                                 BorderRadius.circular(10),
                           ),
-                          child: FaIcon(sourceIcon,
+                          child: compatIcon(sourceIcon,
                               color: Colors.grey, size: 10),
                         ),
                         const Spacer(),
@@ -1695,7 +1696,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   }
 
   Widget _buildBottomButton({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -1713,7 +1714,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            FaIcon(icon, color: color, size: 16),
+            compatIcon(icon, color: color, size: 16),
             const SizedBox(width: 8),
             Text(
               label,
@@ -1733,7 +1734,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   // ══════════════════════════════════════
 
   Widget _buildHeaderButton(
-      {required IconData icon,
+      {required dynamic icon,
       required Color color,
       required VoidCallback onTap}) {
     return Container(
@@ -1744,7 +1745,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         borderRadius: BorderRadius.circular(12),
       ),
       child: IconButton(
-        icon: FaIcon(icon, size: 18, color: color),
+        icon: compatIcon(icon, size: 18, color: color),
         onPressed: onTap,
         padding: EdgeInsets.zero,
       ),
@@ -1752,7 +1753,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   }
 
   Widget _buildMiniContactButton({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -1774,7 +1775,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(icon, size: 11, color: color),
+              compatIcon(icon, size: 11, color: color),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
@@ -1794,7 +1795,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
   Widget _buildSourceIcon(String? sourceName) {
     String name = (sourceName ?? '').toLowerCase();
-    IconData icon = FontAwesomeIcons.globe;
+    dynamic icon = FontAwesomeIcons.globe;
     Color color = Colors.grey;
 
     if (name.contains('facebook') || name.contains('فيسبوك')) {
@@ -1835,7 +1836,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
-          child: FaIcon(icon, color: color, size: 16)),
+          child: compatIcon(icon, color: color, size: 16)),
     );
   }
 
@@ -1896,7 +1897,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   Widget _buildStatCard(
       {required String value,
       required String label,
-      required IconData icon,
+      required dynamic icon,
       required Color color}) {
     return Expanded(
       child: Container(
@@ -1918,7 +1919,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
-                      child: FaIcon(icon,
+                      child: compatIcon(icon,
                           size: 14, color: color)),
                 ),
                 const Spacer(),
@@ -1950,7 +1951,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   }
 
   Widget _buildDetailSection(
-      String title, IconData icon, List<Widget> children) {
+      String title, dynamic icon, List<Widget> children) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1973,7 +1974,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                    child: FaIcon(icon,
+                    child: compatIcon(icon,
                         color: const Color(0xFFFFD700),
                         size: 16)),
               ),
@@ -1996,7 +1997,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   }
 
   Widget _buildDetailRow(
-      String label, String value, IconData icon) {
+      String label, String value, dynamic icon) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -2009,7 +2010,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-                child: FaIcon(icon,
+                child: compatIcon(icon,
                     size: 14, color: Colors.grey)),
           ),
           const SizedBox(width: 12),
@@ -2050,7 +2051,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-                child: FaIcon(FontAwesomeIcons.circle,
+                child: FaFaIcon(FontAwesomeIcons.circle,
                     size: 14, color: color)),
           ),
           const SizedBox(width: 12),
@@ -2088,7 +2089,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   /// ✅ كارد ملاحظات/توجيهات
   Widget _buildNotesCard({
     required String title,
-    required IconData icon,
+    required dynamic icon,
     required Color color,
     required String text,
   }) {
@@ -2113,7 +2114,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                 ),
                 child: Center(
                     child:
-                        FaIcon(icon, size: 16, color: color)),
+                        compatIcon(icon, size: 16, color: color)),
               ),
               const SizedBox(width: 12),
               Text(title,

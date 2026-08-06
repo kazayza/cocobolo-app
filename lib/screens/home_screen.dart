@@ -220,6 +220,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     if (_perms.canView(FormNames.invoiceDeliveryStatus)) order.add('delivery');
     if (_perms.canView(FormNames.complaintsMain)) order.add('complaints');
     if (_perms.canView(FormNames.myschedule)) order.add('my_schedule');
+    if (_perms.canView(FormNames.leadsCrm)) order.add('leads');
       order.add('attendance_report');   // تقرير الحضور
   order.add('my_permissions'); 
     return order;
@@ -1176,6 +1177,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       {'title': 'الحضور', 'icon': Icons.fingerprint, 'color': Colors.teal.shade300, 'route': 'attendance', 'keywords': ['حضور', 'attendance']},
       {'title': 'التقارير', 'icon': Icons.analytics, 'color': Colors.indigoAccent, 'route': 'reports', 'keywords': ['تقرير', 'report']},
       {'title': 'الإعدادات', 'icon': Icons.settings, 'color': Colors.grey, 'route': 'settings', 'keywords': ['إعداد', 'setting']},
+      {'title': 'العملاء المحتملين', 'icon': Icons.campaign, 'color': Colors.lightBlue, 'route': 'leads', 'keywords': ['ليدز', 'leads', 'عملاء محتملين', 'meta']},
     ];
   }
 
@@ -1261,6 +1263,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       actions.add(_buildQuickAction('حضور', Icons.fingerprint, Colors.teal, () {
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => AttendanceScreen(userId: widget.userId, username: widget.username),
+        ));
+      }));
+    }
+
+    if (_perms.canView(FormNames.leadsCrm)) {
+      actions.add(_buildQuickAction('ليدز', Icons.campaign, Colors.lightBlue, () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => LeadsScreen(userId: widget.userId, username: widget.username),
         ));
       }));
     }
@@ -1394,6 +1404,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       return _SectionData('الشكاوى والصيانه', Icons.report_problem, Colors.redAccent, 'complaints', null);
     case 'my_schedule':
       return _SectionData('جدول مواعيدي', Icons.calendar_month, Colors.blue, 'my_schedule', null);
+    case 'leads':
+      return _SectionData('العملاء المحتملين', Icons.campaign, Colors.lightBlue, 'leads', null);
         default:
         return null;
     }
@@ -1994,6 +2006,9 @@ Widget _buildBottomNav() {
         break;
       case 'settings':
         screen = SettingsScreen(userId: widget.userId, username: widget.username, fullName: widget.fullName);
+        break;
+      case 'leads':
+        screen = LeadsScreen(userId: widget.userId, username: widget.username);
         break;
       // ✅ الشاشات الجديدة
       case 'delivery':

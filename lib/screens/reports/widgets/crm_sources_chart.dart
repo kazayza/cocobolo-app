@@ -472,7 +472,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
   // === دالة تحديد الأيقونة واللون ===
   Widget _getSourceIcon(String name, Color defaultColor) {
     final lower = name.toLowerCase();
-    IconData icon;
+    FaIconData icon;
     Color color;
 
     if (lower.contains('فيس') || lower.contains('face')) {

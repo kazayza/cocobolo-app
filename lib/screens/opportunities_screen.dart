@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import '../constants.dart';
+import '../services/icon_utils.dart';
 import 'add_opportunity_screen.dart';
 import 'add_interaction_screen.dart';
 import 'opportunity_details_screen.dart';
@@ -707,11 +708,11 @@ Future<void> _loadMoreOpportunities() async {
     final name = sourceName?.toLowerCase() ?? '';
 
     if (name.contains('whatsapp') || name.contains('واتساب')) {
-      return FaIcon(FontAwesomeIcons.whatsapp, size: size, color: const Color(0xFF25D366));
+      return FaFaIcon(FontAwesomeIcons.whatsapp, size: size, color: const Color(0xFF25D366));
     } else if (name.contains('facebook') || name.contains('فيسبوك')) {
-      return FaIcon(FontAwesomeIcons.facebook, size: size, color: const Color(0xFF1877F2));
+      return FaFaIcon(FontAwesomeIcons.facebook, size: size, color: const Color(0xFF1877F2));
     } else if (name.contains('instagram') || name.contains('انستجرام')) {
-      return FaIcon(FontAwesomeIcons.instagram, size: size, color: const Color(0xFFE4405F));
+      return FaFaIcon(FontAwesomeIcons.instagram, size: size, color: const Color(0xFFE4405F));
     } else if (name.contains('tiktok') || name.contains('تيك توك')) {
       return Container(
         padding: const EdgeInsets.all(3),
@@ -719,23 +720,23 @@ Future<void> _loadMoreOpportunities() async {
           color: Colors.white,
           borderRadius: BorderRadius.circular(4),
         ),
-        child: FaIcon(FontAwesomeIcons.tiktok, size: size - 6, color: Colors.black),
+        child: FaFaIcon(FontAwesomeIcons.tiktok, size: size - 6, color: Colors.black),
       );
     } else if (name.contains('phone') || name.contains('مكالمة') || name.contains('تليفون')) {
-      return FaIcon(FontAwesomeIcons.phoneVolume, size: size, color: const Color(0xFF4CAF50));
+      return FaFaIcon(FontAwesomeIcons.phoneVolume, size: size, color: const Color(0xFF4CAF50));
     } else if (name.contains('showroom') || name.contains('معرض') || name.contains('زيارة')) {
-      return FaIcon(FontAwesomeIcons.store, size: size, color: const Color(0xFF9C27B0));
+      return FaFaIcon(FontAwesomeIcons.store, size: size, color: const Color(0xFF9C27B0));
     } else if (name.contains('referral') || name.contains('توصية')) {
-      return FaIcon(FontAwesomeIcons.userGroup, size: size, color: const Color(0xFF2196F3));
+      return FaFaIcon(FontAwesomeIcons.userGroup, size: size, color: const Color(0xFF2196F3));
     } else if (name.contains('google') || name.contains('جوجل')) {
-      return FaIcon(FontAwesomeIcons.google, size: size, color: const Color(0xFF4285F4));
+      return FaFaIcon(FontAwesomeIcons.google, size: size, color: const Color(0xFF4285F4));
     } else {
-      return FaIcon(FontAwesomeIcons.globe, size: size, color: Colors.grey);
+      return FaFaIcon(FontAwesomeIcons.globe, size: size, color: Colors.grey);
     }
   }
 
   Widget _getStageIconWidget(int? stageId, Color color, {double size = 14}) {
-    IconData iconData;
+    FaIconData iconData;
     switch (stageId) {
       case 1:
         iconData = FontAwesomeIcons.userPlus;
@@ -1073,7 +1074,7 @@ if (loadingMore)
     );
   }
 
-  Widget _buildActiveFilterChip(String label, IconData icon, Color color, VoidCallback onRemove) {
+  Widget _buildActiveFilterChip(String label, dynamic icon, Color color, VoidCallback onRemove) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1085,7 +1086,7 @@ if (loadingMore)
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(icon, size: 12, color: color),
+          compatIcon(icon, size: 12, color: color),
           const SizedBox(width: 6),
           Text(
             label,
@@ -1173,7 +1174,7 @@ if (loadingMore)
     title: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const FaIcon(FontAwesomeIcons.lightbulb, color: Color(0xFFFFD700), size: 20),
+        const FaFaIcon(FontAwesomeIcons.lightbulb, color: Color(0xFFFFD700), size: 20),
         const SizedBox(width: 10),
         Text(
           'فرص البيع',
@@ -1192,7 +1193,7 @@ if (loadingMore)
     actions: [
       // ✅ زر التقرير الجديد
       PopupMenuButton<String>(
-        icon: const FaIcon(FontAwesomeIcons.fileExport, color: Colors.white, size: 18),
+        icon: const FaFaIcon(FontAwesomeIcons.fileExport, color: Colors.white, size: 18),
         color: const Color(0xFF1A1A1A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onSelected: (value) {
@@ -1213,7 +1214,7 @@ if (loadingMore)
             value: 'excel',
             child: Row(
               children: [
-                FaIcon(FontAwesomeIcons.fileExcel, color: Colors.green, size: 16),
+                FaFaIcon(FontAwesomeIcons.fileExcel, color: Colors.green, size: 16),
                 const SizedBox(width: 10),
                 Text('تصدير Excel', style: GoogleFonts.cairo(color: Colors.white)),
               ],
@@ -1223,7 +1224,7 @@ if (loadingMore)
             value: 'pdf',
             child: Row(
               children: [
-                FaIcon(FontAwesomeIcons.filePdf, color: Colors.red, size: 16),
+                FaFaIcon(FontAwesomeIcons.filePdf, color: Colors.red, size: 16),
                 const SizedBox(width: 10),
                 Text('تصدير PDF', style: GoogleFonts.cairo(color: Colors.white)),
               ],
@@ -1233,7 +1234,7 @@ if (loadingMore)
             value: 'print',
             child: Row(
               children: [
-                FaIcon(FontAwesomeIcons.print, color: Colors.blue, size: 16),
+                FaFaIcon(FontAwesomeIcons.print, color: Colors.blue, size: 16),
                 const SizedBox(width: 10),
                 Text('طباعة', style: GoogleFonts.cairo(color: Colors.white)),
               ],
@@ -1247,7 +1248,7 @@ if (loadingMore)
       Stack(
         children: [
           IconButton(
-            icon: const FaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
+            icon: const FaFaIcon(FontAwesomeIcons.filter, color: Colors.white, size: 18),
             onPressed: _showFilterBottomSheet,
           ),
           if (_activeFiltersCount > 0)
@@ -1404,7 +1405,7 @@ _buildArtisticCard(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              const FaIcon(FontAwesomeIcons.rectangleAd, color: Colors.white70, size: 16),
+              const FaFaIcon(FontAwesomeIcons.rectangleAd, color: Colors.white70, size: 16),
               const SizedBox(width: 8),
               Text(c['name'] ?? '', style: GoogleFonts.cairo(color: Colors.white, fontSize: 12)),
               const Spacer(),
@@ -1433,7 +1434,7 @@ _buildArtisticCard(
 
 Widget _buildArtisticCard({
   required String title,
-  required IconData icon,
+  required dynamic icon,
   required List<Color> gradientColors,
   required Color accentColor,
   required Widget content,
@@ -1455,7 +1456,7 @@ Widget _buildArtisticCard({
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: FaIcon(icon, size: 14, color: accentColor),
+              child: compatIcon(icon, size: 14, color: accentColor),
             ),
             const SizedBox(width: 10),
             Text(title, style: GoogleFonts.cairo(color: accentColor, fontSize: 14, fontWeight: FontWeight.bold)),
@@ -1495,7 +1496,7 @@ Widget _buildMiniStat(String label, String value, Color color) {
 
 Widget _buildSummaryCard({
   required String title,
-  required IconData icon,
+  required dynamic icon,
   required Gradient gradient,
   required Color borderColor,
   required List<Widget> children,
@@ -1517,7 +1518,7 @@ Widget _buildSummaryCard({
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(color: borderColor.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-              child: FaIcon(icon, size: 14, color: borderColor),
+              child: compatIcon(icon, size: 14, color: borderColor),
             ),
             const SizedBox(width: 10),
             Text(title, style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 14, fontWeight: FontWeight.bold)),
@@ -1530,12 +1531,12 @@ Widget _buildSummaryCard({
   );
 }
 
-Widget _buildSummaryRow(String label, String value, IconData icon, Color color, {bool isBold = false}) {
+Widget _buildSummaryRow(String label, String value, dynamic icon, Color color, {bool isBold = false}) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Row(
       children: [
-        FaIcon(icon, color: color, size: 16),
+        compatIcon(icon, color: color, size: 16),
         const SizedBox(width: 10),
         Text(label, style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 13)),
         const Spacer(),
@@ -1579,7 +1580,7 @@ Widget _buildWinRateBar(int won, int total) {
 }
 
 // 🔧 دالة لجلب أيقونة المصدر
-IconData _getSourceIconData(String? sourceName) {
+FaIconData _getSourceIconData(String? sourceName) {
   final name = (sourceName ?? '').toLowerCase();
   if (name.contains('whatsapp') || name.contains('واتساب')) return FontAwesomeIcons.whatsapp;
   if (name.contains('facebook') || name.contains('فيسبوك')) return FontAwesomeIcons.facebook;
@@ -1590,7 +1591,7 @@ IconData _getSourceIconData(String? sourceName) {
   return FontAwesomeIcons.shareNodes;
 }
 
-  Widget _buildMiniSummaryCard(String label, String value, Color color, IconData icon) {
+  Widget _buildMiniSummaryCard(String label, String value, Color color, dynamic icon) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       decoration: BoxDecoration(
@@ -1600,7 +1601,7 @@ IconData _getSourceIconData(String? sourceName) {
       ),
       child: Column(
         children: [
-          FaIcon(icon, color: color, size: 14),
+          compatIcon(icon, color: color, size: 14),
           const SizedBox(height: 4),
           Text(
             value,
@@ -1845,7 +1846,7 @@ Expanded(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const FaIcon(FontAwesomeIcons.phone, color: Colors.grey, size: 12),
+                          const FaFaIcon(FontAwesomeIcons.phone, color: Colors.grey, size: 12),
                           const SizedBox(width: 6),
                           Text(
                             opportunity['Phone1'] ?? 'لا يوجد',
@@ -1874,7 +1875,7 @@ Row(
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FaIcon(FontAwesomeIcons.calendarPlus, color: Colors.cyan, size: 12),
+            const FaFaIcon(FontAwesomeIcons.calendarPlus, color: Colors.cyan, size: 12),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -1899,7 +1900,7 @@ Row(
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FaIcon(FontAwesomeIcons.clockRotateLeft, color: Colors.amber, size: 12),
+            const FaFaIcon(FontAwesomeIcons.clockRotateLeft, color: Colors.amber, size: 12),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -1918,7 +1919,7 @@ Row(
                 // الصف الثاني: صاحب الفرصة + عدد التواصلات + حالة المتابعة
                 Row(
                   children: [
-                    const FaIcon(FontAwesomeIcons.userTie, color: Color(0xFFFFD700), size: 12),
+                    const FaFaIcon(FontAwesomeIcons.userTie, color: Color(0xFFFFD700), size: 12),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -1936,7 +1937,7 @@ Row(
                       ),
                       child: Row(
                         children: [
-                          const FaIcon(FontAwesomeIcons.comments, color: Colors.blue, size: 10),
+                          const FaFaIcon(FontAwesomeIcons.comments, color: Colors.blue, size: 10),
                           const SizedBox(width: 4),
                           Text(
                             '${opportunity['InteractionCount'] ?? 0}',
@@ -2020,7 +2021,7 @@ Row(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const FaIcon(FontAwesomeIcons.bullhorn, color: Colors.purple, size: 12),
+                            const FaFaIcon(FontAwesomeIcons.bullhorn, color: Colors.purple, size: 12),
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
@@ -2058,7 +2059,7 @@ Row(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const FaIcon(FontAwesomeIcons.coins, color: Colors.green, size: 12),
+                            const FaFaIcon(FontAwesomeIcons.coins, color: Colors.green, size: 12),
                             const SizedBox(width: 6),
                             Text(
                               _formatCurrency(opportunity['ExpectedValue']),
@@ -2084,7 +2085,7 @@ Row(
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const FaIcon(FontAwesomeIcons.box, color: Colors.grey, size: 12),
+                              const FaFaIcon(FontAwesomeIcons.box, color: Colors.grey, size: 12),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
@@ -2143,7 +2144,7 @@ Row(
     ).animate().fadeIn(delay: Duration(milliseconds: 50 * index), duration: 300.ms).slideX(begin: 0.1, end: 0);
   }
 
-  Widget _buildSwipeBackground(Color color, IconData icon, String label, Alignment alignment) {
+  Widget _buildSwipeBackground(Color color, dynamic icon, String label, Alignment alignment) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
@@ -2159,7 +2160,7 @@ Row(
             Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
           ],
-          FaIcon(icon, color: color, size: 24),
+          compatIcon(icon, color: color, size: 24),
           if (alignment == Alignment.centerRight) ...[
             const SizedBox(width: 8),
             Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
@@ -2170,7 +2171,7 @@ Row(
   }
 
   Widget _buildQuickActionButton({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -2188,7 +2189,7 @@ Row(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            FaIcon(icon, color: color, size: 14),
+            compatIcon(icon, color: color, size: 14),
             const SizedBox(width: 6),
             Text(
               label,
@@ -2209,7 +2210,7 @@ Row(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          FaIcon(FontAwesomeIcons.folderOpen, size: 60, color: Colors.grey[600]),
+          FaFaIcon(FontAwesomeIcons.folderOpen, size: 60, color: Colors.grey[600]),
           const SizedBox(height: 16),
           Text(
             'لا توجد فرص',
@@ -2223,7 +2224,7 @@ Row(
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _addNewOpportunity,
-            icon: const FaIcon(FontAwesomeIcons.plus, size: 16),
+            icon: const FaFaIcon(FontAwesomeIcons.plus, size: 16),
             label: Text('إضافة فرصة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFD700),
@@ -2241,7 +2242,7 @@ Row(
     return FloatingActionButton.extended(
       onPressed: _addNewOpportunity,
       backgroundColor: const Color(0xFFFFD700),
-      icon: const FaIcon(FontAwesomeIcons.plus, color: Colors.black, size: 18),
+      icon: const FaFaIcon(FontAwesomeIcons.plus, color: Colors.black, size: 18),
       label: Text(
         'فرصة جديدة',
         style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
@@ -2275,7 +2276,7 @@ Row(
             const SizedBox(height: 20),
             Row(
               children: [
-                const FaIcon(FontAwesomeIcons.arrowDownWideShort, color: Color(0xFFFFD700), size: 18),
+                const FaFaIcon(FontAwesomeIcons.arrowDownWideShort, color: Color(0xFFFFD700), size: 18),
                 const SizedBox(width: 10),
                 Text(
                   'ترتيب حسب',
@@ -2304,7 +2305,7 @@ Row(
                     Navigator.pop(context);
                     _fetchOpportunities();
                   },
-                  icon: const FaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
+                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
                   label: Text('إزالة الترتيب', style: GoogleFonts.cairo(color: Colors.grey)),
                 ),
               ),
@@ -2314,10 +2315,10 @@ Row(
     );
   }
 
-  Widget _buildSortOption(String value, String label, IconData icon) {
+  Widget _buildSortOption(String value, String label, dynamic icon) {
     final isSelected = sortBy == value;
     return ListTile(
-      leading: FaIcon(icon, color: isSelected ? const Color(0xFFFFD700) : Colors.grey, size: 16),
+      leading: compatIcon(icon, color: isSelected ? const Color(0xFFFFD700) : Colors.grey, size: 16),
       title: Text(
         label,
         style: GoogleFonts.cairo(
@@ -2325,7 +2326,7 @@ Row(
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: isSelected ? const FaIcon(FontAwesomeIcons.check, color: Color(0xFFFFD700), size: 16) : null,
+      trailing: isSelected ? const FaFaIcon(FontAwesomeIcons.check, color: Color(0xFFFFD700), size: 16) : null,
       onTap: () {
         setState(() => sortBy = value);
         Navigator.pop(context);
@@ -2370,7 +2371,7 @@ Row(
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const FaIcon(FontAwesomeIcons.filter, color: Color(0xFFFFD700), size: 18),
+                  const FaFaIcon(FontAwesomeIcons.filter, color: Color(0xFFFFD700), size: 18),
                   const SizedBox(width: 10),
                   Text(
                     'فلترة الفرص',
@@ -2431,7 +2432,7 @@ Row(
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const FaIcon(FontAwesomeIcons.arrowRight, size: 12, color: Colors.grey),
+                  const FaFaIcon(FontAwesomeIcons.arrowRight, size: 12, color: Colors.grey),
                   const SizedBox(width: 12),
                   Expanded(
                     child: InkWell(
@@ -2533,7 +2534,7 @@ Row(
                     isExpanded: true,
                     dropdownColor: const Color(0xFF2A2A2A),
                     hint: Text('اختر الموظف', style: GoogleFonts.cairo(color: Colors.grey)),
-                    icon: const FaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
+                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
                     items: [
                       DropdownMenuItem<int?>(
                         value: null,
@@ -2568,7 +2569,7 @@ Row(
                     isExpanded: true,
                     dropdownColor: const Color(0xFF2A2A2A),
                     hint: Text('اختر الحملة', style: GoogleFonts.cairo(color: Colors.grey)),
-                    icon: const FaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
+                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
                     items: [
                       DropdownMenuItem<int?>(
                         value: null,
@@ -2630,7 +2631,7 @@ Row(
                     _fetchOpportunities();
                     _fetchSummary();
                   },
-                  icon: const FaIcon(FontAwesomeIcons.check, size: 16),
+                  icon: const FaFaIcon(FontAwesomeIcons.check, size: 16),
                   label: Text(
                     'تطبيق الفلتر',
                     style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
@@ -2672,7 +2673,7 @@ Row(
                     _fetchOpportunities();
                     _fetchSummary();
                   },
-                  icon: const FaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
+                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
                   label: Text(
                     'إعادة تعيين',
                     style: GoogleFonts.cairo(color: Colors.grey),

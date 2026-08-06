@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../services/complaint_service.dart';
+import '../services/complaints_service.dart';
 import '../services/employee_service.dart';
 import '../models/employee_model.dart';
-import '../providers/auth_provider.dart';
+import '../services/permission_service.dart';
 import '../widgets/loading_button.dart';
-import '../utils/permission_service.dart';
 
 class EscalateComplaintScreen extends StatefulWidget {
   final int complaintId;
@@ -84,11 +82,10 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final complaintService = ComplaintService();
-      await complaintService.escalateComplaint(
-        widget.complaintId,
-        _selectedEmployeeId!,
-        _reasonController.text,
+      await ComplaintsService.escalateComplaint(
+        complaintId: widget.complaintId,
+        escalatedTo: _selectedEmployeeId!,
+        reason: _reasonController.text,
       );
 
       if (mounted) {

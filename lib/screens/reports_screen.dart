@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // ✅ إضافة المكتبة دي
+import '../services/icon_utils.dart';
 import './Reports/expense_reports.dart';
 import 'reports/crm_dashboard_screen.dart'; // ✅ إضافة شاشة الداشبورد
 import 'cashbox_transactions_screen.dart';
@@ -177,42 +178,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 24),
 
             // ===== تقارير الخزينة =====
-_buildSectionTitle('تقارير الخزينة', Icons.account_balance),
-const SizedBox(height: 12),
-_buildReportsGrid([
-  _ReportItem(
-    title: 'حركة الخزينة',
-    icon: Icons.swap_horiz,
-    color: const Color(0xFF607D8B),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CashboxTransactionsScreen(
-            userId: widget.userId,
-            username: widget.username,
-          ),
-        ),
-      );
-    },
-  ),
-  _ReportItem(
-    title: 'مؤشرات الخزينة',
-    icon: Icons.analytics,
-    color: const Color(0xFF795548),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CashboxDashboardScreen(
-            userId: widget.userId,
-            username: widget.username,
-          ),
-        ),
-      );
-    },
-  ),
-]),
+            _buildSectionTitle('تقارير الخزينة', Icons.account_balance),
+            const SizedBox(height: 12),
+            _buildReportsGrid([
+              _ReportItem(
+                title: 'حركة الخزينة',
+                icon: Icons.swap_horiz,
+                color: const Color(0xFF607D8B),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CashboxTransactionsScreen(
+                        userId: widget.userId,
+                        username: widget.username,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ReportItem(
+                title: 'مؤشرات الخزينة',
+                icon: Icons.analytics,
+                color: const Color(0xFF795548),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CashboxDashboardScreen(
+                        userId: widget.userId,
+                        username: widget.username,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ]),
 
             const SizedBox(height: 40),
           ],
@@ -223,10 +224,10 @@ _buildReportsGrid([
 
   // 🧩 دوال بناء الواجهة
 
-  Widget _buildSectionTitle(String title, IconData icon) {
+  Widget _buildSectionTitle(String title, dynamic icon) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFFFFD700), size: 22),
+        compatIcon(icon, color: const Color(0xFFFFD700), size: 22),
         const SizedBox(width: 8),
         Text(
           title,
@@ -284,7 +285,9 @@ _buildReportsGrid([
                 color: item.color.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(item.icon, color: item.color, size: 28),
+              child: item.icon is FaIconData
+                  ? FaIcon(item.icon as FaIconData, color: item.color, size: 28)
+                  : Icon(item.icon as IconData, color: item.color, size: 28),
             ),
             const SizedBox(height: 10),
             Text(
@@ -319,7 +322,7 @@ _buildReportsGrid([
 // كلاس البيانات (مودل صغير)
 class _ReportItem {
   final String title;
-  final IconData icon;
+  final dynamic icon; // غيّرنا النوع ليقبل IconData و FaIconData مع بعض
   final Color color;
   final VoidCallback onTap;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/icon_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pipeline_service.dart';
@@ -572,7 +573,7 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
   // 🔘 زرار أكشن
   // ===================================
   Widget _buildActionButton({
-    required IconData icon,
+    required dynamic icon,
     required Color color,
     required VoidCallback onTap,
   }) {
@@ -585,7 +586,7 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Icon(icon, size: 18, color: color),
+        child: compatIcon(icon, size: 18, color: color),
       ),
     );
   }

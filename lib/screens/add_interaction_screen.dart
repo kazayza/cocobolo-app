@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
+import '../services/icon_utils.dart';
 import '../widgets/speech_text_field.dart';
 
 class AddInteractionScreen extends StatefulWidget {
@@ -418,7 +419,7 @@ Future<void> _fetchCurrentEmployee() async {
       SnackBar(
         content: Row(
           children: [
-            const FaIcon(FontAwesomeIcons.circleExclamation, color: Colors.white, size: 16),
+            const FaFaIcon(FontAwesomeIcons.circleExclamation, color: Colors.white, size: 16),
             const SizedBox(width: 10),
             Text(message, style: GoogleFonts.cairo()),
           ],
@@ -484,7 +485,7 @@ Future<void> _fetchCurrentEmployee() async {
             SnackBar(
               content: Row(
                 children: [
-                  const FaIcon(FontAwesomeIcons.circleCheck, color: Colors.white, size: 16),
+                  const FaFaIcon(FontAwesomeIcons.circleCheck, color: Colors.white, size: 16),
                   const SizedBox(width: 10),
                   Expanded(child: Text(data['message'], style: GoogleFonts.cairo())),
                 ],
@@ -580,7 +581,7 @@ Future<void> _fetchCurrentEmployee() async {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const FaIcon(FontAwesomeIcons.plus, color: Color(0xFFFFD700), size: 18),
+          const FaFaIcon(FontAwesomeIcons.plus, color: Color(0xFFFFD700), size: 18),
           const SizedBox(width: 10),
           Text('تسجيل تواصل', style: GoogleFonts.cairo(color: const Color(0xFFFFD700), fontWeight: FontWeight.bold)),
         ],
@@ -593,7 +594,7 @@ Future<void> _fetchCurrentEmployee() async {
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon) {
+  Widget _buildSectionTitle(String title, dynamic icon) {
     return Row(
       children: [
         FaIcon(icon, color: const Color(0xFFFFD700), size: 16),
@@ -627,7 +628,7 @@ Future<void> _fetchCurrentEmployee() async {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FaIcon(FontAwesomeIcons.userCheck, size: 14, color: !_isNewClient ? Colors.black : Colors.grey),
+                    FaFaIcon(FontAwesomeIcons.userCheck, size: 14, color: !_isNewClient ? Colors.black : Colors.grey),
                     const SizedBox(width: 8),
                     Text('عميل موجود', style: GoogleFonts.cairo(color: !_isNewClient ? Colors.black : Colors.grey, fontWeight: FontWeight.bold)),
                   ],
@@ -650,7 +651,7 @@ Future<void> _fetchCurrentEmployee() async {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FaIcon(FontAwesomeIcons.userPlus, size: 14, color: _isNewClient ? Colors.black : Colors.grey),
+                    FaFaIcon(FontAwesomeIcons.userPlus, size: 14, color: _isNewClient ? Colors.black : Colors.grey),
                     const SizedBox(width: 8),
                     Text('عميل جديد', style: GoogleFonts.cairo(color: _isNewClient ? Colors.black : Colors.grey, fontWeight: FontWeight.bold)),
                   ],
@@ -735,7 +736,7 @@ Future<void> _fetchCurrentEmployee() async {
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
-                      child: const FaIcon(FontAwesomeIcons.user, color: Color(0xFFFFD700), size: 14),
+                      child: const FaFaIcon(FontAwesomeIcons.user, color: Color(0xFFFFD700), size: 14),
                     ),
                     title: Text(client['PartyName'], style: GoogleFonts.cairo(color: Colors.white)),
                     subtitle: Text(client['Phone'] ?? '', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)),
@@ -757,7 +758,7 @@ Future<void> _fetchCurrentEmployee() async {
               ),
               child: Row(
                 children: [
-                  const FaIcon(FontAwesomeIcons.circleCheck, color: Color(0xFFFFD700), size: 16),
+                  const FaFaIcon(FontAwesomeIcons.circleCheck, color: Color(0xFFFFD700), size: 16),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -771,7 +772,7 @@ Future<void> _fetchCurrentEmployee() async {
                   ),
                   if (!isLocked)
                     IconButton(
-                      icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
+                      icon: const FaFaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
                       onPressed: () => setState(() => _clearExistingClientFields()),
                     ),
                 ],
@@ -812,7 +813,7 @@ Future<void> _fetchCurrentEmployee() async {
       ),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 16),
+          const FaFaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -857,7 +858,7 @@ Future<void> _fetchCurrentEmployee() async {
           ),
           _buildDropdown<int>(
             label: 'نوع الإعلان',
-            icon: FontAwesomeIcons.ad,
+            icon: FontAwesomeIcons.rectangleAd,
             value: selectedAdTypeId,
             items: adTypes.map((t) => DropdownMenuItem<int>(
               value: t['AdTypeID'],
@@ -978,7 +979,7 @@ Future<void> _fetchCurrentEmployee() async {
               ),
               child: Row(
                 children: [
-                  const FaIcon(FontAwesomeIcons.calendarDays, color: Colors.grey, size: 18),
+                  const FaFaIcon(FontAwesomeIcons.calendarDays, color: Colors.grey, size: 18),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -999,7 +1000,7 @@ Future<void> _fetchCurrentEmployee() async {
                   ),
                   if (selectedFollowUpDate != null)
                     IconButton(
-                      icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
+                      icon: const FaFaIcon(FontAwesomeIcons.xmark, color: Colors.grey, size: 14),
                       onPressed: () => setState(() {
                         selectedFollowUpDate = null;
                         selectedFollowUpTime = null;
@@ -1079,7 +1080,7 @@ SpeechTextField(
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const FaIcon(FontAwesomeIcons.check, size: 16),
+                        const FaFaIcon(FontAwesomeIcons.check, size: 16),
                         const SizedBox(width: 8),
                         Text('حفظ', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
@@ -1091,7 +1092,7 @@ SpeechTextField(
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType, int maxLines = 1, String? suffixText}) {
+  Widget _buildTextField({required TextEditingController controller, required String label, required dynamic icon, TextInputType? keyboardType, int maxLines = 1, String? suffixText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -1115,7 +1116,7 @@ SpeechTextField(
     );
   }
 
-  Widget _buildDropdown<T>({required String label, required IconData icon, required T? value, required List<DropdownMenuItem<T>> items, required void Function(T?) onChanged}) {
+  Widget _buildDropdown<T>({required String label, required dynamic icon, required T? value, required List<DropdownMenuItem<T>> items, required void Function(T?) onChanged}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<T>(

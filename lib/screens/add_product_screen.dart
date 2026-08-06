@@ -1367,7 +1367,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     try {
       // محتاج package: file_picker
       // pubspec.yaml → file_picker: ^6.0.0
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );

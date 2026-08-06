@@ -6,6 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../constants.dart';
+import '../services/icon_utils.dart';
 import '../widgets/speech_text_field.dart';
 
 class AddOpportunityScreen extends StatefulWidget {
@@ -606,7 +607,7 @@ Future<void> _submitForm() async {
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon) {
+  Widget _buildSectionTitle(String title, dynamic icon) {
     return Row(
       children: [
         FaIcon(icon, color: const Color(0xFFFFD700), size: 16),
@@ -758,7 +759,7 @@ Widget _buildClientSection() {
 // ✅ زرار إضافة حقل اختياري
 Widget _buildOptionalFieldButton({
   required String label,
-  required IconData icon,
+  required dynamic icon,
   required VoidCallback onTap,
 }) {
   return InkWell(
@@ -827,7 +828,7 @@ Widget _buildOptionalFieldButton({
           // نوع الإعلان
           _buildDropdown<int>(
             label: 'نوع الإعلان',
-            icon: FontAwesomeIcons.ad,
+            icon: FontAwesomeIcons.rectangleAd,
             value: selectedAdTypeId,
             items: adTypes.map((t) => DropdownMenuItem<int>(
               value: t['AdTypeID'],
@@ -1068,7 +1069,7 @@ Widget _buildNotesSection() {
     required TextEditingController controller,
     required String label,
     required String hint,
-    required IconData icon,
+    required dynamic icon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
@@ -1126,7 +1127,7 @@ Widget _buildNotesSection() {
 
   Widget _buildDropdown<T>({
     required String label,
-    required IconData icon,
+    required dynamic icon,
     required T? value,
     required List<DropdownMenuItem<T>> items,
     required void Function(T?) onChanged,

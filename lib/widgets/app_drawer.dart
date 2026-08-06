@@ -958,6 +958,10 @@ class _AppDrawerState extends State<AppDrawer> {
         screen = CrmSettingsScreen(
             userId: widget.userId, username: widget.username);
         break;
+      case 'frm_LeadsCRM':
+        screen = LeadsScreen(
+            userId: widget.userId, username: widget.username);
+        break;
       case 'frm_Employeeslist':
         screen = EmployeesScreen(
             userId: widget.userId, username: widget.username);
@@ -1052,7 +1056,7 @@ case 'frm_CashBoxManual':
 // ═══════════════════════════════════════════════════════════════
 
 class _QuickAction {
-  final IconData icon;
+  final dynamic icon;
   final String label;
   final Color color;
   final VoidCallback onTap;

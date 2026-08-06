@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../services/icon_utils.dart';
 
 class SpeechTextField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String? hint;
-  final IconData icon;
+  final dynamic icon;
   final int maxLines;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
@@ -128,7 +129,7 @@ class _SpeechTextFieldState extends State<SpeechTextField> {
           ),
           prefixIcon: Padding(
             padding: const EdgeInsets.all(12),
-            child: FaIcon(widget.icon, color: Colors.grey, size: 18),
+            child: compatIcon(widget.icon, color: Colors.grey, size: 18),
           ),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,

@@ -309,7 +309,7 @@ class _CrmTrendChartState extends State<CrmTrendChart> {
           }
         },
         touchTooltipData: LineTouchTooltipData(
-          tooltipBgColor: Colors.transparent,
+          getTooltipColor: (_) => Colors.transparent,
           tooltipPadding: EdgeInsets.zero,
           getTooltipItems: (spots) {
             return spots.map((_) => null).toList();
