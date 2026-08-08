@@ -13,6 +13,7 @@ import 'home_screen.dart';
 import '../services/permission_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -130,6 +131,16 @@ class _LoginScreenState extends State<LoginScreen> {
         PermissionService().initialize(
           user: data['user'] as Map<String, dynamic>,
           permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
+        );
+
+        // ✅ تعبئة AuthProvider (Singleton) ببيانات اليوزر
+        final auth = AuthProvider();
+        auth.login(
+          userId: data['user']['UserID'] as int,
+          username: data['user']['Username'] as String,
+          fullName: data['user']['FullName'] as String? ?? '',
+          token: data['user']['Token'] as String? ?? '',
+          role: data['user']['Role'] as String? ?? '',
         );
 
         _showSuccessDialog();

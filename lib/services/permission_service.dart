@@ -99,6 +99,15 @@ bool get isAdmin => role?.toLowerCase() == 'admin';
 // هل هو مدير مبيعات؟
 bool get isSalesManager => role?.toLowerCase() == 'salesmanager';
 
+// هل هو المدير العام؟
+bool get isGeneralManager {
+  final r = role?.toLowerCase().replaceAll(' ', '') ?? '';
+  return r == 'generalmanager' || r == 'gm' || r == 'general_manager';
+}
+
+// رفض Lead مباشرة (بدون طلب موافقة)
+bool get canRejectLeadDirectly => isGeneralManager || isAdmin;
+
 // هل هو موظف مبيعات؟
 bool get isSales => role?.toLowerCase() == 'sales';
 
@@ -334,6 +343,7 @@ class FormNames {
   // ═══════════════════════════════════════
   static const String newInteraction = 'frmNewInteraction';
   static const String dailyTasks = 'frmDailyTasks';
+  static const String crmTasksLegacy = 'frmCrmTasksLegacy';
   static const String salesPipeline = 'frmSalesPipeline';
   static const String newQuotation = 'frmNewQuotation';
   static const String interactionsLog = 'frmInteractionsLog';
@@ -366,6 +376,8 @@ class FormNames {
   // ═══════════════════════════════════════
   static const String adCampaigns = 'frmAdCampain';
   static const String leadsCrm = 'frm_LeadsCRM';
+  /// My Leads entry (Blazor /crm/leads/my) — uses same permission as leads list
+  static const String myLeads = 'frm_MyLeads';
   static const String contactSources = 'frmContactSourses';
   //static const String adCampaigns = 'frmAdCampain';
   //static const String contactSources = 'frmContactSourses';
@@ -549,7 +561,8 @@ class MenuStructure {
       color: const Color(0xFF3F51B5),
       children: [
         SubMenuItem('تواصل جديد', FormNames.newInteraction, Icons.add_call),
-        SubMenuItem('المهام اليومية', FormNames.dailyTasks, Icons.task_alt),
+        SubMenuItem('المتابعات (ليدز + CRM)', FormNames.dailyTasks, Icons.event_available),
+        SubMenuItem('مهام CRM', FormNames.crmTasksLegacy, Icons.task_alt),
         SubMenuItem('متابعة الفرص', FormNames.managerSales, Icons.trending_up),
         SubMenuItem('مراحل البيع', FormNames.salesPipeline, Icons.filter_list),
         //SubMenuItem('إنشاء عرض سعر', FormNames.newQuotation, Icons.request_quote),
@@ -557,10 +570,10 @@ class MenuStructure {
         SubMenuItem('بطاقة العميل', FormNames.clientCard, Icons.contact_page),
         SubMenuItem('الشكاوى', FormNames.complaintsMain, Icons.report_problem),
         SubMenuItem('لوحة CRM', FormNames.crmDashboard, Icons.dashboard_customize),
-        
+        SubMenuItem('My Leads', FormNames.myLeads, Icons.assignment_ind),
         //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
         SubMenuItem('إعدادات CRM', FormNames.adCampaigns, Icons.settings_rounded),
-        SubMenuItem('إعلانات Meta Leads', FormNames.leadsCrm, Icons.campaign),
+        SubMenuItem('كل الـ Leads (Meta)', FormNames.leadsCrm, Icons.campaign),
       ],
     ),
 

@@ -30,9 +30,13 @@ import 'my_schedule_screen.dart';
 import 'complaints_screen.dart';
 import 'lead_detail_screen.dart';
 import 'leads_screen.dart';
+import 'followups_screen.dart';
+import '../services/followups_service.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import '../services/update_service.dart';
+import '../core/notifications/notification_navigator.dart';
+import '../core/navigation/app_navigator.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -221,6 +225,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     if (_perms.canView(FormNames.complaintsMain)) order.add('complaints');
     if (_perms.canView(FormNames.myschedule)) order.add('my_schedule');
     if (_perms.canView(FormNames.leadsCrm)) order.add('leads');
+    if (_perms.canView(FormNames.leadsCrm) || _perms.isSales) order.add('my_leads');
+    if (_perms.canView(FormNames.dailyTasks)) order.add('followups');
       order.add('attendance_report');   // تقرير الحضور
   order.add('my_permissions'); 
     return order;
@@ -264,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         });
         
         await _loadUrgentTasks();
+        await _loadFollowUpsSummary();
         await _fetchClientCount(); // make sure clients number is set
         _animController.forward(from: 0);
       }
@@ -314,7 +321,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     }
   }
 
-  // fetch total clients separately if dashboard summary didn't include it
+  /// Unified follow-ups KPIs (Leads + CRM) for home card
+  Future<void> _loadFollowUpsSummary() async {
+    if (!_perms.canView(FormNames.dailyTasks) &&
+        !_perms.canView(FormNames.leadsCrm)) {
+      return;
+    }
+    try {
+      final bool mineOnly = !(_perms.isAdmin ||
+          _perms.isSalesManager ||
+          _perms.isGeneralManager);
+      final sum = await FollowUpsService.getSummary(
+        employeeId: mineOnly ? _perms.employeeId : null,
+        source: 'all',
+      );
+      if (!mounted || sum.isEmpty) return;
+      setState(() {
+        summary['followUpsTotal'] = sum['total'] ?? 0;
+        summary['followUpsOverdue'] = sum['overdue'] ?? 0;
+        summary['followUpsToday'] = sum['today'] ?? 0;
+        summary['followUpsTomorrow'] = sum['tomorrow'] ?? 0;
+        summary['followUpsLeads'] = sum['leads'] ?? 0;
+        summary['followUpsClients'] = sum['clients'] ?? 0;
+        summary['tasksToday'] = sum['today'] ?? summary['tasksToday'] ?? 0;
+      });
+    } catch (e) {
+      debugPrint('Error loading followups summary: $e');
+    }
+  }
+
   Future<void> _fetchClientCount() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/api/clients/summary'));
@@ -331,15 +366,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
 
   void _startNotificationService() {
     _notificationService.startPolling(widget.username);
-    _notificationService.onNotificationTap = (payload) {
-      if (payload != null && mounted) {
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => NotificationsScreen(
-            userId: widget.userId,
-            username: widget.username,
-          ),
-        ));
-      }
+    // Same Blazor→Flutter map used for FCM taps
+    _notificationService.onNotificationTap = (payload) async {
+      if (payload == null || !mounted) return;
+      await NotificationNavigator.openFromPayload(navigatorKey, payload);
     };
   }
 
@@ -973,7 +1003,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildStat('المهام', '${summary['tasksToday'] ?? 0}', Icons.task_alt, Colors.purple),
+              _buildStat('متابعات اليوم', '${summary['followUpsToday'] ?? summary['tasksToday'] ?? 0}', Icons.event_available, Colors.purple),
               _buildStatDivider(),
               _buildStat('الفرص', '${summary['openOpportunities'] ?? 0}', Icons.lightbulb, Colors.orange),
               _buildStatDivider(),
@@ -1167,7 +1197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     return [
       {'title': 'العملاء', 'icon': Icons.people, 'color': Colors.teal, 'route': 'clients', 'keywords': ['عميل', 'client']},
       {'title': 'الفرص', 'icon': Icons.lightbulb, 'color': Colors.amber, 'route': 'opportunities', 'keywords': ['فرصة', 'opportunity']},
-      {'title': 'المهام', 'icon': Icons.task_alt, 'color': Colors.purpleAccent, 'route': 'tasks', 'keywords': ['مهمة', 'task']},
+      {'title': 'المتابعات', 'icon': Icons.event_available, 'color': Colors.purpleAccent, 'route': 'followups', 'keywords': ['متابعة', 'مهمة', 'task', 'follow', 'ليدز']},
       {'title': 'المنتجات', 'icon': Icons.inventory_2, 'color': Colors.blueAccent, 'route': 'products', 'keywords': ['منتج', 'product']},
       {'title': 'المصروفات', 'icon': Icons.wallet, 'color': Colors.pinkAccent, 'route': 'expenses', 'keywords': ['مصروف', 'expense']},
       {'title': 'لوحة CRM', 'icon': Icons.dashboard, 'color': Colors.cyanAccent, 'route': 'crm', 'keywords': ['crm', 'تحليل']},
@@ -1178,6 +1208,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       {'title': 'التقارير', 'icon': Icons.analytics, 'color': Colors.indigoAccent, 'route': 'reports', 'keywords': ['تقرير', 'report']},
       {'title': 'الإعدادات', 'icon': Icons.settings, 'color': Colors.grey, 'route': 'settings', 'keywords': ['إعداد', 'setting']},
       {'title': 'العملاء المحتملين', 'icon': Icons.campaign, 'color': Colors.lightBlue, 'route': 'leads', 'keywords': ['ليدز', 'leads', 'عملاء محتملين', 'meta']},
+      {'title': 'My Leads', 'icon': Icons.assignment_ind, 'color': Colors.deepPurpleAccent, 'route': 'my_leads', 'keywords': ['my leads', 'ليدز الخاصة', 'مسنَدة', 'مسندة']},
     ];
   }
 
@@ -1380,7 +1411,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       case 'opportunities':
         return _SectionData('الفرص', Icons.lightbulb, Colors.amber, 'opportunities', '${summary['openOpportunities'] ?? 0}');
       case 'tasks':
-        return _SectionData('المهام', Icons.task_alt, Colors.purpleAccent, 'tasks', '${summary['tasksToday'] ?? 0}');
+        return _SectionData('المتابعات', Icons.event_available, Colors.purpleAccent, 'followups', _followUpsBadge());
       case 'products':
         return _SectionData('المنتجات', Icons.inventory_2, Colors.blueAccent, 'products', '${summary['totalProducts'] ?? 0}');
       case 'expenses':
@@ -1405,7 +1436,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     case 'my_schedule':
       return _SectionData('جدول مواعيدي', Icons.calendar_month, Colors.blue, 'my_schedule', null);
     case 'leads':
-      return _SectionData('العملاء المحتملين', Icons.campaign, Colors.lightBlue, 'leads', null);
+      return _SectionData('كل الـ Leads', Icons.campaign, Colors.lightBlue, 'leads', null);
+    case 'my_leads':
+      return _SectionData('My Leads', Icons.assignment_ind, Colors.deepPurpleAccent, 'my_leads', null);
         default:
         return null;
     }
@@ -1967,6 +2000,13 @@ Widget _buildBottomNav() {
   // NAVIGATION
   // ═══════════════════════════════════════════════════════════════
 
+  String _followUpsBadge() {
+    final overdue = summary['followUpsOverdue'] ?? 0;
+    final today = summary['followUpsToday'] ?? summary['tasksToday'] ?? 0;
+    if (overdue is num && overdue > 0) return '!$overdue';
+    return '$today';
+  }
+
   void _navigateTo(String route) {
     Widget? screen;
     
@@ -1978,7 +2018,25 @@ Widget _buildBottomNav() {
         screen = OpportunitiesScreen(userId: widget.userId, username: widget.username);
         break;
       case 'tasks':
+        screen = FollowUpsScreen(
+          userId: widget.userId,
+          username: widget.username,
+          employeeId: (_perms.isAdmin || _perms.isSalesManager || _perms.isGeneralManager)
+              ? null
+              : _perms.employeeId,
+        );
+        break;
+      case 'tasks_legacy':
         screen = TasksScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'followups':
+        screen = FollowUpsScreen(
+          userId: widget.userId,
+          username: widget.username,
+          employeeId: (_perms.isAdmin || _perms.isSalesManager || _perms.isGeneralManager)
+              ? null
+              : _perms.employeeId,
+        );
         break;
       case 'products':
         screen = ProductsScreen(userId: widget.userId, username: widget.username);
@@ -2009,6 +2067,14 @@ Widget _buildBottomNav() {
         break;
       case 'leads':
         screen = LeadsScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'my_leads':
+        screen = LeadsScreen(
+          userId: widget.userId,
+          username: widget.username,
+          myLeadsOnly: true,
+          title: 'My Leads',
+        );
         break;
       // ✅ الشاشات الجديدة
       case 'delivery':

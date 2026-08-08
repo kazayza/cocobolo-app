@@ -38,6 +38,7 @@ import '../screens/cashbox_manual_screen.dart';
 import '../screens/cashbox_dashboard_screen.dart';
 import '../screens/leads_screen.dart';
 import '../screens/lead_detail_screen.dart';
+import '../screens/followups_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final int userId;
@@ -88,9 +89,35 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _cacheMenuItems() {
-    _visibleItems = MenuStructure.getItems().where((item) {
-      return item.children.any((sub) => _perms.canView(sub.formName));
-    }).toList();
+    _visibleItems = MenuStructure.getItems().map((item) {
+      final kids = item.children.where((sub) => _canViewMenu(sub.formName)).toList();
+      return MenuItem(
+        title: item.title,
+        icon: item.icon,
+        color: item.color,
+        children: kids,
+      );
+    }).where((item) => item.children.isNotEmpty).toList();
+  }
+
+  bool _canViewMenu(String formName) {
+    final perms = PermissionService();
+    if (formName == 'frmCrmTasksLegacy') {
+      // Legacy CRM tasks list: same audience as daily tasks / opportunities
+      return perms.canView(FormNames.dailyTasks) ||
+          perms.canView(FormNames.managerSales) ||
+          perms.isAdmin ||
+          perms.isSalesManager;
+    }
+    // My Leads uses same permission as leads list (Blazor /crm/leads/my)
+    if (formName == FormNames.myLeads || formName == 'frm_MyLeads') {
+      return perms.canView(FormNames.leadsCrm) ||
+          perms.isSales ||
+          perms.isSalesManager ||
+          perms.isAdmin ||
+          perms.isGeneralManager;
+    }
+    return perms.canView(formName);
   }
 
   Future<void> _loadAppVersion() async {
@@ -113,7 +140,7 @@ class _AppDrawerState extends State<AppDrawer> {
       if (item.title.toLowerCase().contains(_searchQuery)) return true;
       return item.children.any((sub) =>
           sub.title.toLowerCase().contains(_searchQuery) &&
-          _perms.canView(sub.formName));
+          _canViewMenu(sub.formName));
     }).toList();
   }
 
@@ -506,7 +533,7 @@ class _AppDrawerState extends State<AppDrawer> {
 
   Widget _buildSection(MenuItem item, int index) {
     final visibleChildren = item.children.where((sub) {
-      return _perms.canView(sub.formName) &&
+      return _canViewMenu(sub.formName) &&
           (_searchQuery.isEmpty ||
               sub.title.toLowerCase().contains(_searchQuery));
     }).toList();
@@ -935,8 +962,28 @@ class _AppDrawerState extends State<AppDrawer> {
             userId: widget.userId, username: widget.username);
         break;
       case 'frmDailyTasks':
+        // Unified follow-ups (Leads + CRM + Tasks) — Blazor daily tasks entry
+        screen = FollowUpsScreen(
+            userId: widget.userId,
+            username: widget.username,
+            employeeId: (PermissionService().isAdmin ||
+                    PermissionService().isSalesManager ||
+                    PermissionService().isGeneralManager)
+                ? null
+                : PermissionService().employeeId,
+            );
+        break;
+      case 'frmCrmTasksLegacy':
         screen = TasksScreen(
             userId: widget.userId, username: widget.username);
+        break;
+      case 'frm_MyLeads':
+        screen = LeadsScreen(
+          userId: widget.userId,
+          username: widget.username,
+          myLeadsOnly: true,
+          title: 'My Leads',
+        );
         break;
       case 'frmClientCard':
         screen = ClientCardScreen(

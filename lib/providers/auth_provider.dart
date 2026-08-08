@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 class AuthProvider extends ChangeNotifier {
+  // ✅ Singleton — يوحد الوصول على بيانات اليوزر في كل الـ app
+  // بنفس نمط PermissionService و ThemeService.
+  static final AuthProvider _instance = AuthProvider._internal();
+  factory AuthProvider() => _instance;
+  AuthProvider._internal();
   // بيانات المستخدم
   int? _userId;
   String? _username;

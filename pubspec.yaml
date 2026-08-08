@@ -1,7 +1,7 @@
 name: cocobolo_app
 description: COCOBOLO CRM Application
 publish_to: 'none'
-version: 1.0.6+7
+version: 1.0.7+8
 
 environment:
   sdk: '>=3.4.0 <5.0.0'  # أحدث إصدارات Flutter

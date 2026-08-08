@@ -10,7 +10,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+//import 'screens/home_screen.dart';
+import 'features/home/home_screen_v2.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'services/app_colors.dart';
@@ -20,9 +21,12 @@ import 'screens/products_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/opportunity_detail_screen.dart';
 import 'screens/attendance_screen.dart';
+import 'screens/lead_detail_screen.dart';
+import 'core/notifications/notification_navigator.dart';
+import 'core/navigation/app_navigator.dart';
+import 'providers/auth_provider.dart';
 
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -63,66 +67,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 // ✅ فتح الشاشة الصحيحة عند الضغط على الإشعار
 Future<void> _handleNotificationTap(String? payload) async {
-  if (payload == null) return;
-  try {
-    final data = jsonDecode(payload);
-    final formName = data['formName'];
-    final id = data['relatedId'];
-
-    final prefs = await SharedPreferences.getInstance();
-    final savedUsername = prefs.getString('username') ?? 'User';
-    final savedUserId = prefs.getInt('userId') ?? 0;
-
-    if (formName == 'frm_Expenses') {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => AddExpenseScreen(
-            username: savedUsername,
-            expenseId: id,
-          ),
-        ),
-      );
-    } else if (formName == 'frm_Products' || formName == 'frm_ProductPricing') {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => ProductsScreen(
-            userId: savedUserId,
-            username: savedUsername,
-          ),
-        ),
-      );
-    } else if (formName == 'opportunity_detail_screen' && id != null) {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => OpportunityDetailScreen(
-            opportunityId: id is int ? id : int.parse(id.toString()),
-            userId: savedUserId,
-            username: savedUsername,
-          ),
-        ),
-      );
-    } else if (formName == 'attendance_screen') {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => AttendanceScreen(
-            userId: savedUserId,
-            username: savedUsername,
-          ),
-        ),
-      );
-    } else {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => NotificationsScreen(
-            userId: savedUserId,
-            username: savedUsername,
-          ),
-        ),
-      );
-    }
-  } catch (e) {
-    print('Error parsing notification payload: $e');
-  }
+  // Blazor FormName is source of truth — Flutter only maps via NotificationNavigator
+  await NotificationNavigator.openFromPayload(navigatorKey, payload);
 }
 
 // ✅ تسجيل / تحديث توكن الجهاز في الخادم
@@ -289,6 +235,16 @@ class _MyAppState extends State<MyApp> {
                 permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
               );
 
+              // ✅ تعبئة AuthProvider (Singleton) ببيانات اليوزر
+              final auth = AuthProvider();
+              auth.login(
+                userId: data['user']['UserID'] as int,
+                username: data['user']['Username'] as String,
+                fullName: data['user']['FullName'] as String? ?? '',
+                token: data['user']['Token'] as String? ?? '',
+                role: data['user']['Role'] as String? ?? '',
+              );
+
               setState(() {
                 _isLoggedIn = true;
                 _userId = data['user']['UserID'] as int;
@@ -300,8 +256,17 @@ class _MyAppState extends State<MyApp> {
               await prefs.setBool('is_logged_in', false);
             }
           } catch (e) {
-            // ✅ لو مفيش نت → يفتح عادي ببيانات محفوظة بدون صلاحيات
             print('⚠️ مفيش اتصال - فتح بدون صلاحيات: $e');
+            
+            // ✅ تعبئة AuthProvider بالبيانات المحفوظة (offline fallback)
+            final auth = AuthProvider();
+            auth.login(
+              userId: userId,
+              username: username,
+              fullName: fullName,
+              token: savedPassword,
+            );
+            
             setState(() {
               _isLoggedIn = true;
               _userId = userId;
@@ -341,16 +306,22 @@ class _MyAppState extends State<MyApp> {
       ],
       //locale: const Locale('ar'),
       // ═══════════════════════════
-      home: _isChecking
-          ? _buildSplashScreen()
-          : _isLoggedIn
-              ? HomeScreen(
-                  userId: _userId,
-                  username: _username,
-                  fullName: _fullName,
+     // home: _isChecking
+          //? _buildSplashScreen()
+          //: _isLoggedIn
+            //  ? HomeScreen(
+              //    userId: _userId,
+              //    username: _username,
+              //    fullName: _fullName,
                   
-                )
-              : const LoginScreen(),
+              //  )
+              //: const LoginScreen(),
+
+              home: _isChecking
+    ? _buildSplashScreen()
+    : _isLoggedIn
+        ? const HomeScreenV2()
+        : const LoginScreen(),
     );
   }
 
