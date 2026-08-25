@@ -449,7 +449,7 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('🎉', style: TextStyle(fontSize: 48)),
+                    const Text('', style: TextStyle(fontSize: 48)),
                     const SizedBox(height: 8),
                     Text(
                       'لا توجد تنبيهات!',

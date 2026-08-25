@@ -1213,7 +1213,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'انتهى يوم العمل! 🎉',
+                  'انتهى يوم العمل! ',
                   style: GoogleFonts.cairo(
                     color: Colors.white,
                     fontSize: 16,

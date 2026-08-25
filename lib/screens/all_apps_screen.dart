@@ -5,7 +5,7 @@ import '../services/permission_service.dart';
 import '../services/app_colors.dart';
 import 'reports/crm_dashboard_screen.dart';
 import 'products_screen.dart';
-import 'expenses_screen.dart';
+import 'expenses/expense_dashboard_screen.dart';
 import 'clients_screen.dart';
 import 'tasks_screen.dart';
 import 'opportunities_screen.dart';
@@ -242,7 +242,7 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
       
       // --- حسابات ---
       case FormNames.expensesList:
-        screen = ExpensesScreen(userId: widget.userId, username: widget.username);
+        screen = ExpenseDashboardScreen(userId: widget.userId, username: widget.username);
         break;
       case FormNames.expensesAdd:
         screen = AddExpenseScreen(username: widget.username);

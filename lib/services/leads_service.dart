@@ -56,6 +56,8 @@ class LeadsService {
     int? employeeId,
     String? city,
     String? projectType,
+    int? sourceId,
+    int? adTypeId,
     String? dateFrom,
     String? dateTo,
     int page = 1,
@@ -82,6 +84,12 @@ class LeadsService {
           projectType.isNotEmpty &&
           projectType != statusAll) {
         q['projectType'] = projectType;
+      }
+      if (sourceId != null && sourceId > 0) {
+        q['sourceId'] = '$sourceId';
+      }
+      if (adTypeId != null && adTypeId > 0) {
+        q['adTypeId'] = '$adTypeId';
       }
       if (dateFrom != null) q['dateFrom'] = dateFrom;
       if (dateTo != null) q['dateTo'] = dateTo;
@@ -133,10 +141,55 @@ class LeadsService {
     return {'cities': <dynamic>[], 'projectTypes': <dynamic>[]};
   }
 
+  /// أنواع المشاريع الموجودة (بدون تكرار — من جدول الليدز)
+  static Future<List<String>> getProjectTypes() async {
+    final options = await getFilterOptions();
+    final list = options['projectTypes'];
+    if (list is List) {
+      return list.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+    }
+    return [];
+  }
+
+  /// كل خيارات نموذج الإضافة مرة واحدة:
+  /// المدن + أنواع المشاريع + أوقات التواصل + الإجراءات + مناطق كل مدينة
+  static Future<LeadFormOptions> getLeadFormOptions() async {
+    final options = await getFilterOptions();
+
+    List<String> _strs(String key) {
+      final list = options[key];
+      if (list is List) {
+        return list.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+      }
+      return [];
+    }
+
+    Map<String, List<String>> _map(String key) {
+      final raw = options[key];
+      if (raw is Map) {
+        return raw.map((k, v) => MapEntry(
+              k.toString(),
+              (v is List) ? v.map((e) => e.toString()).toList() : <String>[],
+            ));
+      }
+      return {};
+    }
+
+    return LeadFormOptions(
+      cities: _strs('cities'),
+      projectTypes: _strs('projectTypes'),
+      bestTimes: _strs('bestTimes'),
+      nextActions: _strs('nextActions'),
+      areasByCity: _map('areasByCity'),
+    );
+  }
+
   static Future<Map<String, dynamic>> getStats({
     int? employeeId,
     String? city,
     String? projectType,
+    int? sourceId,
+    int? adTypeId,
     String? dateFrom,
     String? dateTo,
   }) async {
@@ -151,6 +204,8 @@ class LeadsService {
           projectType != statusAll) {
         q['projectType'] = projectType;
       }
+      if (sourceId != null && sourceId > 0) q['sourceId'] = '$sourceId';
+      if (adTypeId != null && adTypeId > 0) q['adTypeId'] = '$adTypeId';
       if (dateFrom != null) q['dateFrom'] = dateFrom;
       if (dateTo != null) q['dateTo'] = dateTo;
 
@@ -190,6 +245,102 @@ class LeadsService {
       print('❌ LeadsService.getLeadById: $e');
     }
     return null;
+  }
+
+  /// إنشاء Lead يدوي (مطابق لبلازور LeadsCrmCreateDto)
+  /// — أضف أي حقل جديد هنا + في شاشة الإضافة
+  static Future<Map<String, dynamic>> createLead({
+    required String fullName,
+    required String phone,
+    String? phone2,
+    String? email,
+    String? city,
+    String? area,
+    String? address,
+    String? projectType,
+    String? projectStage,
+    String? budget,
+    String? decisionMaker,
+    String? nextAction,
+    String? bestTimeToReach,
+    int? assignedEmployeeId,
+    String? notes,
+    // حقول من الفرص البيعية (المصدر + الحملة + المتابعة)
+    String? platform,
+    String? sourceNameAr,
+    String? campaignName,
+    String? adTypeNameAr,
+    String? guidance,
+    String? nextFollowUp,
+    required String userName,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'fullName': fullName,
+        'phone': phone,
+        'userName': userName,
+      };
+      if (phone2 != null && phone2.trim().isNotEmpty) body['phone2'] = phone2;
+      if (email != null && email.trim().isNotEmpty) body['email'] = email;
+      if (city != null && city.trim().isNotEmpty) body['city'] = city;
+      if (area != null && area.trim().isNotEmpty) body['area'] = area;
+      if (address != null && address.trim().isNotEmpty) body['address'] = address;
+      if (projectType != null && projectType.trim().isNotEmpty) body['projectType'] = projectType;
+      if (projectStage != null && projectStage.trim().isNotEmpty) body['projectStage'] = projectStage;
+      if (budget != null && budget.trim().isNotEmpty) body['budget'] = budget;
+      if (decisionMaker != null && decisionMaker.trim().isNotEmpty) body['decisionMaker'] = decisionMaker;
+      if (nextAction != null && nextAction.trim().isNotEmpty) body['nextAction'] = nextAction;
+      if (bestTimeToReach != null && bestTimeToReach.trim().isNotEmpty) body['bestTimeToReach'] = bestTimeToReach;
+      if (assignedEmployeeId != null) body['assignedEmployeeId'] = assignedEmployeeId;
+      if (notes != null && notes.trim().isNotEmpty) body['notes'] = notes;
+      // المصدر والحملة (بالإنجليزي للتخزين + بالعربي للعرض)
+      if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform;
+      if (sourceNameAr != null && sourceNameAr.trim().isNotEmpty) body['sourceNameAr'] = sourceNameAr;
+      if (campaignName != null && campaignName.trim().isNotEmpty) body['campaignName'] = campaignName;
+      if (adTypeNameAr != null && adTypeNameAr.trim().isNotEmpty) body['adTypeNameAr'] = adTypeNameAr;
+      if (guidance != null && guidance.trim().isNotEmpty) body['guidance'] = guidance;
+      if (nextFollowUp != null && nextFollowUp.isNotEmpty) body['nextFollowUp'] = nextFollowUp;
+
+      final response = await http.post(
+        _uri('/api/leads'),
+        headers: _jsonHeaders,
+        body: jsonEncode(body),
+      );
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+      return {'success': response.statusCode == 200};
+    } catch (e) {
+      print('❌ LeadsService.createLead: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// مصادر التواصل (نفس قيم الفرص البيعية — من ContactSources)
+  static Future<List<Map<String, dynamic>>> getSources() async {
+    try {
+      final response = await http.get(_uri('/api/opportunities/sources'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      print('❌ LeadsService.getSources: $e');
+    }
+    return [];
+  }
+
+  /// الحملات الإعلانية (نفس قيم الفرص البيعية — من AdTypes)
+  static Future<List<Map<String, dynamic>>> getAdTypes() async {
+    try {
+      final response = await http.get(_uri('/api/opportunities/ad-types'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      print('❌ LeadsService.getAdTypes: $e');
+    }
+    return [];
   }
 
   /// Update status / assignment / notes
@@ -468,4 +619,29 @@ class LeadsListResult {
         page: 1,
         limit: 50,
       );
+}
+
+/// خيارات نموذج إضافة الليد (من جدول الليدز — بدون تكرار)
+class LeadFormOptions {
+  final List<String> cities;
+  final List<String> projectTypes;
+  final List<String> bestTimes;
+  final List<String> nextActions;
+
+  /// خريطة: اسم المدينة → المناطق المرتبطة بها
+  final Map<String, List<String>> areasByCity;
+
+  const LeadFormOptions({
+    this.cities = const [],
+    this.projectTypes = const [],
+    this.bestTimes = const [],
+    this.nextActions = const [],
+    this.areasByCity = const {},
+  });
+
+  /// المناطق التابعة لمدينة معينة (فاضية لو مفيش مناطق مسجلة)
+  List<String> areasFor(String? city) {
+    if (city == null || city.trim().isEmpty) return [];
+    return areasByCity[city.trim()] ?? [];
+  }
 }

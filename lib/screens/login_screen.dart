@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../constants.dart';
-import 'home_screen.dart';
+import '../features/home/home_screen_v2.dart';
 import '../services/permission_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
@@ -152,14 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-               builder: (context) => HomeScreen(
-      userId: data['user']['UserID'],
-      username: data['user']['Username'],
-      fullName: data['user']['FullName'], // ده كان موجود عندك
-      
-      // 👇 ضيف ده، وتأكد إن الاسم EmployeeID زي ما راجع من الباك اند
-      
-            ),
+            builder: (context) => const HomeScreenV2(),
           ),
         );
       } else {

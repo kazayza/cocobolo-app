@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +9,7 @@ import '../services/theme_service.dart';
 import '../services/leads_service.dart';
 import '../services/permission_service.dart';
 import 'lead_detail_screen.dart';
+import 'add_lead_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -49,13 +51,19 @@ class _LeadsScreenState extends State<LeadsScreen> {
   String _selectedCity = 'الكل';
   String _selectedProjectType = 'الكل';
   int? _selectedEmployeeId; // null = الكل
+  // فلاتر المصدر والحملة (جديدة — زي بلازور)
+  List<Map<String, dynamic>> _sources = [];
+  List<Map<String, dynamic>> _adTypes = [];
+  int? _selectedSourceId;   // null = الكل
+  int? _selectedAdTypeId;   // null = الكل
   DateTimeRange? _customDateRange;
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   final _perms = PermissionService();
 
-  String get _prefsKey =>
-      widget.myLeadsOnly ? 'my_leads_screen_filters_v1' : 'leads_screen_filters_v1';
+  String get _prefsKey => widget.myLeadsOnly
+      ? 'my_leads_screen_filters_v1'
+      : 'leads_screen_filters_v1';
 
   bool get _isMyLeads => widget.myLeadsOnly;
 
@@ -85,8 +93,16 @@ class _LeadsScreenState extends State<LeadsScreen> {
   final List<Map<String, dynamic>> _statuses = [
     {'label': 'الكل', 'icon': Icons.all_inclusive, 'color': Colors.blueGrey},
     {'label': 'جديد', 'icon': Icons.fiber_new_rounded, 'color': Colors.blue},
-    {'label': 'تم التواصل', 'icon': Icons.phone_callback, 'color': Colors.orange},
-    {'label': 'تم الإسناد', 'icon': Icons.assignment_ind, 'color': Colors.purple},
+    {
+      'label': 'تم التواصل',
+      'icon': Icons.phone_callback,
+      'color': Colors.orange,
+    },
+    {
+      'label': 'تم الإسناد',
+      'icon': Icons.assignment_ind,
+      'color': Colors.purple,
+    },
     {'label': 'محول', 'icon': Icons.check_circle, 'color': Colors.green},
     {'label': 'مرفوض', 'icon': Icons.cancel, 'color': Colors.red},
   ];
@@ -150,6 +166,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
           .where((e) => e.trim().isNotEmpty)
           .toList();
     });
+
+    // المصادر والحملات (من نفس جداول الفرص — زي بلازور)
+    final sources = await LeadsService.getSources();
+    final adTypes = await LeadsService.getAdTypes();
+    if (!mounted) return;
+    setState(() {
+      _sources = sources;
+      _adTypes = adTypes;
+    });
   }
 
   Future<void> _restoreFilters() async {
@@ -164,6 +189,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
       _dateFilter = (m['dateFilter'] ?? 'الكل').toString();
       _selectedCity = (m['city'] ?? 'الكل').toString();
       _selectedProjectType = (m['projectType'] ?? 'الكل').toString();
+      final srcId = m['sourceId'];
+      if (srcId is int) {
+        _selectedSourceId = srcId;
+      } else if (srcId != null) {
+        _selectedSourceId = int.tryParse('$srcId');
+      }
+      final adId = m['adTypeId'];
+      if (adId is int) {
+        _selectedAdTypeId = adId;
+      } else if (adId != null) {
+        _selectedAdTypeId = int.tryParse('$adId');
+      }
       final emp = m['employeeId'];
       if (emp == null) {
         _selectedEmployeeId = null;
@@ -197,6 +234,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
           'dateFilter': _dateFilter,
           'city': _selectedCity,
           'projectType': _selectedProjectType,
+          'sourceId': _selectedSourceId,
+          'adTypeId': _selectedAdTypeId,
           'employeeId': _selectedEmployeeId,
           'search': _searchController.text.trim(),
           'customFrom': _customDateRange?.start.toIso8601String(),
@@ -279,59 +318,69 @@ class _LeadsScreenState extends State<LeadsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setModal) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('إسناد Lead',
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'إسناد Lead',
                     style: GoogleFonts.cairo(
-                        fontSize: 16, fontWeight: FontWeight.w900)),
-                Text(lead['FullName'] ?? '',
-                    style: GoogleFonts.cairo(fontSize: 13, color: Colors.grey)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 300,
-                  child: ListView.builder(
-                    itemCount: _employees.length,
-                    itemBuilder: (_, i) {
-                      final e = _employees[i] as Map;
-                      final id = e['EmployeeId'] ?? e['EmployeeID'];
-                      final idInt = id is int ? id : int.tryParse('$id');
-                      return RadioListTile<int>(
-                        value: idInt ?? -1,
-                        groupValue: selected,
-                        title: Text('${e['FullName']}',
-                            style: GoogleFonts.cairo(fontSize: 13)),
-                        onChanged: (v) => setModal(() => selected = v),
-                      );
-                    },
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: Text('إلغاء', style: GoogleFonts.cairo()),
-                      ),
+                  Text(
+                    lead['FullName'] ?? '',
+                    style: GoogleFonts.cairo(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 300,
+                    child: ListView.builder(
+                      itemCount: _employees.length,
+                      itemBuilder: (_, i) {
+                        final e = _employees[i] as Map;
+                        final id = e['EmployeeId'] ?? e['EmployeeID'];
+                        final idInt = id is int ? id : int.tryParse('$id');
+                        return RadioListTile<int>(
+                          value: idInt ?? -1,
+                          groupValue: selected,
+                          title: Text(
+                            '${e['FullName']}',
+                            style: GoogleFonts.cairo(fontSize: 13),
+                          ),
+                          onChanged: (v) => setModal(() => selected = v),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: selected == null
-                            ? null
-                            : () => Navigator.pop(ctx, true),
-                        child: Text('حفظ', style: GoogleFonts.cairo()),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text('إلغاء', style: GoogleFonts.cairo()),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        });
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: selected == null
+                              ? null
+                              : () => Navigator.pop(ctx, true),
+                          child: Text('حفظ', style: GoogleFonts.cairo()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
 
@@ -373,80 +422,92 @@ class _LeadsScreenState extends State<LeadsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setModal) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 16,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('تحويل سريع لفرصة',
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'تحويل سريع لفرصة',
                     style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: empId,
-                  decoration: InputDecoration(
-                    labelText: 'الموظف *',
-                    labelStyle: GoogleFonts.cairo(),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
                   ),
-                  items: _employees.map((e) {
-                    final m = e as Map;
-                    final id = m['EmployeeId'] ?? m['EmployeeID'];
-                    final idInt = id is int ? id : int.tryParse('$id') ?? 0;
-                    return DropdownMenuItem(
-                      value: idInt,
-                      child: Text('${m['FullName']}',
-                          style: GoogleFonts.cairo(fontSize: 13)),
-                    );
-                  }).toList(),
-                  onChanged: (v) => setModal(() => empId = v),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: valueCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: 'القيمة المتوقعة',
-                    labelStyle: GoogleFonts.cairo(),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  style: GoogleFonts.cairo(),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: Text('إلغاء', style: GoogleFonts.cairo()),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value: empId,
+                    decoration: InputDecoration(
+                      labelText: 'الموظف *',
+                      labelStyle: GoogleFonts.cairo(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
+                    items: _employees.map((e) {
+                      final m = e as Map;
+                      final id = m['EmployeeId'] ?? m['EmployeeID'];
+                      final idInt = id is int ? id : int.tryParse('$id') ?? 0;
+                      return DropdownMenuItem(
+                        value: idInt,
+                        child: Text(
+                          '${m['FullName']}',
+                          style: GoogleFonts.cairo(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setModal(() => empId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: valueCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'القيمة المتوقعة',
+                      labelStyle: GoogleFonts.cairo(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    style: GoogleFonts.cairo(),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text('إلغاء', style: GoogleFonts.cairo()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green.shade700,
-                            foregroundColor: Colors.white),
-                        onPressed:
-                            empId == null ? null : () => Navigator.pop(ctx, true),
-                        child: Text('تحويل', style: GoogleFonts.cairo()),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: empId == null
+                              ? null
+                              : () => Navigator.pop(ctx, true),
+                          child: Text('تحويل', style: GoogleFonts.cairo()),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        });
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
     if (go != true || empId == null) return;
@@ -459,8 +520,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
     );
     setState(() => _actionBusy = false);
     final success = res['success'] == true;
-    _toast(success ? (res['message'] ?? 'تم التحويل') : (res['message'] ?? 'فشل'),
-        ok: success);
+    _toast(
+      success ? (res['message'] ?? 'تم التحويل') : (res['message'] ?? 'فشل'),
+      ok: success,
+    );
     if (success) _fetchLeads();
   }
 
@@ -491,7 +554,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(
                   'سيتم إرسال طلب للمدير العام (GeneralManager) للموافقة على الرفض.',
-                  style: GoogleFonts.cairo(fontSize: 12, color: Colors.orange.shade800),
+                  style: GoogleFonts.cairo(
+                    fontSize: 12,
+                    color: Colors.orange.shade800,
+                  ),
                 ),
               ),
             TextField(
@@ -501,15 +567,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
               decoration: InputDecoration(
                 labelText: 'سبب الرفض *',
                 labelStyle: GoogleFonts.cairo(),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: Text('إلغاء', style: GoogleFonts.cairo())),
+            onPressed: () => Navigator.pop(c, false),
+            child: Text('إلغاء', style: GoogleFonts.cairo()),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(c, true),
@@ -547,8 +616,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
     }
     setState(() => _actionBusy = false);
     final success = res['success'] == true;
-    _toast(success ? (res['message'] ?? 'تم') : (res['message'] ?? 'فشل'),
-        ok: success);
+    _toast(
+      success ? (res['message'] ?? 'تم') : (res['message'] ?? 'فشل'),
+      ok: success,
+    );
     if (success) _fetchLeads();
   }
 
@@ -572,6 +643,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
       _dateFilter != 'الكل' ||
       _selectedCity != 'الكل' ||
       _selectedProjectType != 'الكل' ||
+      _selectedSourceId != null ||
+      _selectedAdTypeId != null ||
       (_canPickEmployee && _selectedEmployeeId != null);
 
   int get _activeFilterCount {
@@ -581,6 +654,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
     if (_searchController.text.trim().isNotEmpty) count++;
     if (_selectedCity != 'الكل') count++;
     if (_selectedProjectType != 'الكل') count++;
+    if (_selectedSourceId != null) count++;
+    if (_selectedAdTypeId != null) count++;
     if (_canPickEmployee && _selectedEmployeeId != null) count++;
     return count;
   }
@@ -606,6 +681,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
       _customDateRange = null;
       _selectedCity = 'الكل';
       _selectedProjectType = 'الكل';
+      _selectedSourceId = null;
+      _selectedAdTypeId = null;
       // My Leads keeps employee lock
       if (_canPickEmployee) {
         _selectedEmployeeId = null;
@@ -616,6 +693,23 @@ class _LeadsScreenState extends State<LeadsScreen> {
     });
     _persistFilters();
     _fetchLeads();
+  }
+
+  /// فتح شاشة إضافة Lead يدوي (زي بلازور)
+  Future<void> _openAddLead() async {
+    final added = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddLeadScreen(
+          userId: widget.userId,
+          username: widget.username,
+        ),
+      ),
+    );
+    // لو اتضاف Lead جديد → نحدّث القائمة فوراً
+    if (added == true && mounted) {
+      _fetchLeads();
+    }
   }
 
   Future<void> _fetchLeads() async {
@@ -641,8 +735,11 @@ class _LeadsScreenState extends State<LeadsScreen> {
     }
 
     final city = _selectedCity == 'الكل' ? null : _selectedCity;
-    final projectType =
-        _selectedProjectType == 'الكل' ? null : _selectedProjectType;
+    final projectType = _selectedProjectType == 'الكل'
+        ? null
+        : _selectedProjectType;
+    final srcId = _selectedSourceId;
+    final adId = _selectedAdTypeId;
     final empId = _selectedEmployeeId;
     final search = _searchController.text.trim();
 
@@ -653,6 +750,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
         employeeId: empId,
         city: city,
         projectType: projectType,
+        sourceId: srcId,
+        adTypeId: adId,
         dateFrom: dateFrom,
         dateTo: dateTo,
         limit: 200,
@@ -663,6 +762,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
         employeeId: empId,
         city: city,
         projectType: projectType,
+        sourceId: srcId,
+        adTypeId: adId,
         dateFrom: dateFrom,
         dateTo: dateTo,
         limit: 200,
@@ -671,6 +772,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
         employeeId: empId,
         city: city,
         projectType: projectType,
+        sourceId: srcId,
+        adTypeId: adId,
         dateFrom: dateFrom,
         dateTo: dateTo,
       ),
@@ -716,16 +819,24 @@ class _LeadsScreenState extends State<LeadsScreen> {
   void _sortLeads() {
     switch (_sortBy) {
       case 'الأحدث':
-        _leads.sort((a, b) => (b['LeadDate'] ?? '').compareTo(a['LeadDate'] ?? ''));
+        _leads.sort(
+          (a, b) => (b['LeadDate'] ?? '').compareTo(a['LeadDate'] ?? ''),
+        );
         break;
       case 'الأقدم':
-        _leads.sort((a, b) => (a['LeadDate'] ?? '').compareTo(b['LeadDate'] ?? ''));
+        _leads.sort(
+          (a, b) => (a['LeadDate'] ?? '').compareTo(b['LeadDate'] ?? ''),
+        );
         break;
       case 'الاسم':
-        _leads.sort((a, b) => (a['FullName'] ?? '').compareTo(b['FullName'] ?? ''));
+        _leads.sort(
+          (a, b) => (a['FullName'] ?? '').compareTo(b['FullName'] ?? ''),
+        );
         break;
       case 'الحالة':
-        _leads.sort((a, b) => (a['LeadStatus'] ?? '').compareTo(b['LeadStatus'] ?? ''));
+        _leads.sort(
+          (a, b) => (a['LeadStatus'] ?? '').compareTo(b['LeadStatus'] ?? ''),
+        );
         break;
     }
   }
@@ -765,13 +876,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
         case 'مخصص':
           if (_customDateRange == null) return true;
           final start = DateTime(
-              _customDateRange!.start.year,
-              _customDateRange!.start.month,
-              _customDateRange!.start.day);
+            _customDateRange!.start.year,
+            _customDateRange!.start.month,
+            _customDateRange!.start.day,
+          );
           final end = DateTime(
-              _customDateRange!.end.year,
-              _customDateRange!.end.month,
-              _customDateRange!.end.day, 23, 59, 59);
+            _customDateRange!.end.year,
+            _customDateRange!.end.month,
+            _customDateRange!.end.day,
+            23,
+            59,
+            59,
+          );
           return leadDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
               leadDate.isBefore(end.add(const Duration(seconds: 1)));
         default:
@@ -787,7 +903,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _customDateRange ??
+      initialDateRange:
+          _customDateRange ??
           DateTimeRange(
             start: DateTime.now().subtract(const Duration(days: 30)),
             end: DateTime.now(),
@@ -849,23 +966,35 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
   Color _getStatusColor(String? status) {
     switch (status) {
-      case 'جديد': return Colors.blue;
-      case 'تم التواصل': return Colors.orange;
-      case 'تم الإسناد': return Colors.purple;
-      case 'محول': return Colors.green;
-      case 'مرفوض': return Colors.red;
-      default: return Colors.grey;
+      case 'جديد':
+        return Colors.blue;
+      case 'تم التواصل':
+        return Colors.orange;
+      case 'تم الإسناد':
+        return Colors.purple;
+      case 'محول':
+        return Colors.green;
+      case 'مرفوض':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _getStatusIcon(String? status) {
     switch (status) {
-      case 'جديد': return Icons.fiber_new_rounded;
-      case 'تم التواصل': return Icons.phone_callback;
-      case 'تم الإسناد': return Icons.assignment_ind;
-      case 'محول': return Icons.check_circle;
-      case 'مرفوض': return Icons.cancel;
-      default: return Icons.help_outline;
+      case 'جديد':
+        return Icons.fiber_new_rounded;
+      case 'تم التواصل':
+        return Icons.phone_callback;
+      case 'تم الإسناد':
+        return Icons.assignment_ind;
+      case 'محول':
+        return Icons.check_circle;
+      case 'مرفوض':
+        return Icons.cancel;
+      default:
+        return Icons.help_outline;
     }
   }
 
@@ -877,14 +1006,19 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final isDark = ThemeService().isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFF4F7FB),
+      backgroundColor: isDark
+          ? const Color(0xFF0f172a)
+          : const Color(0xFFF4F7FB),
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               _screenTitle,
-              style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 18),
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+              ),
             ),
             if (_isMyLeads)
               Text(
@@ -917,12 +1051,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 );
               },
             ),
+          // ➕ إضافة Lead يدوي
+          IconButton(
+            tooltip: 'إضافة Lead يدوي',
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            onPressed: _openAddLead,
+          ),
           if (_isLoading)
             const Padding(
               padding: EdgeInsets.all(14),
               child: SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white70,
+                ),
               ),
             )
           else
@@ -937,7 +1081,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
           onRefresh: _fetchLeads,
           color: const Color(0xFF2563eb),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             slivers: [
               SliverToBoxAdapter(child: _buildHeroSummary(isDark)),
               SliverToBoxAdapter(child: _buildFilterSection(isDark)),
@@ -946,7 +1092,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
               if (_isLoading)
                 const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator(color: Color(0xFF2563eb))),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF2563eb)),
+                  ),
                 )
               else if (_leads.isEmpty)
                 SliverFillRemaining(
@@ -1015,38 +1163,63 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: 44, height: 44,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.16)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.16),
+                        ),
                       ),
-                      child: const Icon(Icons.people_alt_rounded, color: Colors.white70, size: 22),
+                      child: const Icon(
+                        Icons.people_alt_rounded,
+                        color: Colors.white70,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('إجمالي العملاء المحتملين',
-                              style: GoogleFonts.cairo(
-                                  color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                          Text('${_kpiCount('الكل')}',
-                              style: GoogleFonts.cairo(
-                                  color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                          Text(
+                            'إجمالي العملاء المحتملين',
+                            style: GoogleFonts.cairo(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${_kpiCount('الكل')}',
+                            style: GoogleFonts.cairo(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     if (_selectedStatus == 'الكل')
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text('مفعّل',
-                            style: GoogleFonts.cairo(
-                                color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          'مفعّل',
+                          style: GoogleFonts.cairo(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -1063,7 +1236,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 itemCount: _statuses.where((s) => s['label'] != 'الكل').length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final filtered = _statuses.where((s) => s['label'] != 'الكل').toList();
+                  final filtered = _statuses
+                      .where((s) => s['label'] != 'الكل')
+                      .toList();
                   final item = filtered[index];
                   final label = item['label'] as String;
                   final color = item['color'] as Color;
@@ -1073,19 +1248,27 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
                   return GestureDetector(
                     onTap: () {
-                      setState(() => _selectedStatus = isSelected ? 'الكل' : label);
+                      setState(
+                        () => _selectedStatus = isSelected ? 'الكل' : label,
+                      );
                       _fetchLeads();
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.white.withOpacity(0.18)
                             : Colors.white.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(16),
                         border: isSelected
-                            ? Border.all(color: color.withOpacity(0.6), width: 1.5)
+                            ? Border.all(
+                                color: color.withOpacity(0.6),
+                                width: 1.5,
+                              )
                             : Border.all(color: Colors.transparent),
                       ),
                       child: Column(
@@ -1094,19 +1277,33 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(icon, size: 13, color: isSelected ? color : Colors.white54),
+                              Icon(
+                                icon,
+                                size: 13,
+                                color: isSelected ? color : Colors.white54,
+                              ),
                               const SizedBox(width: 4),
-                              Text('$count',
-                                  style: GoogleFonts.cairo(
-                                      color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                              Text(
+                                '$count',
+                                style: GoogleFonts.cairo(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Text(label,
-                              style: GoogleFonts.cairo(
-                                  color: isSelected ? Colors.white : Colors.white54,
-                                  fontSize: 10,
-                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600)),
+                          Text(
+                            label,
+                            style: GoogleFonts.cairo(
+                              color: isSelected ? Colors.white : Colors.white54,
+                              fontSize: 10,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1152,10 +1349,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   child: Container(
                     height: 46,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC),
+                      color: isDark
+                          ? const Color(0xFF0f172a)
+                          : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3),
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFe4eaf3),
                       ),
                     ),
                     child: TextField(
@@ -1166,15 +1367,27 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       },
                       onSubmitted: (_) => _fetchLeads(),
                       style: GoogleFonts.cairo(
-                          fontSize: 13,
-                          color: isDark ? Colors.white : const Color(0xFF0f172a)),
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF0f172a),
+                      ),
                       decoration: InputDecoration(
                         hintText: 'اسم · موبايل · مدينة · نوع مشروع · حملة...',
-                        hintStyle: GoogleFonts.cairo(fontSize: 12, color: const Color(0xFF94a3b8)),
-                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94a3b8), size: 20),
+                        hintStyle: GoogleFonts.cairo(
+                          fontSize: 12,
+                          color: const Color(0xFF94a3b8),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: Color(0xFF94a3b8),
+                          size: 20,
+                        ),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94a3b8)),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Color(0xFF94a3b8),
+                                ),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() {});
@@ -1183,17 +1396,26 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               )
                             : null,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildActionIcon(icon: Icons.sort_rounded, isDark: isDark, onTap: () => _showSortSheet(isDark)),
+                _buildActionIcon(
+                  icon: Icons.sort_rounded,
+                  isDark: isDark,
+                  onTap: () => _showSortSheet(isDark),
+                ),
                 const SizedBox(width: 6),
                 _buildActionIcon(
-                    icon: Icons.tune_rounded, isDark: isDark,
-                    badge: _hasActiveFilters, onTap: () => _showAdvancedFilters(isDark)),
+                  icon: Icons.tune_rounded,
+                  isDark: isDark,
+                  badge: _hasActiveFilters,
+                  onTap: () => _showAdvancedFilters(isDark),
+                ),
               ],
             ),
 
@@ -1224,35 +1446,53 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? const Color(0xFF2563eb).withOpacity(0.12)
-                              : (isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC)),
+                              : (isDark
+                                    ? const Color(0xFF0f172a)
+                                    : const Color(0xFFF8FAFC)),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
                                 ? const Color(0xFF2563eb)
-                                : (isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3)),
+                                : (isDark
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFe4eaf3)),
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(icon, size: 13,
-                                color: isSelected ? const Color(0xFF2563eb) : const Color(0xFF94a3b8)),
+                            Icon(
+                              icon,
+                              size: 13,
+                              color: isSelected
+                                  ? const Color(0xFF2563eb)
+                                  : const Color(0xFF94a3b8),
+                            ),
                             const SizedBox(width: 4),
                             Text(
-                              _dateFilter == 'مخصص' && label == 'مخصص' && _customDateRange != null
+                              _dateFilter == 'مخصص' &&
+                                      label == 'مخصص' &&
+                                      _customDateRange != null
                                   ? '${_customDateRange!.start.day}/${_customDateRange!.start.month} - ${_customDateRange!.end.day}/${_customDateRange!.end.month}'
                                   : label,
                               style: GoogleFonts.cairo(
                                 fontSize: 11,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                                 color: isSelected
                                     ? const Color(0xFF2563eb)
-                                    : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                                    : (isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF334155)),
                               ),
                             ),
                           ],
@@ -1285,31 +1525,51 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? color.withOpacity(0.15)
-                              : (isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC)),
+                              : (isDark
+                                    ? const Color(0xFF0f172a)
+                                    : const Color(0xFFF8FAFC)),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
                                 ? color
-                                : (isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3)),
+                                : (isDark
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFe4eaf3)),
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(icon, size: 14, color: isSelected ? color : const Color(0xFF94a3b8)),
+                            Icon(
+                              icon,
+                              size: 14,
+                              color: isSelected
+                                  ? color
+                                  : const Color(0xFF94a3b8),
+                            ),
                             const SizedBox(width: 5),
-                            Text(label,
-                                style: GoogleFonts.cairo(
-                                    fontSize: 11.5,
-                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                    color: isSelected
-                                        ? color
-                                        : (isDark ? Colors.white70 : const Color(0xFF334155)))),
+                            Text(
+                              label,
+                              style: GoogleFonts.cairo(
+                                fontSize: 11.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? color
+                                    : (isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF334155)),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1397,7 +1657,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   child: Text(
                     'حسابك غير مربوط بموظف (employeeID). تواصل مع الإدارة لربط المستخدم بموظف حتى تظهر My Leads.',
                     style: GoogleFonts.cairo(
-                        fontSize: 11.5, color: Colors.orange.shade900),
+                      fontSize: 11.5,
+                      color: Colors.orange.shade900,
+                    ),
                   ),
                 ),
               ),
@@ -1435,7 +1697,11 @@ class _LeadsScreenState extends State<LeadsScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: active ? color : const Color(0xFF94a3b8)),
+            Icon(
+              icon,
+              size: 14,
+              color: active ? color : const Color(0xFF94a3b8),
+            ),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -1452,8 +1718,11 @@ class _LeadsScreenState extends State<LeadsScreen> {
               ),
             ),
             const SizedBox(width: 2),
-            Icon(Icons.expand_more_rounded,
-                size: 16, color: active ? color : const Color(0xFF94a3b8)),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 16,
+              color: active ? color : const Color(0xFF94a3b8),
+            ),
           ],
         ),
       ),
@@ -1493,9 +1762,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(title,
-                  style: GoogleFonts.cairo(
-                      fontSize: 16, fontWeight: FontWeight.w900)),
+              child: Text(
+                title,
+                style: GoogleFonts.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
             Flexible(
               child: ListView.builder(
@@ -1505,13 +1778,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   final v = options[i];
                   final sel = v == current;
                   return ListTile(
-                    title: Text(v,
-                        style: GoogleFonts.cairo(
-                            fontWeight:
-                                sel ? FontWeight.w800 : FontWeight.w600)),
+                    title: Text(
+                      v,
+                      style: GoogleFonts.cairo(
+                        fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
                     trailing: sel
-                        ? const Icon(Icons.check_circle,
-                            color: Color(0xFF2563eb))
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF2563eb),
+                          )
                         : null,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -1556,9 +1833,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('فلتر بالموظف',
-                  style: GoogleFonts.cairo(
-                      fontSize: 16, fontWeight: FontWeight.w900)),
+              child: Text(
+                'فلتر بالموظف',
+                style: GoogleFonts.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
             ListTile(
               leading: Icon(
@@ -1567,8 +1848,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     : Icons.radio_button_unchecked,
                 color: const Color(0xFF2563eb),
               ),
-              title: Text('كل الموظفين',
-                  style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
+              title: Text(
+                'كل الموظفين',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _selectedEmployeeId = null);
@@ -1591,13 +1874,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           : Icons.radio_button_unchecked,
                       color: const Color(0xFF2563eb),
                     ),
-                    title: Text('${e['FullName'] ?? ''}',
-                        style: GoogleFonts.cairo(
-                            fontWeight:
-                                sel ? FontWeight.w800 : FontWeight.w600)),
+                    title: Text(
+                      '${e['FullName'] ?? ''}',
+                      style: GoogleFonts.cairo(
+                        fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
                     subtitle: e['Department'] != null
-                        ? Text('${e['Department']}',
-                            style: GoogleFonts.cairo(fontSize: 11))
+                        ? Text(
+                            '${e['Department']}',
+                            style: GoogleFonts.cairo(fontSize: 11),
+                          )
                         : null,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -1626,35 +1913,47 @@ class _LeadsScreenState extends State<LeadsScreen> {
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 46, height: 46,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0f172a) : Colors.white,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: badge
                     ? const Color(0xFF2563eb).withOpacity(0.5)
-                    : (isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3)),
+                    : (isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFe4eaf3)),
               ),
             ),
-            child: Icon(icon,
-                color: badge
-                    ? const Color(0xFF2563eb)
-                    : (isDark ? Colors.white70 : const Color(0xFF64748b)),
-                size: 20),
+            child: Icon(
+              icon,
+              color: badge
+                  ? const Color(0xFF2563eb)
+                  : (isDark ? Colors.white70 : const Color(0xFF64748b)),
+              size: 20,
+            ),
           ),
           if (badge && icon == Icons.tune_rounded && _activeFilterCount > 0)
             Positioned(
-              top: -4, right: -4,
+              top: -4,
+              right: -4,
               child: Container(
-                width: 18, height: 18,
+                width: 18,
+                height: 18,
                 decoration: const BoxDecoration(
                   color: Color(0xFF2563eb),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text('$_activeFilterCount',
-                      style: GoogleFonts.cairo(
-                          color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                  child: Text(
+                    '$_activeFilterCount',
+                    style: GoogleFonts.cairo(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1679,14 +1978,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
               Expanded(
                 child: RichText(
                   text: TextSpan(
-                    style: GoogleFonts.cairo(fontSize: 12, color: const Color(0xFF64748b)),
+                    style: GoogleFonts.cairo(
+                      fontSize: 12,
+                      color: const Color(0xFF64748b),
+                    ),
                     children: [
                       const TextSpan(text: 'عرض '),
                       TextSpan(
                         text: '${_leads.length}',
                         style: GoogleFonts.cairo(
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : const Color(0xFF0f172a)),
+                          fontWeight: FontWeight.w900,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0f172a),
+                        ),
                       ),
                       const TextSpan(text: ' عميل محتمل'),
                     ],
@@ -1696,23 +2001,38 @@ class _LeadsScreenState extends State<LeadsScreen> {
               GestureDetector(
                 onTap: () => _showSortSheet(isDark),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1e293b) : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFe4eaf3),
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.sort_rounded, size: 13, color: Color(0xFF64748b)),
+                      const Icon(
+                        Icons.sort_rounded,
+                        size: 13,
+                        color: Color(0xFF64748b),
+                      ),
                       const SizedBox(width: 3),
-                      Text(_sortBy,
-                          style: GoogleFonts.cairo(
-                              fontSize: 11, fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white70 : const Color(0xFF334155))),
+                      Text(
+                        _sortBy,
+                        style: GoogleFonts.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? Colors.white70
+                              : const Color(0xFF334155),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1804,21 +2124,34 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   GestureDetector(
                     onTap: _clearAllFilters,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF450a0a) : const Color(0xFFfef2f2),
+                        color: isDark
+                            ? const Color(0xFF450a0a)
+                            : const Color(0xFFfef2f2),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: const Color(0xFFfca5a5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.restart_alt_rounded, size: 13, color: Color(0xFFdc2626)),
+                          const Icon(
+                            Icons.restart_alt_rounded,
+                            size: 13,
+                            color: Color(0xFFdc2626),
+                          ),
                           const SizedBox(width: 3),
-                          Text('مسح الكل',
-                              style: GoogleFonts.cairo(
-                                  fontSize: 11, fontWeight: FontWeight.w800,
-                                  color: const Color(0xFFdc2626))),
+                          Text(
+                            'مسح الكل',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFFdc2626),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1849,13 +2182,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label,
-              style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+          Text(
+            label,
+            style: GoogleFonts.cairo(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: onRemove,
             child: Container(
-              width: 16, height: 16,
+              width: 16,
+              height: 16,
               decoration: BoxDecoration(
                 color: color.withOpacity(0.15),
                 shape: BoxShape.circle,
@@ -1894,33 +2234,57 @@ class _LeadsScreenState extends State<LeadsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64, height: 64,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
+                color: isDark
+                    ? const Color(0xFF0f172a)
+                    : const Color(0xFFf1f5f9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.search_off_rounded, size: 32, color: Color(0xFF94a3b8)),
+              child: const Icon(
+                Icons.search_off_rounded,
+                size: 32,
+                color: Color(0xFF94a3b8),
+              ),
             ),
             const SizedBox(height: 16),
-            Text('لا توجد نتائج مطابقة',
-                style: GoogleFonts.cairo(
-                    fontSize: 16, fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0f172a))),
+            Text(
+              'لا توجد نتائج مطابقة',
+              style: GoogleFonts.cairo(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF0f172a),
+              ),
+            ),
             const SizedBox(height: 6),
-            Text('جرّب تغيير كلمات البحث أو إعادة تعيين الفلاتر.',
-                style: GoogleFonts.cairo(fontSize: 13, color: const Color(0xFF64748b)),
-                textAlign: TextAlign.center),
+            Text(
+              'جرّب تغيير كلمات البحث أو إعادة تعيين الفلاتر.',
+              style: GoogleFonts.cairo(
+                fontSize: 13,
+                color: const Color(0xFF64748b),
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 18),
             if (_hasActiveFilters)
               ElevatedButton.icon(
                 onPressed: _clearAllFilters,
                 icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                label: Text('مسح الفلاتر', style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+                label: Text(
+                  'مسح الفلاتر',
+                  style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563eb),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                 ),
               ),
           ],
@@ -1939,39 +2303,40 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final name = lead['FullName'] ?? 'بدون اسم';
     final phone = lead['Phone'] ?? '';
 
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1e293b) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3),
-        ),
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
           onTap: () => _openDetail(lead),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Status accent bar
+              // ── شريط الحالة المتدرج ─────────────────────
               Container(
-                height: 4,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                    colors: [statusColor, statusColor.withValues(alpha: 0.25)],
                   ),
                 ),
               ),
@@ -1982,82 +2347,142 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Name + Status
+                    // ── الاسم + الحالة ─────────────────────
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // أفاتار بتدرج لون الحالة
                         Container(
-                          width: 40, height: 40,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                statusColor,
+                                Color.lerp(statusColor, Colors.black, 0.25)!,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Center(
                             child: Text(
                               name.isNotEmpty ? name[0].toUpperCase() : '?',
                               style: GoogleFonts.cairo(
-                                  fontSize: 16, fontWeight: FontWeight.w900, color: statusColor),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 11),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(name,
-                                  style: GoogleFonts.cairo(
-                                      fontSize: 14, fontWeight: FontWeight.w800,
-                                      color: isDark ? Colors.white : const Color(0xFF0f172a)),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 2),
-                              Directionality(
-                                textDirection: TextDirection.ltr,
-                                child: Text(
-                                  phone,
-                                  textAlign: TextAlign.right,
-                                  style: GoogleFonts.cairo(
-                                      fontSize: 12, color: const Color(0xFF64748b)),
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      style: GoogleFonts.cairo(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: scheme.onSurface,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 3),
+                              if (phone.isNotEmpty)
+                                Directionality(
+                                  textDirection: TextDirection.ltr,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.phone_rounded,
+                                        size: 12,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          phone,
+                                          style: GoogleFonts.cairo(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               if ((lead['Phone2'] ?? '').toString().isNotEmpty)
                                 Directionality(
                                   textDirection: TextDirection.ltr,
                                   child: Text(
                                     '${lead['Phone2']}',
-                                    textAlign: TextAlign.right,
                                     style: GoogleFonts.cairo(
-                                        fontSize: 11, color: const Color(0xFF94a3b8)),
+                                      fontSize: 11,
+                                      color: scheme.onSurfaceVariant.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                    ),
                                   ),
                                 ),
                             ],
                           ),
                         ),
                         const SizedBox(width: 8),
+                        // شارة الحالة (Pill)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: statusColor.withOpacity(0.3)),
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: statusColor.withValues(alpha: 0.35),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(statusIcon, size: 12, color: statusColor),
-                              const SizedBox(width: 4),
-                              Text(status,
-                                  style: GoogleFonts.cairo(
-                                      fontSize: 10.5, fontWeight: FontWeight.w800, color: statusColor)),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: statusColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                status,
+                                style: GoogleFonts.cairo(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusColor,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
-                    // Meta chips — richer info
+                    // ── الـ chips ───────────────────────────
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -2070,7 +2495,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           ),
                         _buildMetaChip(
                           icon: Icons.campaign_rounded,
-                          text: lead['CampaignName'] ??
+                          text:
+                              lead['CampaignName'] ??
                               lead['AdName'] ??
                               'إعلان عام',
                           isDark: isDark,
@@ -2110,28 +2536,28 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         ),
                         _buildMetaChip(
                           icon: Icons.person_outline_rounded,
-                          text: (lead['AssignedEmployeeName'] ??
+                          text:
+                              (lead['AssignedEmployeeName'] ??
                                   lead['EmployeeName']) ??
                               'غير مسند',
                           isDark: isDark,
-                          highlight: (lead['AssignedEmployeeName'] ??
+                          highlight:
+                              (lead['AssignedEmployeeName'] ??
                                   lead['EmployeeName']) !=
                               null,
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
-                    // Quick actions: call / wa / assign / convert / reject
+                    // ── أزرار الإجراءات ────────────────────
                     Container(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: 10),
                       decoration: BoxDecoration(
                         border: Border(
                           top: BorderSide(
-                            color: isDark
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFedf2f7),
+                            color: scheme.outlineVariant.withValues(alpha: 0.5),
                           ),
                         ),
                       ),
@@ -2148,15 +2574,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 tooltip: 'اتصال',
                                 onTap: () => _launchTel(phone),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               _buildQuickAction(
-                                icon: Icons.chat_rounded,
+                                icon: FontAwesomeIcons.whatsapp.data,
                                 color: const Color(0xFF25D366),
                                 isDark: isDark,
                                 tooltip: 'واتساب',
                                 onTap: () => _launchWa(phone),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                             ],
                             if (_canEditLead &&
                                 status != LeadsService.statusConverted &&
@@ -2168,9 +2594,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 tooltip: 'إسناد',
                                 onTap: () => _quickAssign(lead),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               if (LeadsService.canConvert(
-                                  Map<String, dynamic>.from(lead as Map))) ...[
+                                Map<String, dynamic>.from(lead as Map),
+                              )) ...[
                                 _buildQuickAction(
                                   icon: Icons.transform_rounded,
                                   color: Colors.teal,
@@ -2178,7 +2605,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                   tooltip: 'تحويل',
                                   onTap: () => _quickConvert(lead),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                               ],
                               _buildQuickAction(
                                 icon: Icons.cancel_outlined,
@@ -2189,7 +2616,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                     : 'طلب رفض',
                                 onTap: () => _quickReject(lead),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                             ],
                             _buildQuickAction(
                               icon: Icons.open_in_new_rounded,
@@ -2218,35 +2645,42 @@ class _LeadsScreenState extends State<LeadsScreen> {
     required bool isDark,
     bool highlight = false,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
-      constraints: const BoxConstraints(maxWidth: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      constraints: const BoxConstraints(maxWidth: 190),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: highlight
-            ? (isDark ? const Color(0xFF1e3a5f) : const Color(0xFFeff6ff))
-            : (isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(8),
+            ? scheme.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+            : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: highlight
-              ? (isDark ? const Color(0xFF3b82f6) : const Color(0xFFbfdbfe))
-              : (isDark ? const Color(0xFF334155) : const Color(0xFFedf2f7)),
+              ? scheme.primary.withValues(alpha: 0.4)
+              : scheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12,
-              color: highlight ? const Color(0xFF2563eb) : const Color(0xFF94a3b8)),
-          const SizedBox(width: 4),
+          Icon(
+            icon,
+            size: 12.5,
+            color: highlight ? scheme.primary : scheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 5),
           Flexible(
-            child: Text(text,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.cairo(
-                    fontSize: 10.5,
-                    fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
-                    color: highlight
-                        ? (isDark ? const Color(0xFF60a5fa) : const Color(0xFF1d4ed8))
-                        : const Color(0xFF64748b))),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.cairo(
+                fontSize: 10.5,
+                fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                color: highlight ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ],
       ),
@@ -2262,16 +2696,25 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }) {
     return Tooltip(
       message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(
-            color: color.withOpacity(isDark ? 0.15 : 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.2)),
+      child: Material(
+        color: color.withValues(alpha: isDark ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          splashColor: color.withValues(alpha: 0.25),
+          highlightColor: color.withValues(alpha: 0.12),
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: color.withValues(alpha: isDark ? 0.35 : 0.25),
+              ),
+            ),
+            child: Icon(icon, size: 17, color: color),
           ),
-          child: Icon(icon, size: 16, color: color),
         ),
       ),
     );
@@ -2294,36 +2737,56 @@ class _LeadsScreenState extends State<LeadsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                  color: const Color(0xFFcbd5e1), borderRadius: BorderRadius.circular(99)),
+                color: const Color(0xFFcbd5e1),
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
-            Text('ترتيب النتائج',
-                style: GoogleFonts.cairo(
-                    fontSize: 16, fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0f172a))),
+            Text(
+              'ترتيب النتائج',
+              style: GoogleFonts.cairo(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF0f172a),
+              ),
+            ),
             const SizedBox(height: 14),
-            ..._sortOptions.map((option) => ListTile(
-                  leading: Icon(
-                    _sortBy == option ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: _sortBy == option ? const Color(0xFF2563eb) : const Color(0xFF94a3b8),
-                    size: 20,
+            ..._sortOptions.map(
+              (option) => ListTile(
+                leading: Icon(
+                  _sortBy == option
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: _sortBy == option
+                      ? const Color(0xFF2563eb)
+                      : const Color(0xFF94a3b8),
+                  size: 20,
+                ),
+                title: Text(
+                  option,
+                  style: GoogleFonts.cairo(
+                    fontWeight: _sortBy == option
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF0f172a),
                   ),
-                  title: Text(option,
-                      style: GoogleFonts.cairo(
-                          fontWeight: _sortBy == option ? FontWeight.w800 : FontWeight.w600,
-                          color: isDark ? Colors.white : const Color(0xFF0f172a))),
-                  onTap: () {
-                    setState(() {
-                      _sortBy = option;
-                      _sortLeads();
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                )),
+                ),
+                onTap: () {
+                  setState(() {
+                    _sortBy = option;
+                    _sortLeads();
+                  });
+                  Navigator.pop(ctx);
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -2340,16 +2803,21 @@ class _LeadsScreenState extends State<LeadsScreen> {
     String tempDate = _dateFilter;
     String tempCity = _selectedCity;
     String tempProject = _selectedProjectType;
+    int? tempSourceId = _selectedSourceId;
+    int? tempAdTypeId = _selectedAdTypeId;
     int? tempEmp = _selectedEmployeeId;
 
     Widget sectionTitle(String t) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Text(t,
-              style: GoogleFonts.cairo(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : const Color(0xFF0f172a))),
-        );
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        t,
+        style: GoogleFonts.cairo(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: isDark ? Colors.white : const Color(0xFF0f172a),
+        ),
+      ),
+    );
 
     Widget choiceChip({
       required String label,
@@ -2371,7 +2839,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
             border: Border.all(
               color: selected
                   ? color
-                  : (isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3)),
+                  : (isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFe4eaf3)),
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -2379,17 +2849,24 @@ class _LeadsScreenState extends State<LeadsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 15, color: selected ? color : const Color(0xFF94a3b8)),
+                Icon(
+                  icon,
+                  size: 15,
+                  color: selected ? color : const Color(0xFF94a3b8),
+                ),
                 const SizedBox(width: 6),
               ],
               Flexible(
-                child: Text(label,
-                    style: GoogleFonts.cairo(
-                        fontSize: 12,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                        color: selected
-                            ? color
-                            : (isDark ? Colors.white70 : const Color(0xFF334155)))),
+                child: Text(
+                  label,
+                  style: GoogleFonts.cairo(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected
+                        ? color
+                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                  ),
+                ),
               ),
             ],
           ),
@@ -2410,8 +2887,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
             builder: (ctx, scrollController) => Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1e293b) : Colors.white,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Column(
                 children: [
@@ -2420,22 +2898,28 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFcbd5e1),
-                        borderRadius: BorderRadius.circular(99)),
+                      color: const Color(0xFFcbd5e1),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('فلاتر متقدمة',
-                            style: GoogleFonts.cairo(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF0f172a))),
+                        Text(
+                          'فلاتر متقدمة',
+                          style: GoogleFonts.cairo(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0f172a),
+                          ),
+                        ),
                         TextButton(
                           onPressed: () {
                             setSheetState(() {
@@ -2444,14 +2928,19 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               tempDate = 'الكل';
                               tempCity = 'الكل';
                               tempProject = 'الكل';
+                              tempSourceId = null;
+                              tempAdTypeId = null;
                               tempEmp = null;
                             });
                           },
-                          child: Text('إعادة تعيين',
-                              style: GoogleFonts.cairo(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFFdc2626))),
+                          child: Text(
+                            'إعادة تعيين',
+                            style: GoogleFonts.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFFdc2626),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -2504,43 +2993,108 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               selected: tempProject == c,
                               color: const Color(0xFF8b5cf6),
                               icon: Icons.category_rounded,
-                              onTap: () =>
-                                  setSheetState(() => tempProject = c),
+                              onTap: () => setSheetState(() => tempProject = c),
                             );
                           }).toList(),
                         ),
                         const SizedBox(height: 22),
-                        if (_canPickEmployee) ...[
-                        sectionTitle('الموظف'),
+                        sectionTitle('المصدر'),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
                             choiceChip(
-                              label: 'كل الموظفين',
-                              selected: tempEmp == null,
-                              color: const Color(0xFF059669),
-                              icon: Icons.groups_rounded,
-                              onTap: () => setSheetState(() => tempEmp = null),
+                              label: 'كل المصادر',
+                              selected: tempSourceId == null,
+                              color: const Color(0xFF0ea5e9),
+                              icon: Icons.contact_phone_rounded,
+                              onTap: () =>
+                                  setSheetState(() => tempSourceId = null),
                             ),
-                            ..._employees.map((e) {
-                              final m = e as Map;
-                              final id = m['EmployeeId'] ?? m['EmployeeID'];
-                              final idInt =
-                                  id is int ? id : int.tryParse('$id');
+                            ..._sources.map((s) {
+                              final label = (s['SourceNameAr'] ??
+                                      s['SourceName'] ??
+                                      '')
+                                  .toString();
                               return choiceChip(
-                                label: '${m['FullName'] ?? ''}',
-                                selected: tempEmp != null && tempEmp == idInt,
-                                color: const Color(0xFF059669),
-                                icon: Icons.person_rounded,
-                                onTap: () =>
-                                    setSheetState(() => tempEmp = idInt),
+                                label: label,
+                                selected: tempSourceId ==
+                                    (s['SourceID'] as num?)?.toInt(),
+                                color: const Color(0xFF0ea5e9),
+                                icon: Icons.contact_phone_rounded,
+                                onTap: () => setSheetState(() =>
+                                    tempSourceId =
+                                        (s['SourceID'] as num?)?.toInt()),
                               );
-                            }),
+                            }).toList(),
                           ],
                         ),
                         const SizedBox(height: 22),
-                                                ],
+                        sectionTitle('الحملة الإعلانية'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            choiceChip(
+                              label: 'كل الحملات',
+                              selected: tempAdTypeId == null,
+                              color: const Color(0xFF8b5cf6),
+                              icon: Icons.campaign_rounded,
+                              onTap: () =>
+                                  setSheetState(() => tempAdTypeId = null),
+                            ),
+                            ..._adTypes.map((a) {
+                              final label = (a['AdTypeNameAr'] ??
+                                      a['AdTypeName'] ??
+                                      '')
+                                  .toString();
+                              return choiceChip(
+                                label: label,
+                                selected: tempAdTypeId ==
+                                    (a['AdTypeID'] as num?)?.toInt(),
+                                color: const Color(0xFF8b5cf6),
+                                icon: Icons.campaign_rounded,
+                                onTap: () => setSheetState(() =>
+                                    tempAdTypeId =
+                                        (a['AdTypeID'] as num?)?.toInt()),
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                        const SizedBox(height: 22),
+                        if (_canPickEmployee) ...[
+                          sectionTitle('الموظف'),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              choiceChip(
+                                label: 'كل الموظفين',
+                                selected: tempEmp == null,
+                                color: const Color(0xFF059669),
+                                icon: Icons.groups_rounded,
+                                onTap: () =>
+                                    setSheetState(() => tempEmp = null),
+                              ),
+                              ..._employees.map((e) {
+                                final m = e as Map;
+                                final id = m['EmployeeId'] ?? m['EmployeeID'];
+                                final idInt = id is int
+                                    ? id
+                                    : int.tryParse('$id');
+                                return choiceChip(
+                                  label: '${m['FullName'] ?? ''}',
+                                  selected: tempEmp != null && tempEmp == idInt,
+                                  color: const Color(0xFF059669),
+                                  icon: Icons.person_rounded,
+                                  onTap: () =>
+                                      setSheetState(() => tempEmp = idInt),
+                                );
+                              }),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                        ],
                         sectionTitle('الفترة الزمنية'),
                         Wrap(
                           spacing: 8,
@@ -2604,6 +3158,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             _dateFilter = tempDate;
                             _selectedCity = tempCity;
                             _selectedProjectType = tempProject;
+                            _selectedSourceId = tempSourceId;
+                            _selectedAdTypeId = tempAdTypeId;
                             _selectedEmployeeId = _canPickEmployee
                                 ? tempEmp
                                 : (_isMyLeads ? _perms.employeeId : tempEmp);
@@ -2616,12 +3172,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           backgroundColor: const Color(0xFF2563eb),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           elevation: 0,
                         ),
-                        child: Text('تطبيق الفلاتر',
-                            style: GoogleFonts.cairo(
-                                fontWeight: FontWeight.w900, fontSize: 14)),
+                        child: Text(
+                          'تطبيق الفلاتر',
+                          style: GoogleFonts.cairo(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -318,4 +318,102 @@ class OpportunitiesService {
       throw Exception('خطأ في جلب السجل: $e');
     }
   }
+
+  // ══════════════════════════════════════
+  // 🛑 طلبات موافقة إغلاق الفرص - مطابقة بلازور
+  // ══════════════════════════════════════
+
+  /// طلب موافقة إغلاق (خسارة/غير مهتم/تم البيع) - يبعت إشعار لـ GM و SalesManager
+  Future<Map<String, dynamic>> requestClosureApproval({
+    required int opportunityId,
+    required int requestedStageId,
+    int? lostReasonId,
+    String? requestReasonNotes,
+    required String userName,
+    String requestSource = 'Flutter',
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/opportunities/$opportunityId/request-closure'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'requestedStageId': requestedStageId,
+          'lostReasonId': lostReasonId,
+          'requestReasonNotes': requestReasonNotes,
+          'userName': userName,
+          'requestSource': requestSource,
+        }),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// جلب طلب معلق لفرصة معينة
+  Future<Map<String, dynamic>?> getPendingClosureRequest(int opportunityId) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$opportunityId/closure-request'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data == null) return null;
+        if (data is Map<String, dynamic>) return data;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// كل طلبات الإغلاق المعلقة (للمدير)
+  Future<List<dynamic>> getPendingClosureRequests() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/closure-requests/pending'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is List) return data;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// اعتماد طلب إغلاق (GM/SalesManager)
+  Future<Map<String, dynamic>> approveClosureRequest({required int requestId, required String userName, String? reviewNotes, String? actorRole}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/opportunities/closure-requests/$requestId/approve'),
+        headers: {'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
+        body: jsonEncode({'userName': userName, 'actorRole': actorRole, 'reviewNotes': reviewNotes}),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// رفض طلب إغلاق
+  Future<Map<String, dynamic>> rejectClosureRequest({required int requestId, required String userName, String? reviewNotes, String? actorRole}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/opportunities/closure-requests/$requestId/reject'),
+        headers: {'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
+        body: jsonEncode({'userName': userName, 'actorRole': actorRole, 'reviewNotes': reviewNotes}),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// تنفيذ الإغلاق بعد الموافقة (المستخدم ينفذ بنفسه)
+  Future<Map<String, dynamic>> executeClosure({required int opportunityId, required String userName}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/opportunities/$opportunityId/execute-closure'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userName': userName}),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

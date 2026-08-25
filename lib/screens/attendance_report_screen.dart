@@ -1034,7 +1034,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> with Ti
         ),
         Expanded(
           child: lateRecords.isEmpty
-              ? Center(child: Text('لا توجد أيام تأخير 🎉', style: GoogleFonts.cairo(color: Colors.grey)))
+              ? Center(child: Text('لا توجد أيام تأخير ', style: GoogleFonts.cairo(color: Colors.grey)))
               : ListView.separated(
                   itemCount: lateRecords.length,
                   separatorBuilder: (c, i) => const Divider(color: Colors.white10),

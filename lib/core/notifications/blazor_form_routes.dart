@@ -11,7 +11,14 @@ class BlazorFormNames {
   static const crmLeadsMy = 'crm/leads/my';
   static const crmOpportunities = 'crm/opportunities';
   static const crmTasks = 'crm/tasks';
+  static const crmGeneralTasks = 'crm/general-tasks';
+  static const crmClosureRequests = 'crm/opportunities/closure-requests';
   static const crmPipeline = 'crm/pipeline';
+
+  // ── Sales / Invoices (جديدة من بلازور) ───────────────────
+  static const salesInvoices = 'sales/invoices';
+  static const frmPartiesInvoices = 'frm_PartiesInvoices';
+  static const frmSupplierInvoices = 'frm_SupplierInvoices';
 
   // ── Classic ERP form keys ───────────────────────────────────
   static const frmExpenses = 'frm_Expenses';
@@ -66,6 +73,7 @@ enum MobileNotifTarget {
   cashboxTransactions,
   permissions,
   mySchedule,
+  invoices,
   notifications,
   home,
 }
@@ -365,6 +373,54 @@ class BlazorNotificationRouter {
     if (_match(formLower, [BlazorFormNames.frmMySchedule])) {
       return NotifRouteDecision(
         target: MobileNotifTarget.mySchedule,
+        rawFormName: formName,
+      );
+    }
+
+    // Invoices (جديدة من بلازور)
+    if (_match(formLower, [
+      BlazorFormNames.salesInvoices,
+      BlazorFormNames.frmPartiesInvoices,
+      BlazorFormNames.frmSupplierInvoices,
+      'invoices',
+      'sales/invoices',
+    ])) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.invoices,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    // Job order (أمر شغل فاتورة) — يفتح الفواتير
+    final jobOrderPath = RegExp(r'sales/invoices/\d+/job-order', caseSensitive: false)
+        .firstMatch(form);
+    if (jobOrderPath != null) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.invoices,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    // General tasks (المهام العامة — جديدة من بلازور)
+    if (_match(formLower, [BlazorFormNames.crmGeneralTasks, 'general-tasks'])) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.tasks,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    // Closure requests (طلبات إغلاق الفرص — جديدة من بلازور)
+    if (_match(formLower, [BlazorFormNames.crmClosureRequests, 'closure-requests'])) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.opportunitiesList,
+        relatedId: id,
+        relatedTable: relatedTable,
         rawFormName: formName,
       );
     }

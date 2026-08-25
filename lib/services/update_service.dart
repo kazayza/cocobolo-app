@@ -14,56 +14,82 @@ class UpdateService {
   static const String _githubOwner = 'kazayza';
   static const String _githubRepo = 'cocobolo-app';
 
+  // أسماء محتملة للريبو — لو الأول مش موجود نجرب التاني
+  static const List<String> _repoCandidates = ['cocobolo-app', 'cocobolo_app'];
+
   // ===================================
   // 🔍 تشييك لو فيه تحديث
   // ===================================
   static Future<Map<String, dynamic>?> checkForUpdate() async {
     try {
       final dio = Dio();
-      final response = await dio.get(
-        'https://api.github.com/repos/$_githubOwner/$_githubRepo/releases/latest',
-        options: Options(
-          headers: {'Accept': 'application/vnd.github.v3+json'},
-          receiveTimeout: const Duration(seconds: 10),
-          sendTimeout: const Duration(seconds: 10),
-        ),
-      );
+      Map<String, dynamic>? data;
 
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final latestVersion = (data['tag_name'] as String).replaceAll('v', '');
-        final currentInfo = await PackageInfo.fromPlatform();
-        final currentVersion = currentInfo.version;
-
-        print('📱 النسخة الحالية: $currentVersion');
-        print('🌐 آخر نسخة: $latestVersion');
-
-        if (_isNewerVersion(latestVersion, currentVersion)) {
-          // البحث عن ملف الـ APK في الـ Assets
-          String? apkUrl;
-          final assets = data['assets'] as List<dynamic>? ?? [];
-          for (var asset in assets) {
-            final name = asset['name'] as String? ?? '';
-            if (name.endsWith('.apk')) {
-              apkUrl = asset['browser_download_url'] as String;
-              break;
-            }
+      // نجرب أكتر من اسم ريبو (لو الاسم مش مضبوط)
+      for (final repo in _repoCandidates) {
+        try {
+          final response = await dio.get(
+            'https://api.github.com/repos/$_githubOwner/$repo/releases/latest',
+            options: Options(
+              headers: {'Accept': 'application/vnd.github.v3+json'},
+              receiveTimeout: const Duration(seconds: 10),
+              sendTimeout: const Duration(seconds: 10),
+            ),
+          );
+          if (response.statusCode == 200) {
+            data = response.data as Map<String, dynamic>;
+            print('📦 وجدنا الريبو: $repo');
+            break;
           }
+        } catch (_) {
+          // جرب الريبو التاني
+        }
+      }
 
-          if (apkUrl != null) {
-            return {
-              'hasUpdate': true,
-              'currentVersion': currentVersion,
-              'latestVersion': latestVersion,
-              'downloadUrl': apkUrl,
-              'releaseNotes': data['body'] ?? 'تحديث جديد متاح',
-              'releaseName': data['name'] ?? 'v$latestVersion',
-            };
+      if (data == null) return null;
+
+      final latestVersion = (data['tag_name'] as String).replaceAll('v', '');
+      final currentInfo = await PackageInfo.fromPlatform();
+      final currentVersion = currentInfo.version;
+
+      print('📱 النسخة الحالية: $currentVersion');
+      print('🌐 آخر نسخة: $latestVersion');
+
+      if (_isNewerVersion(latestVersion, currentVersion)) {
+        // البحث عن ملف الـ APK في الـ Assets
+        String? apkUrl;
+        final assets = data['assets'] as List<dynamic>? ?? [];
+        for (var asset in assets) {
+          final name = asset['name'] as String? ?? '';
+          if (name.endsWith('.apk')) {
+            apkUrl = asset['browser_download_url'] as String;
+            break;
           }
         }
 
-        return {'hasUpdate': false};
+        if (apkUrl != null) {
+          return {
+            'hasUpdate': true,
+            'currentVersion': currentVersion,
+            'latestVersion': latestVersion,
+            'downloadUrl': apkUrl,
+            'releaseNotes': data['body'] ?? 'تحديث جديد متاح',
+            'releaseName': data['name'] ?? 'v$latestVersion',
+          };
+        } else {
+          // فيه نسخة أحدث لكن مفيش APK مرفوع — نبلغ إن في تحديث بس من غير تحميل
+          return {
+            'hasUpdate': true,
+            'currentVersion': currentVersion,
+            'latestVersion': latestVersion,
+            'downloadUrl': null,
+            'releaseNotes': data['body'] ?? 'تحديث جديد متاح',
+            'releaseName': data['name'] ?? 'v$latestVersion',
+          };
+        }
       }
+
+      return {'hasUpdate': false, 'currentVersion': currentVersion, 'latestVersion': latestVersion};
     } catch (e) {
       print('❌ خطأ في تشييك التحديث: $e');
     }
@@ -241,6 +267,27 @@ class UpdateService {
                       ),
                     ),
 
+                    // مفيش APK مرفوع بعد
+                    if (updateInfo['downloadUrl'] == null && !isDownloading) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.info_rounded,
+                              color: AppColors.gold, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ملف التثبيت غير مرفوع بعد — سيظهر زر التحميل في النسخة القادمة',
+                              style: GoogleFonts.cairo(
+                                fontSize: 12,
+                                color: AppColors.textSecondary(isDark),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     // شريط التحميل
                     if (isDownloading) ...[
                       const SizedBox(height: 20),
@@ -282,7 +329,20 @@ class UpdateService {
                 ),
                 actions: isDownloading
                     ? null
-                    : [
+                    : (updateInfo['downloadUrl'] == null
+                        ? [
+                            // مفيش APK مرفوع — نقول للمستخدم إن المطور هيرفعه
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                'حسناً',
+                                style: GoogleFonts.cairo(
+                                  color: AppColors.gold,
+                                ),
+                              ),
+                            ),
+                          ]
+                        : [
                         // زرار لاحقاً
                         TextButton(
                           onPressed: () => Navigator.pop(context),
@@ -348,7 +408,7 @@ class UpdateService {
                             ),
                           ),
                         ),
-                      ],
+                      ]),
               ),
             );
           },

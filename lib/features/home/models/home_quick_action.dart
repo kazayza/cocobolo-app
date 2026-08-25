@@ -14,9 +14,22 @@ class HomeQuickAction {
   });
 
   static List<HomeQuickAction> available(
-    PermissionService permissions,
-  ) {
+    PermissionService permissions, {
+    int? employeeId,
+  }) {
     final actions = <HomeQuickAction>[];
+
+    // تسجيل الحضور — للموظف المرتبط فقط (مش لأي حد)
+    if (employeeId != null &&
+        (permissions.canView(FormNames.empAttendance) || permissions.isAdmin)) {
+      actions.add(
+        const HomeQuickAction(
+          title: 'تسجيل الحضور',
+          action: 'attendance',
+          icon: Icons.fingerprint_rounded,
+        ),
+      );
+    }
 
     // إضافة عميل
     if (permissions.canAdd(FormNames.partiesAdd)) {
@@ -69,6 +82,40 @@ class HomeQuickAction {
           title: 'إضافة مهمة',
           action: 'add_task',
           icon: Icons.add_task_rounded,
+        ),
+      );
+    }
+
+    // شكوى جديدة
+    if (permissions.canAdd(FormNames.complaintsMain)) {
+      actions.add(
+        const HomeQuickAction(
+          title: 'شكوى جديدة',
+          action: 'add_complaint',
+          icon: Icons.report_problem_rounded,
+        ),
+      );
+    }
+
+    // متابعة التسليم
+    if (permissions.canView(FormNames.invoiceDeliveryStatus)) {
+      actions.add(
+        const HomeQuickAction(
+          title: 'متابعة التسليم',
+          action: 'delivery_tracking',
+          icon: Icons.local_shipping_rounded,
+        ),
+      );
+    }
+
+    // المتابعات (ليدز + CRM معاً)
+    if (permissions.canView(FormNames.dailyTasks) ||
+        permissions.canView(FormNames.leadsCrm)) {
+      actions.add(
+        const HomeQuickAction(
+          title: 'المتابعات',
+          action: 'follow_ups',
+          icon: Icons.event_available_rounded,
         ),
       );
     }

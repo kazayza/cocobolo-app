@@ -10,9 +10,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 //import 'screens/home_screen.dart';
 import 'features/home/home_screen_v2.dart';
 import 'services/notification_service.dart';
+import 'services/profile_avatar_service.dart';
 import 'services/theme_service.dart';
 import 'services/app_colors.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -26,8 +28,6 @@ import 'core/notifications/notification_navigator.dart';
 import 'core/navigation/app_navigator.dart';
 import 'providers/auth_provider.dart';
 
-
-
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -36,10 +36,10 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   // عرض إشعار محلي عند استقبال رسالة data في الخلفية/عند إغلاق التطبيق
   try {
-    final title = message.notification?.title ??
-        message.data['title'] ??
-        'إشعار جديد';
-    final body = message.notification?.body ??
+    final title =
+        message.notification?.title ?? message.data['title'] ?? 'إشعار جديد';
+    final body =
+        message.notification?.body ??
         message.data['message'] ??
         message.data['body'] ??
         '';
@@ -89,10 +89,10 @@ Future<void> _registerDeviceToken() async {
   }
 }
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ThemeService().loadTheme();
+  await ProfileAvatarService().load(); // تحميل الصورة الشخصية المحفوظة
 
   if (!kIsWeb) {
     try {
@@ -102,8 +102,10 @@ Future<void> main() async {
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const DarwinInitializationSettings iosSettings =
           DarwinInitializationSettings();
-      const InitializationSettings initSettings =
-          InitializationSettings(android: androidSettings, iOS: iosSettings);
+      const InitializationSettings initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
       await flutterLocalNotificationsPlugin.initialize(
         settings: initSettings,
@@ -113,7 +115,9 @@ Future<void> main() async {
       );
 
       await FirebaseMessaging.instance.requestPermission();
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+        _firebaseMessagingBackgroundHandler,
+      );
 
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         RemoteNotification? notification = message.notification;
@@ -140,7 +144,8 @@ Future<void> main() async {
       });
 
       // ✅ فتح التطبيق بالنقر على إشعار وهو كان مقفول تمامًا
-      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
       if (initialMessage != null && initialMessage.data.isNotEmpty) {
         _handleNotificationTap(jsonEncode(initialMessage.data));
       }
@@ -179,6 +184,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isChecking = true;
+  bool _splashDone = false; // السبلاش خلص أنيميشن
   bool _isLoggedIn = false;
   int _userId = 0;
   String _username = '';
@@ -232,7 +238,8 @@ class _MyAppState extends State<MyApp> {
               // ✅ حفظ الصلاحيات
               PermissionService().initialize(
                 user: data['user'] as Map<String, dynamic>,
-                permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
+                permissions:
+                    (data['permissions'] ?? {}) as Map<String, dynamic>,
               );
 
               // ✅ تعبئة AuthProvider (Singleton) ببيانات اليوزر
@@ -257,7 +264,7 @@ class _MyAppState extends State<MyApp> {
             }
           } catch (e) {
             print('⚠️ مفيش اتصال - فتح بدون صلاحيات: $e');
-            
+
             // ✅ تعبئة AuthProvider بالبيانات المحفوظة (offline fallback)
             final auth = AuthProvider();
             auth.login(
@@ -266,7 +273,7 @@ class _MyAppState extends State<MyApp> {
               fullName: fullName,
               token: savedPassword,
             );
-            
+
             setState(() {
               _isLoggedIn = true;
               _userId = userId;
@@ -285,117 +292,51 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeService().themeData;
+    // ── إعادة البناء تلقائياً عند تغيير الثيم (ليلي/نهاري) ──
+    return ListenableBuilder(
+      listenable: ThemeService(),
+      builder: (context, _) {
+        final themeService = ThemeService();
 
-   return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'COCOBOLO',
-      debugShowCheckedModeBanner: false,
-      theme: theme.copyWith(
-        textTheme: GoogleFonts.cairoTextTheme(theme.textTheme),
-      ),
-      // ═══ إضافة اللغة العربية ═══
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('ar'),
-        Locale('en'),
-      ],
-      //locale: const Locale('ar'),
-      // ═══════════════════════════
-     // home: _isChecking
-          //? _buildSplashScreen()
-          //: _isLoggedIn
-            //  ? HomeScreen(
-              //    userId: _userId,
-              //    username: _username,
-              //    fullName: _fullName,
-                  
-              //  )
-              //: const LoginScreen(),
-
-              home: _isChecking
-    ? _buildSplashScreen()
-    : _isLoggedIn
-        ? const HomeScreenV2()
-        : const LoginScreen(),
+        return MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'COCOBOLO',
+          debugShowCheckedModeBanner: false,
+          // ── الثيمات: نهاري + ليلي + وضع تلقائي حسب الاختيار ──
+          theme: themeService.lightTheme.copyWith(
+            textTheme: GoogleFonts.cairoTextTheme(
+              themeService.lightTheme.textTheme,
+            ),
+          ),
+          darkTheme: themeService.darkTheme.copyWith(
+            textTheme: GoogleFonts.cairoTextTheme(
+              themeService.darkTheme.textTheme,
+            ),
+          ),
+          themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          // ═══ إضافة اللغة العربية ═══
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('ar'), Locale('en')],
+          // ═══ إجبار العربية → اتجاه RTL في كل الشاشات ═══
+          locale: const Locale('ar'),
+          // ═══════════════════════════
+          home: _isChecking || !_splashDone
+              ? SplashScreen(
+                  onFinished: () {
+                    if (mounted) setState(() => _splashDone = true);
+                  },
+                )
+              : _isLoggedIn
+              ? const HomeScreenV2()
+              : const LoginScreen(),
+        );
+      },
     );
   }
 
-  // ✅ شاشة انتظار أثناء التشييك
-  Widget _buildSplashScreen() {
-  final isDark = ThemeService().isDarkMode;
-  return Scaffold(
-    backgroundColor: AppColors.background(isDark),
-    body: Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // اللوجو
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.navy,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.gold.withOpacity(0.3),
-                  blurRadius: 25,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                'assets/images/logo.png',
-                width: 100,
-                height: 100,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 30),
-          
-          // اسم التطبيق
-          Text(
-            'COCOBOLO',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: AppColors.gold,
-              letterSpacing: 4,
-            ),
-          ),
-          
-          const SizedBox(height: 30),
-          
-          // Loading
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircularProgressIndicator(
-              color: AppColors.gold,
-              strokeWidth: 3,
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          Text(
-            'جاري التحميل...',
-            style: GoogleFonts.cairo(
-              fontSize: 14,
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+
 }

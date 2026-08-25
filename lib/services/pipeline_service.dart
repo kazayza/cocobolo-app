@@ -38,6 +38,52 @@ class PipelineService {
   }
 
   // ===================================
+  // 📋 لوحة الكانبان (كل المراحل + الكروت)
+  // ===================================
+  static Future<Map<String, dynamic>?> getKanbanBoard({
+    int? employeeId,
+    int? sourceId,
+    int? adTypeId,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+    int? stageId,
+    bool? isOverdue,
+    bool? hasFollowUp,
+  }) async {
+    try {
+      final params = <String, String>{};
+      if (employeeId != null && employeeId > 0) params['employeeId'] = '$employeeId';
+      if (sourceId != null && sourceId > 0) params['sourceId'] = '$sourceId';
+      if (adTypeId != null && adTypeId > 0) params['adTypeId'] = '$adTypeId';
+      if (dateFrom != null && dateFrom.isNotEmpty) params['dateFrom'] = dateFrom;
+      if (dateTo != null && dateTo.isNotEmpty) params['dateTo'] = dateTo;
+      if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+      if (stageId != null && stageId > 0) params['stageId'] = '$stageId';
+      if (isOverdue == true) params['isOverdue'] = 'true';
+      if (hasFollowUp == true) params['hasFollowUp'] = 'true';
+
+      final uri = Uri.parse('$baseUrl/api/opportunities/kanban')
+          .replace(queryParameters: params.isNotEmpty ? params : null);
+
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['data'] is Map) {
+          return Map<String, dynamic>.from(body['data'] as Map);
+        }
+        if (body is Map && body['columns'] is List) {
+          return Map<String, dynamic>.from(body);
+        }
+      }
+      return {'columns': <dynamic>[]};
+    } catch (e) {
+      print('❌ خطأ في جلب الكانبان: $e');
+    }
+    return {'columns': <dynamic>[]};
+  }
+
+  // ===================================
   // 📋 جلب فرص مرحلة معينة
   // ===================================
   static Future<Map<String, dynamic>?> getOpportunitiesByStage({

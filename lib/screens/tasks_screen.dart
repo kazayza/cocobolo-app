@@ -807,7 +807,7 @@ class _TasksScreenState extends State<TasksScreen>
   Widget _buildEmptyState(int tabIndex) {
     final config = _tabConfigs[tabIndex];
     final messages = [
-      'لا توجد مهام متأخرة 🎉',
+      'لا توجد مهام متأخرة ',
       'لا توجد مهام لليوم',
       'لا توجد مهام للغد',
       'لا توجد مهام قادمة',

@@ -577,7 +577,7 @@ Widget _buildDailyBrief() {
   // اختيار الرسالة المناسبة
   String message = '';
   if (todayTotal == 0 && todayTransactions == 0) {
-    message = '🎉 ممتاز! ما أنفقتش ولا جنيه اليوم';
+    message = ' ممتاز! ما أنفقتش ولا جنيه اليوم';
   } else if (todayTotal < 50) {
     message = '👍 إنفاق معتدل اليوم. استمر في التحكم بمصروفاتك';
   } else if (todayTotal < 200) {

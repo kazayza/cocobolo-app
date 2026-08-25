@@ -35,6 +35,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _manufacturingDescController = TextEditingController();
   final _purchasePriceController = TextEditingController();
   final _salePriceController = TextEditingController();
+  // Standard (CClass)
+  final _purchasePriceCClassController = TextEditingController();
+  final _salePriceCClassController = TextEditingController();
+  final _cclassMarginController = TextEditingController(text: '40'); // 40% (من السيرفر)
   final _qtyController = TextEditingController(text: '1');
   final _periodController = TextEditingController(text: '0');
     // أسعار Elite
@@ -50,6 +54,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _updatingElite = false;
    double _serverPremiumMargin = 60.0;
   double _serverEliteMargin = 65.0;
+  double _serverCClassMargin = 40.0;
 
   // Dropdowns
   List<dynamic> productGroups = [];
@@ -96,6 +101,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
     selectedGroupId = p['ProductGroupID'];
     selectedCustomerId = p['Customer'];
     selectedPricingType = p['PricingType'];
+
+    // أسعار Standard (CClass)
+    _purchasePriceCClassController.text =
+        (p['PurchasePriceCClass'] ?? 0).toString();
+    _salePriceCClassController.text =
+        (p['SuggestedSalePriceCClass'] ?? 0).toString();
+
+    // حساب نسبة الربح للـ Standard
+    final costCClass = _parseDouble(p['PurchasePriceCClass']);
+    final saleCClass = _parseDouble(p['SuggestedSalePriceCClass']);
+    if (costCClass > 0 && saleCClass > 0) {
+      final margin = ((saleCClass - costCClass) / costCClass) * 100;
+      _cclassMarginController.text = margin.toStringAsFixed(1);
+    } else {
+      _cclassMarginController.text = _serverCClassMargin.toStringAsFixed(1); // من السيرفر
+    }
 
     // أسعار Elite
     _purchasePriceEliteController.text =
@@ -159,8 +180,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           setState(() {
             _serverPremiumMargin = (margins['PremiumMargin'] ?? 60).toDouble();
             _serverEliteMargin = (margins['EliteMargin'] ?? 65).toDouble();
+            _serverCClassMargin = (margins['CClassMargin'] ?? 40).toDouble();
             // لو منتج جديد (مش تعديل) حط النسب الافتراضية
             if (!_isEditing) {
+              _cclassMarginController.text = _serverCClassMargin.toStringAsFixed(1);
               _premiumMarginController.text = _serverPremiumMargin.toStringAsFixed(1);
               _eliteMarginController.text = _serverEliteMargin.toStringAsFixed(1);
             }
@@ -187,6 +210,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _eliteMarginController.dispose();
     _purchasePriceEliteController.dispose();
     _salePriceEliteController.dispose();
+    _purchasePriceCClassController.dispose();
+    _salePriceCClassController.dispose();
+    _cclassMarginController.dispose();
+    _pricingPageController.dispose();
     super.dispose();
   }
     // =========================
@@ -262,6 +289,42 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
 
     _updatingElite = false;
+  }
+
+  // ═══════════ Standard (CClass) ═══════════
+  bool _updatingCClass = false;
+  final PageController _pricingPageController = PageController(viewportFraction: 0.92);
+  int _pricingPage = 0;
+
+  // حساب سعر البيع من (التكلفة + النسبة)
+  void _recalcCClassFromCostOrMargin() {
+    if (_updatingCClass) return;
+    _updatingCClass = true;
+
+    final cost = _parseDouble(_purchasePriceCClassController.text);
+    final margin = _parseDouble(_cclassMarginController.text);
+    if (cost > 0 && margin > 0) {
+      final sale = cost * (1 + margin / 100);
+      _salePriceCClassController.text = sale.toStringAsFixed(2);
+    }
+
+    _updatingCClass = false;
+  }
+
+  // حساب النسبة من (التكلفة + سعر البيع)
+  void _recalcCClassMarginFromSale() {
+    if (_updatingCClass) return;
+    _updatingCClass = true;
+
+    final cost = _parseDouble(_purchasePriceCClassController.text);
+    final sale = _parseDouble(_salePriceCClassController.text);
+
+    if (cost > 0 && sale > 0) {
+      final margin = ((sale - cost) / cost) * 100;
+      _cclassMarginController.text = margin.toStringAsFixed(1);
+    }
+
+    _updatingCClass = false;
   }
 
   @override
@@ -751,44 +814,96 @@ class _AddProductScreenState extends State<AddProductScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // عمود Premium
-          Expanded(
-            child: _buildPackagePriceEditor(
-              title: 'Premium',
-              costController: _purchasePriceController,
-              saleController: _salePriceController,
-              marginController: _premiumMarginController,
-              color: const Color(0xFFFFD700),
-              showFull: showFull,
-              costOnly: costOnly,
-              saleOnly: saleOnly,
-              onCostChanged: _recalcPremiumFromCostOrMargin,
-              onSaleChanged: _recalcPremiumMarginFromSale,
+          // ── كاروسيل الباقات الثلاث (يمين/شمال) ──
+          SizedBox(
+            height: 250,
+            child: PageView.builder(
+              controller: _pricingPageController,
+              itemCount: 3,
+              onPageChanged: (i) => setState(() => _pricingPage = i),
+              itemBuilder: (context, i) {
+                final Widget card;
+                if (i == 0) {
+                  card = _buildPackagePriceEditor(
+                    title: 'Standard',
+                    costController: _purchasePriceCClassController,
+                    saleController: _salePriceCClassController,
+                    marginController: _cclassMarginController,
+                    color: const Color(0xFF42A5F5),
+                    showFull: showFull,
+                    costOnly: costOnly,
+                    saleOnly: saleOnly,
+                    onCostChanged: _recalcCClassFromCostOrMargin,
+                    onSaleChanged: _recalcCClassMarginFromSale,
+                  );
+                } else if (i == 1) {
+                  card = _buildPackagePriceEditor(
+                    title: 'Premium',
+                    costController: _purchasePriceController,
+                    saleController: _salePriceController,
+                    marginController: _premiumMarginController,
+                    color: const Color(0xFFFFD700),
+                    showFull: showFull,
+                    costOnly: costOnly,
+                    saleOnly: saleOnly,
+                    onCostChanged: _recalcPremiumFromCostOrMargin,
+                    onSaleChanged: _recalcPremiumMarginFromSale,
+                  );
+                } else {
+                  card = _buildPackagePriceEditor(
+                    title: 'Elite',
+                    costController: _purchasePriceEliteController,
+                    saleController: _salePriceEliteController,
+                    marginController: _eliteMarginController,
+                    color: Colors.greenAccent,
+                    showFull: showFull,
+                    costOnly: costOnly,
+                    saleOnly: saleOnly,
+                    onCostChanged: _recalcEliteFromCostOrMargin,
+                    onSaleChanged: _recalcEliteMarginFromSale,
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: card,
+                );
+              },
             ),
           ),
-          const SizedBox(width: 16),
-          // عمود Elite
-          Expanded(
-            child: _buildPackagePriceEditor(
-              title: 'Elite',
-              costController: _purchasePriceEliteController,
-              saleController: _salePriceEliteController,
-              marginController: _eliteMarginController,
-              color: Colors.greenAccent,
-              showFull: showFull,
-              costOnly: costOnly,
-              saleOnly: saleOnly,
-              onCostChanged: _recalcEliteFromCostOrMargin,
-              onSaleChanged: _recalcEliteMarginFromSale,
-            ),
+          const SizedBox(height: 10),
+          // نقاط التنقل
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < 3; i++)
+                GestureDetector(
+                  onTap: () => _pricingPageController.animateToPage(
+                    i,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _pricingPage ? 22 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: i == _pricingPage
+                          ? const Color(0xFFFFD700)
+                          : Colors.white38,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
     );
   }
-  
+
     Widget _buildPackagePriceEditor({
     required String title,
     required TextEditingController costController,
@@ -801,41 +916,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
     void Function()? onCostChanged,
     void Function()? onSaleChanged,
   }) {
-    final List<Widget> children = [];
+    // بناء الحقول المتاحة حسب الصلاحية
+    final List<Widget> fields = [];
 
-    // عنوان الباقة (Premium / Elite)
-    children.add(
-      Text(
-        title,
-        style: GoogleFonts.cairo(
-          color: color,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-
-    children.add(const SizedBox(height: 8));
-
-    // ======================
-    // 1) التكلفة (Cost)
-    // ======================
-    // تظهر وتكون قابلة للتعديل لـ:
-    // - الثلاثة الكبار (showFull)
-    // - المصنع (costOnly)
+    // 1) التكلفة — للثلاثة الكبار + المصنع
     if (showFull || costOnly) {
-      children.add(
+      fields.add(
         TextFormField(
           controller: costController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر التكلفة',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey),
-            prefixIcon: const Icon(Icons.money_off, color: Color(0xFFFFD700)),
+            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            prefixIcon: const Icon(Icons.money_off, color: Color(0xFFFFD700), size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
             filled: true,
             fillColor: Colors.white.withOpacity(0.08),
             border: OutlineInputBorder(
@@ -846,37 +942,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFFFD700)),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
           onChanged: (_) {
-            // لو من الـ 3 الكبار: نعيد حساب سعر البيع من التكلفة + النسبة
-            if (showFull && onCostChanged != null) {
-              onCostChanged();
-            }
-            // لو Factory: يغيّر التكلفة فقط، مش محتاج يظهر/يغيّر بيع أو نسبة
+            if (showFull && onCostChanged != null) onCostChanged();
           },
         ),
       );
-
-      children.add(const SizedBox(height: 8));
     }
 
-    // ======================
-    // 2) نسبة الربح (Margin)
-    // ======================
-    // تظهر وتُعدّل فقط للثلاثة الكبار (showFull)
+    // 2) نسبة الربح — للثلاثة الكبار بس
     if (showFull) {
-      children.add(
+      fields.add(
         TextFormField(
           controller: marginController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'نسبة الربح %',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey),
-            prefixIcon: const Icon(Icons.percent, color: Color(0xFFFFD700)),
+            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            prefixIcon: const Icon(Icons.percent, color: Color(0xFFFFD700), size: 18),
             filled: true,
             fillColor: Colors.white.withOpacity(0.08),
             border: OutlineInputBorder(
@@ -887,40 +972,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFFFD700)),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
           onChanged: (_) {
-            if (onCostChanged != null) {
-              onCostChanged();
-            }
+            if (onCostChanged != null) onCostChanged();
           },
         ),
       );
-
-      children.add(const SizedBox(height: 8));
     }
 
-    // ======================
-    // 3) سعر البيع (Sale)
-    // ======================
-    // حالتين:
-    // - showFull  → Editable (الثلاثة الكبار فقط)
-    // - saleOnly  → ReadOnly (باقي اليوزرات، عرض فقط)
+    // 3) سعر البيع — قابل للتعديل للثلاثة الكبار / عرض فقط للباقي
     if (showFull) {
-      // Editable Sale Price
-      children.add(
+      fields.add(
         TextFormField(
           controller: saleController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر البيع',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey),
-            prefixIcon: Icon(Icons.attach_money, color: color),
+            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            prefixIcon: Icon(Icons.attach_money, color: color, size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
             filled: true,
             fillColor: Colors.white.withOpacity(0.08),
             border: OutlineInputBorder(
@@ -931,52 +1004,74 @@ class _AddProductScreenState extends State<AddProductScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: color),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
           onChanged: (_) {
-            if (onSaleChanged != null) {
-              onSaleChanged();
-            }
+            if (onSaleChanged != null) onSaleChanged();
           },
         ),
       );
     } else if (saleOnly) {
-      // ReadOnly Sale Price (عرض فقط)
-      children.add(
+      fields.add(
         TextFormField(
           controller: saleController,
           readOnly: true,
           enableInteractiveSelection: false,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر البيع (عرض فقط)',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey),
-            prefixIcon: Icon(Icons.visibility, color: color),
+            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            prefixIcon: Icon(Icons.visibility, color: color, size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
             filled: true,
             fillColor: Colors.white.withOpacity(0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: color.withOpacity(0.5)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس الكارت: اسم الباقة
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: GoogleFonts.cairo(
+                  color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // الحقول عمودية — كل حقل سطر كامل (أكبر وأريح)
+          ...fields,
+        ],
+      ),
     );
   }
 
@@ -1549,6 +1644,8 @@ Future<void> _saveProduct() async {
         'customerId': selectedCustomerId,
         'purchasePrice': double.tryParse(_purchasePriceController.text) ?? 0,
         'suggestedSalePrice': double.tryParse(_salePriceController.text) ?? 0,
+        'purchasePriceCClass': double.tryParse(_purchasePriceCClassController.text) ?? 0,
+        'suggestedSalePriceCClass': double.tryParse(_salePriceCClassController.text) ?? 0,
         'purchasePriceElite': double.tryParse(_purchasePriceEliteController.text) ?? 0,
         'suggestedSalePriceElite': double.tryParse(_salePriceEliteController.text) ?? 0,
         'pricingType': selectedPricingType,
@@ -1594,16 +1691,36 @@ Future<void> _saveProduct() async {
           );
         }
 
-        // رفع الصور الجديدة
+        // رفع الصور الجديدة (multipart — زي بلازور: ملف على القرص)
         for (final img in newImages) {
-          await http.post(
-            Uri.parse('$baseUrl/api/products/$productId/images'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'imageBase64': img['base64'],
-              'imageNote': img['note'],
-            }),
-          );
+          final filePath = img['path'] as String?;
+          if (filePath != null && File(filePath).existsSync()) {
+            // رفع كملف (multipart)
+            final request = http.MultipartRequest(
+              'POST',
+              Uri.parse('$baseUrl/api/products/$productId/images'),
+            );
+            request.files.add(await http.MultipartFile.fromPath(
+              'image',
+              filePath,
+            ));
+            request.fields['imageNote'] = img['note'] ?? '';
+            final streamed = await request.send();
+            final response = await http.Response.fromStream(streamed);
+            if (response.statusCode != 200) {
+              print('فشل رفع الصورة: ${response.body}');
+            }
+          } else {
+            // fallback للـ base64 (لو المسار مش متاح)
+            await http.post(
+              Uri.parse('$baseUrl/api/products/$productId/images'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'imageBase64': img['base64'],
+                'imageNote': img['note'],
+              }),
+            );
+          }
         }
 
         // رفع PDF لو موجود

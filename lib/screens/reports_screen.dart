@@ -5,8 +5,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // ✅ إضاف
 import '../services/icon_utils.dart';
 import './Reports/expense_reports.dart';
 import 'reports/crm_dashboard_screen.dart'; // ✅ إضافة شاشة الداشبورد
+import 'expenses/expense_dashboard_screen.dart';
 import 'cashbox_transactions_screen.dart';
-import 'cashbox_dashboard_screen.dart';
+import 'cashbox/cashbox_dashboard_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
   final int userId;
@@ -139,7 +140,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 title: 'تحليل المصروفات',
                 icon: Icons.donut_large,
                 color: Colors.deepOrange,
-                onTap: () => _openExpenseReports('هذا الشهر'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ExpenseDashboardScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                ),
               ),
               _ReportItem(
                 title: 'مقارنة شهرية',
@@ -205,7 +214,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CashboxDashboardScreen(
+                      builder: (context) => CashBoxDashboardScreen(
                         userId: widget.userId,
                         username: widget.username,
                       ),

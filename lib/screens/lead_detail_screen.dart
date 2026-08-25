@@ -750,7 +750,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     final success = res['success'] == true;
     _toast(
       success
-          ? (res['message'] ?? 'تم التحويل بنجاح 🎉')
+          ? (res['message'] ?? 'تم التحويل بنجاح ')
           : (res['message'] ?? 'فشل التحويل'),
       ok: success,
     );

@@ -5,12 +5,17 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/permission_service.dart';
 import '../services/notification_service.dart';
+import '../features/home/widgets/home_accent.dart';
+import '../features/home/widgets/profile_avatar.dart';
 import '../screens/login_screen.dart';
+import '../services/update_service.dart';
 import '../screens/add_client_screen.dart';
 import '../screens/add_opportunity_screen.dart';
 import '../screens/products_screen.dart';
 import '../screens/clients_screen.dart';
-import '../screens/expenses_screen.dart';
+import '../screens/expenses/expense_dashboard_screen.dart';
+import '../screens/expenses/expense_groups_screen.dart';
+import '../screens/personal_accounts/personal_accounts_screen.dart';
 import '../screens/add_expense_screen.dart';
 import '../screens/reports/crm_dashboard_screen.dart';
 import '../screens/tasks_screen.dart';
@@ -35,15 +40,19 @@ import '../screens/complaints_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
 import '../screens/cashbox_transactions_screen.dart';
 import '../screens/cashbox_manual_screen.dart';
-import '../screens/cashbox_dashboard_screen.dart';
+import '../screens/cashbox/cashbox_dashboard_screen.dart';
 import '../screens/leads_screen.dart';
 import '../screens/lead_detail_screen.dart';
 import '../screens/followups_screen.dart';
+import '../screens/admin/users_admin_screen.dart';
+import '../screens/admin/broadcast_notification_screen.dart';
+import '../screens/invoice/invoices_list_screen.dart';
+import '../screens/admin/user_form_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final int userId;
   final String username;
-  
+
   final String? fullName;
   final String currentRoute;
 
@@ -51,7 +60,7 @@ class AppDrawer extends StatefulWidget {
     super.key,
     required this.userId,
     required this.username,
-    
+
     this.fullName,
     required this.currentRoute,
   });
@@ -89,15 +98,20 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _cacheMenuItems() {
-    _visibleItems = MenuStructure.getItems().map((item) {
-      final kids = item.children.where((sub) => _canViewMenu(sub.formName)).toList();
-      return MenuItem(
-        title: item.title,
-        icon: item.icon,
-        color: item.color,
-        children: kids,
-      );
-    }).where((item) => item.children.isNotEmpty).toList();
+    _visibleItems = MenuStructure.getItems()
+        .map((item) {
+          final kids = item.children
+              .where((sub) => _canViewMenu(sub.formName))
+              .toList();
+          return MenuItem(
+            title: item.title,
+            icon: item.icon,
+            color: item.color,
+            children: kids,
+          );
+        })
+        .where((item) => item.children.isNotEmpty)
+        .toList();
   }
 
   bool _canViewMenu(String formName) {
@@ -116,6 +130,19 @@ class _AppDrawerState extends State<AppDrawer> {
           perms.isSalesManager ||
           perms.isAdmin ||
           perms.isGeneralManager;
+    }
+    // مؤشر المصروفات / المجموعات / تقرير المصروفات:
+    // نفس جمهور "كافة المصروفات" — أي حد يشوف المصروفات يشوفهم
+    if (formName == FormNames.expensesDashboard ||
+        formName == FormNames.expenseTree ||
+        formName == FormNames.expensesFilter) {
+      return perms.isAdmin ||
+          perms.canView(FormNames.expensesList) ||
+          perms.canView(FormNames.expensesAdd);
+    }
+    // الحسابات الشخصية: الادمن + مدير الحسابات فقط (حسب طلب المستخدم)
+    if (formName == FormNames.personalAccounts) {
+      return perms.isAdmin || perms.isAccountManager;
     }
     return perms.canView(formName);
   }
@@ -138,9 +165,11 @@ class _AppDrawerState extends State<AppDrawer> {
     if (_searchQuery.isEmpty) return _visibleItems;
     return _visibleItems.where((item) {
       if (item.title.toLowerCase().contains(_searchQuery)) return true;
-      return item.children.any((sub) =>
-          sub.title.toLowerCase().contains(_searchQuery) &&
-          _canViewMenu(sub.formName));
+      return item.children.any(
+        (sub) =>
+            sub.title.toLowerCase().contains(_searchQuery) &&
+            _canViewMenu(sub.formName),
+      );
     }).toList();
   }
 
@@ -155,7 +184,9 @@ class _AppDrawerState extends State<AppDrawer> {
     return SizedBox(
       width: screenWidth * 0.78,
       child: Drawer(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF0D1A2A)
+            : Colors.white,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.horizontal(left: Radius.circular(0)),
         ),
@@ -169,6 +200,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   ? _buildEmptySearch()
                   : _buildMenuList(),
             ),
+            _buildUpdateCheckTile(),
             _buildFooter(),
           ],
         ),
@@ -193,7 +225,11 @@ class _AppDrawerState extends State<AppDrawer> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2D2006), Color(0xFF1A1A1A)],
+          colors: const [
+            HomeAccent.navyDark,
+            HomeAccent.navy,
+            HomeAccent.navyLight,
+          ],
         ),
       ),
       child: Column(
@@ -238,8 +274,11 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: Colors.white.withOpacity(0.06),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.close_rounded,
-                      color: Colors.grey[500], size: 18),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: Colors.grey[500],
+                    size: 18,
+                  ),
                 ),
               ),
             ],
@@ -260,40 +299,20 @@ class _AppDrawerState extends State<AppDrawer> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withValues(alpha: 0.06)
+            : HomeAccent.navy.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : HomeAccent.navy.withValues(alpha: 0.10),
+        ),
       ),
       child: Row(
         children: [
-          // Avatar
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [roleColor, roleColor.withOpacity(0.7)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: roleColor.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                _getInitials(),
-                style: GoogleFonts.cairo(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
+          // Avatar (صورة المستخدم أو الحرف)
+          ProfileAvatar(initial: _getInitials(), size: 44, circle: true),
 
           const SizedBox(width: 12),
 
@@ -305,7 +324,9 @@ class _AppDrawerState extends State<AppDrawer> {
                 Text(
                   widget.fullName ?? widget.username,
                   style: GoogleFonts.cairo(
-                    color: Colors.white,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF0F172A),
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
@@ -314,8 +335,10 @@ class _AppDrawerState extends State<AppDrawer> {
                 ),
                 const SizedBox(height: 2),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: roleColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -345,58 +368,64 @@ class _AppDrawerState extends State<AppDrawer> {
     final List<_QuickAction> actions = [];
 
     if (_perms.canAdd(FormNames.partiesAdd)) {
-      actions.add(_QuickAction(
-        icon: Icons.person_add_rounded,
-        label: 'عميل',
-        color: const Color(0xFF4CAF50),
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddClientScreen(username: widget.username),
-            ),
-          );
-        },
-      ));
+      actions.add(
+        _QuickAction(
+          icon: Icons.person_add_rounded,
+          label: 'عميل',
+          color: const Color(0xFF4CAF50),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddClientScreen(username: widget.username),
+              ),
+            );
+          },
+        ),
+      );
     }
 
     if (_perms.canAdd(FormNames.newInteraction) ||
         _perms.canView(FormNames.newInteraction)) {
-      actions.add(_QuickAction(
-        icon: Icons.lightbulb_outline,
-        label: 'فرصة',
-        color: const Color(0xFFFF9800),
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddOpportunityScreen(
-                userId: widget.userId,
-                username: widget.username,
+      actions.add(
+        _QuickAction(
+          icon: Icons.lightbulb_outline,
+          label: 'فرصة',
+          color: const Color(0xFFFF9800),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddOpportunityScreen(
+                  userId: widget.userId,
+                  username: widget.username,
+                ),
               ),
-            ),
-          );
-        },
-      ));
+            );
+          },
+        ),
+      );
     }
 
     if (_perms.canAdd(FormNames.expensesAdd)) {
-      actions.add(_QuickAction(
-        icon: Icons.receipt_long_rounded,
-        label: 'مصروف',
-        color: const Color(0xFFE91E63),
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddExpenseScreen(username: widget.username),
-            ),
-          );
-        },
-      ));
+      actions.add(
+        _QuickAction(
+          icon: Icons.receipt_long_rounded,
+          label: 'مصروف',
+          color: const Color(0xFFE91E63),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddExpenseScreen(username: widget.username),
+              ),
+            );
+          },
+        ),
+      );
     }
 
     if (actions.isEmpty) return const SizedBox.shrink();
@@ -452,32 +481,54 @@ class _AppDrawerState extends State<AppDrawer> {
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withValues(alpha: 0.06)
+            : HomeAccent.navy.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : HomeAccent.navy.withValues(alpha: 0.10),
+        ),
       ),
       child: TextField(
         controller: _searchController,
         textDirection: TextDirection.rtl,
-        style: GoogleFonts.cairo(color: Colors.white, fontSize: 13),
+        style: GoogleFonts.cairo(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white
+              : const Color(0xFF0F172A),
+          fontSize: 13,
+        ),
         decoration: InputDecoration(
           hintText: 'بحث في القائمة...',
-          hintStyle: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 12),
-          prefixIcon:
-              Icon(Icons.search_rounded, color: Colors.grey[600], size: 18),
+          hintStyle: GoogleFonts.cairo(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            size: 18,
+          ),
           suffixIcon: _searchQuery.isNotEmpty
               ? GestureDetector(
                   onTap: () {
                     _searchController.clear();
                     FocusScope.of(context).unfocus();
                   },
-                  child: Icon(Icons.close_rounded,
-                      color: Colors.grey[500], size: 16),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: Colors.grey[500],
+                    size: 16,
+                  ),
                 )
               : null,
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
         ),
       ),
     ).animate().fadeIn(delay: 300.ms, duration: 400.ms);
@@ -495,21 +546,36 @@ class _AppDrawerState extends State<AppDrawer> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.04),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.search_off_rounded,
-                size: 36, color: Colors.grey[700]),
+            child: Icon(
+              Icons.search_off_rounded,
+              size: 36,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
           ),
           const SizedBox(height: 14),
           Text(
             'لا توجد نتائج',
-            style: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 14),
+            style: GoogleFonts.cairo(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             'جرب كلمة بحث مختلفة',
-            style: GoogleFonts.cairo(color: Colors.grey[700], fontSize: 12),
+            style: GoogleFonts.cairo(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -540,20 +606,23 @@ class _AppDrawerState extends State<AppDrawer> {
 
     if (visibleChildren.isEmpty) return const SizedBox.shrink();
 
-    final isExpanded = _expandedSections.contains(index) ||
+    final isExpanded =
+        _expandedSections.contains(index) ||
         (_searchQuery.isNotEmpty && visibleChildren.isNotEmpty);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: isExpanded
-            ? item.color.withOpacity(0.04)
-            : Colors.white.withOpacity(0.02),
+            ? item.color.withValues(alpha: 0.08)
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isExpanded
-              ? item.color.withOpacity(0.15)
-              : Colors.white.withOpacity(0.03),
+              ? item.color.withValues(alpha: 0.20)
+              : Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
       ),
       child: Theme(
@@ -584,7 +653,11 @@ class _AppDrawerState extends State<AppDrawer> {
             style: GoogleFonts.cairo(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: isExpanded ? item.color : Colors.white,
+              color: isExpanded
+                  ? item.color
+                  : Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : const Color(0xFF0F172A),
             ),
           ),
           subtitle: Text(
@@ -600,8 +673,11 @@ class _AppDrawerState extends State<AppDrawer> {
                 color: item.color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Icon(Icons.keyboard_arrow_down_rounded,
-                  color: item.color, size: 16),
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: item.color,
+                size: 16,
+              ),
             ),
           ),
           childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
@@ -610,12 +686,10 @@ class _AppDrawerState extends State<AppDrawer> {
               .toList(),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(
-          delay: Duration(milliseconds: 40 * index),
-          duration: 300.ms,
-        );
+    ).animate().fadeIn(
+      delay: Duration(milliseconds: 40 * index),
+      duration: 300.ms,
+    );
   }
 
   Widget _buildSubItem(SubMenuItem sub, Color sectionColor) {
@@ -672,9 +746,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     sub.title,
                     style: GoogleFonts.cairo(
                       fontSize: 12,
-                      fontWeight:
-                          isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive ? sectionColor : Colors.grey[400],
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      color: isActive
+                          ? sectionColor
+                          : Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF334155),
                     ),
                   ),
                 ),
@@ -694,13 +771,74 @@ class _AppDrawerState extends State<AppDrawer> {
                     ),
                   )
                 else
-                  Icon(Icons.arrow_forward_ios_rounded,
-                      size: 10, color: Colors.grey[700]),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 10,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🔄 البحث عن التحديثات
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildUpdateCheckTile() {
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        Icons.system_update_rounded,
+        color: Theme.of(context).colorScheme.primary,
+        size: 20,
+      ),
+      title: Text(
+        'البحث عن التحديثات',
+        style: GoogleFonts.cairo(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        _appVersion.isNotEmpty ? 'الإصدار الحالي: v$_appVersion' : 'تحقق من وجود نسخة أحدث',
+        style: GoogleFonts.cairo(fontSize: 10),
+      ),
+      onTap: () async {
+        try {
+          final info = await UpdateService.checkForUpdate();
+          if (!mounted) return;
+          if (info != null && info['hasUpdate'] == true) {
+            await UpdateService.showUpdateDialog(context: context, updateInfo: info);
+          } else {
+            // مفيش تحديث → رسالة مطمئنة
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'أنت على أحدث إصدار ✅',
+                  style: GoogleFonts.cairo(),
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تعذر التحقق من التحديثات', style: GoogleFonts.cairo()),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
     );
   }
 
@@ -713,7 +851,11 @@ class _AppDrawerState extends State<AppDrawer> {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.04)),
+          top: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
       ),
       child: SafeArea(
@@ -734,8 +876,11 @@ class _AppDrawerState extends State<AppDrawer> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.logout_rounded,
-                        color: Colors.red[400], size: 18),
+                    Icon(
+                      Icons.logout_rounded,
+                      color: Colors.red[400],
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'تسجيل الخروج',
@@ -756,32 +901,52 @@ class _AppDrawerState extends State<AppDrawer> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.code_rounded, size: 10, color: Colors.grey[700]),
+                Icon(
+                  Icons.code_rounded,
+                  size: 10,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   _appVersion.isNotEmpty ? 'v$_appVersion' : '...',
                   style: GoogleFonts.cairo(
-                      fontSize: 10, color: Colors.grey[700]),
+                    fontSize: 10,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
                 ),
                 if (_buildNumber.isNotEmpty)
                   Text(
                     ' ($_buildNumber)',
                     style: GoogleFonts.cairo(
-                        fontSize: 9, color: Colors.grey[800]),
+                      fontSize: 9,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
                   ),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   width: 3,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: Colors.grey[700],
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                 ),
                 Text(
                   '© ${DateTime.now().year}',
                   style: GoogleFonts.cairo(
-                      fontSize: 9, color: Colors.grey[700]),
+                    fontSize: 9,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
                 ),
               ],
             ),
@@ -799,24 +964,29 @@ class _AppDrawerState extends State<AppDrawer> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF13273F)
+            : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.logout_rounded,
-                  color: Colors.red, size: 22),
+              child: const Icon(
+                Icons.logout_rounded,
+                color: Colors.red,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             Text(
               'تسجيل الخروج',
               style: GoogleFonts.cairo(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -825,13 +995,20 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
         content: Text(
           'هل أنت متأكد من تسجيل الخروج؟',
-          style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 14),
+          style: GoogleFonts.cairo(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء',
-                style: GoogleFonts.cairo(color: Colors.grey[500])),
+            child: Text(
+              'إلغاء',
+              style: GoogleFonts.cairo(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -840,14 +1017,18 @@ class _AppDrawerState extends State<AppDrawer> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: Text('خروج',
-                style: GoogleFonts.cairo(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              'خروج',
+              style: GoogleFonts.cairo(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -938,11 +1119,15 @@ class _AppDrawerState extends State<AppDrawer> {
     switch (formName) {
       case 'frm_ProductList':
         screen = ProductsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_PartiesList':
         screen = ClientsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_PricingMargins':
         screen = PricingMarginsScreen(username: widget.username);
@@ -951,31 +1136,63 @@ class _AppDrawerState extends State<AppDrawer> {
         screen = PriceRequestsScreen(username: widget.username);
         break;
       case 'frm_ExpensesList':
-        screen = ExpensesScreen(
-            userId: widget.userId, username: widget.username);
+        screen = ExpenseDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_Expenses':
         screen = AddExpenseScreen(username: widget.username);
         break;
+      case 'frmExpensesDashboard':
+        // مؤشر المصروفات (الداشبورد الجديد)
+        screen = ExpenseDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmExpenseTree':
+        // مجموعات المصروفات
+        screen = ExpenseGroupsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmExpensesFilter':
+        // تقرير المصروفات → الداشبورد (فيه كل التفاصيل)
+        screen = ExpenseDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmPersonalAccounts':
+        // الحسابات الشخصية (ادمن + مدير حسابات فقط)
+        screen = PersonalAccountsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frmCRM_Dashboard':
         screen = CrmDashboardScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmDailyTasks':
         // Unified follow-ups (Leads + CRM + Tasks) — Blazor daily tasks entry
         screen = FollowUpsScreen(
-            userId: widget.userId,
-            username: widget.username,
-            employeeId: (PermissionService().isAdmin ||
-                    PermissionService().isSalesManager ||
-                    PermissionService().isGeneralManager)
-                ? null
-                : PermissionService().employeeId,
-            );
+          userId: widget.userId,
+          username: widget.username,
+          employeeId:
+              (PermissionService().isAdmin ||
+                  PermissionService().isSalesManager ||
+                  PermissionService().isGeneralManager)
+              ? null
+              : PermissionService().employeeId,
+        );
         break;
       case 'frmCrmTasksLegacy':
-        screen = TasksScreen(
-            userId: widget.userId, username: widget.username);
+        screen = TasksScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_MyLeads':
         screen = LeadsScreen(
@@ -987,90 +1204,165 @@ class _AppDrawerState extends State<AppDrawer> {
         break;
       case 'frmClientCard':
         screen = ClientCardScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmManamgerSales':
         screen = OpportunitiesScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmSalesPipeline':
         screen = PipelineScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmNewInteraction':
         screen = AddOpportunityScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmAdCampain':
         screen = CrmSettingsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_LeadsCRM':
-        screen = LeadsScreen(
-            userId: widget.userId, username: widget.username);
+        screen = LeadsScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_Employeeslist':
         screen = EmployeesScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_empAttendance':
         screen = AttendanceScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_Employees':
         screen = AddEmployeeScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_EmpolyeeShifts':
         screen = EmployeeShiftsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_AllShifts':
         screen = AllShiftsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_MySchedule':
         screen = MyScheduleScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frmDailyExemptions':
         screen = ExemptionsScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'rpt_empAttendance':
         screen = AttendanceReportScreen(
-            userId: widget.userId, username: widget.username);
+          userId: widget.userId,
+          username: widget.username,
+        );
         break;
       case 'frm_MyPermissions':
-    screen = PermissionsListScreen(userId: widget.userId,   );
-    break;
-    case 'frm_Complaints_Main':
-      screen = ComplaintsScreen(userId: widget.userId,username: widget.username,);
-      break;
+        screen = PermissionsListScreen(userId: widget.userId);
+        break;
+      case 'frm_Complaints_Main':
+        screen = ComplaintsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frmInvoiceDeliveryStatus':
-    screen = DeliveryTrackingScreen(
-        userId: widget.userId,
-        username: widget.username);
-    break;
-    case 'frm_CashBoxTransaction':
-  screen = CashboxTransactionsScreen(
-    userId: widget.userId, 
-    username: widget.username
-  );
-  break;
+        screen = DeliveryTrackingScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_CashBoxTransaction':
+        screen = CashboxTransactionsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
 
-case 'frm_CashBoxManual':
-  screen = CashboxManualScreen(
-    userId: widget.userId, 
-    username: widget.username
-  );
-  break;
-  case 'frm_CashBoxDashboard':
-  screen = CashboxDashboardScreen(
-    userId: widget.userId,
-    username: widget.username,
-  );
-  break;
+      case 'frm_CashBoxManual':
+        screen = CashboxManualScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_CashBoxDashboard':
+        screen = CashBoxDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+
+      // ── إدارة المستخدمين والصلاحيات ───────────────────
+      case 'frm_PartiesInvoices':
+        screen = SalesInvoicesScreen(
+          userId: widget.userId,
+          username: widget.username,
+          initialTab: 'Sale',
+        );
+        break;
+      case 'frm_SupplierInvoices':
+        screen = SalesInvoicesScreen(
+          userId: widget.userId,
+          username: widget.username,
+          initialTab: 'Purchase',
+        );
+        break;
+      case 'frm_AllUsers':
+        screen = UsersAdminScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      // 📢 بث إشعار عام (خاص بالأدمن — مش بيظهر لغير الأدمن)
+      case 'frm_BroadcastNotification':
+        screen = BroadcastNotificationScreen(
+          username: widget.username,
+        );
+        break;
+      case 'frm_AddUser':
+        screen = UserFormScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmManagePermissions':
+        screen = UsersAdminScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_AddPermission':
+        screen = UserFormScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
     }
 
     if (screen != null) {
@@ -1080,17 +1372,23 @@ case 'frm_CashBoxManual':
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.construction_rounded,
-                  color: Colors.amber, size: 18),
+              const Icon(
+                Icons.construction_rounded,
+                color: Colors.amber,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              Text('هذه الشاشة قيد التطوير',
-                  style: GoogleFonts.cairo(fontSize: 13)),
+              Text(
+                'هذه الشاشة قيد التطوير',
+                style: GoogleFonts.cairo(fontSize: 13),
+              ),
             ],
           ),
           backgroundColor: const Color(0xFF2A2A2A),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           margin: const EdgeInsets.all(12),
         ),
       );

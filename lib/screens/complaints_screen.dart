@@ -30,7 +30,12 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   // الفلاتر
   int? _selectedStatus;
   int? _selectedPriority;
+  int? _selectedTypeId;
   String _searchQuery = '';
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
+  bool _openOnly = false;
+  List<ComplaintTypeModel> _types = [];
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -56,8 +61,22 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     });
 
     try {
-      final complaints = await ComplaintsService.getAllComplaints();
+      final complaints = await ComplaintsService.getAllComplaints(
+        status: _selectedStatus,
+        priority: _selectedPriority,
+        typeId: _selectedTypeId,
+        search: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
+        dateFrom: _dateFrom != null
+            ? _dateFrom!.toIso8601String().substring(0, 10)
+            : null,
+        dateTo: _dateTo != null
+            ? _dateTo!.toIso8601String().substring(0, 10)
+            : null,
+        openOnly: _openOnly,
+      );
+      final types = await ComplaintsService.getComplaintTypes();
       setState(() {
+        _types = types;
         _complaints = complaints;
         _applyFilters();
         _isLoading = false;
@@ -84,6 +103,30 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     // فلتر الأولوية
     if (_selectedPriority != null) {
       filtered = filtered.where((c) => c.priority == _selectedPriority).toList();
+    }
+
+    // فلتر النوع
+    if (_selectedTypeId != null) {
+      filtered = filtered.where((c) => c.typeId == _selectedTypeId).toList();
+    }
+
+    // المفتوحة فقط
+    if (_openOnly) {
+      filtered = filtered.where((c) => c.status != 4 && c.status != 5).toList();
+    }
+
+    // فلتر التاريخ
+    if (_dateFrom != null) {
+      filtered = filtered.where((c) {
+        if (c.complaintDate == null) return false;
+        return !c.complaintDate!.isBefore(_dateFrom!);
+      }).toList();
+    }
+    if (_dateTo != null) {
+      filtered = filtered.where((c) {
+        if (c.complaintDate == null) return false;
+        return !c.complaintDate!.isAfter(_dateTo!);
+      }).toList();
     }
 
     // فلتر البحث
@@ -243,6 +286,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
 
         // فلاتر الحالة
         _buildStatusFilters(isDark),
+
+        // فلاتر إضافية (نوع + مفتوحة فقط + فترة)
+        _buildExtraFilters(isDark),
 
         // قائمة الشكاوى
         Expanded(
@@ -441,6 +487,215 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         ),
       ),
     );
+  }
+
+  // ===================================
+  // فلاتر إضافية (نوع + مفتوحة فقط + فترة)
+  // ===================================
+  Widget _buildExtraFilters(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // صف: النوع + مفتوحة فقط
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTypeChip(isDark, null, 'كل الأنواع'),
+                      ..._types.map((t) => _buildTypeChip(
+                            isDark,
+                            t.typeId,
+                            t.typeNameAr ?? t.typeName ?? '?',
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // مفتوحة فقط
+              GestureDetector(
+                onTap: () {
+                  setState(() => _openOnly = !_openOnly);
+                  _loadComplaints();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _openOnly
+                        ? Colors.green.withOpacity(0.15)
+                        : AppColors.inputFill(isDark),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _openOnly
+                          ? Colors.green
+                          : AppColors.divider(isDark),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.lock_open_rounded,
+                        size: 13,
+                        color: _openOnly ? Colors.green : AppColors.textSecondary(isDark),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'مفتوحة فقط',
+                        style: GoogleFonts.cairo(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: _openOnly ? Colors.green : AppColors.textSecondary(isDark),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // صف الفترة
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildPeriodChip(isDark, 'الكل', () {
+                  setState(() {
+                    _dateFrom = null;
+                    _dateTo = null;
+                  });
+                  _loadComplaints();
+                }),
+                _buildPeriodChip(isDark, 'اليوم', () {
+                  final now = DateTime.now();
+                  setState(() {
+                    _dateFrom = DateTime(now.year, now.month, now.day);
+                    _dateTo = now;
+                  });
+                  _loadComplaints();
+                }),
+                _buildPeriodChip(isDark, 'آخر أسبوع', () {
+                  final now = DateTime.now();
+                  setState(() {
+                    _dateFrom = now.subtract(const Duration(days: 7));
+                    _dateTo = now;
+                  });
+                  _loadComplaints();
+                }),
+                _buildPeriodChip(isDark, 'آخر شهر', () {
+                  final now = DateTime.now();
+                  setState(() {
+                    _dateFrom = now.subtract(const Duration(days: 30));
+                    _dateTo = now;
+                  });
+                  _loadComplaints();
+                }),
+                _buildPeriodChip(isDark, 'مخصص', () => _pickCustomRange()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeChip(bool isDark, int? typeId, String label) {
+    final isSelected = _selectedTypeId == typeId;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedTypeId = typeId);
+        _loadComplaints();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(left: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.gold.withOpacity(0.15)
+              : AppColors.inputFill(isDark),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.gold : AppColors.divider(isDark),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: isSelected ? AppColors.gold : AppColors.textSecondary(isDark),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool get _hasPeriodFilter => _dateFrom != null || _dateTo != null;
+
+  Widget _buildPeriodChip(bool isDark, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(left: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: _hasPeriodFilter && label != 'الكل'
+              ? AppColors.gold.withOpacity(0.15)
+              : AppColors.inputFill(isDark),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _hasPeriodFilter && label != 'الكل'
+                ? AppColors.gold
+                : AppColors.divider(isDark),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: _hasPeriodFilter && label != 'الكل'
+                ? AppColors.gold
+                : AppColors.textSecondary(isDark),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final from = await showDatePicker(
+      context: context,
+      initialDate: _dateFrom ?? now.subtract(const Duration(days: 7)),
+      firstDate: DateTime(2000),
+      lastDate: now,
+      helpText: 'من تاريخ',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+    if (from == null) return;
+    final to = await showDatePicker(
+      context: context,
+      initialDate: _dateTo ?? now,
+      firstDate: from,
+      lastDate: now,
+      helpText: 'إلى تاريخ',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+    if (to == null) return;
+    setState(() {
+      _dateFrom = from;
+      _dateTo = to;
+    });
+    _loadComplaints();
   }
 
   // ===================================
@@ -696,6 +951,36 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                           style: GoogleFonts.cairo(
                             fontSize: 12,
                             color: AppColors.gold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // 📎 عدد المرفقات (زي بلازور)
+                  if (complaint.attachmentsCount > 0) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.attach_file,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${complaint.attachmentsCount} مرفق',
+                            style: GoogleFonts.cairo(
+                              fontSize: 11,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],

@@ -351,12 +351,24 @@ static pw.Widget _buildTable(
 
   static String _getReferenceTypeLabel(String? type) {
     switch (type) {
+      case 'SaleInvoice': return 'فاتورة مبيعات';
+      case 'PurchaseInvoice': return 'فاتورة مشتريات';
+      case 'Expense': return 'مصروف';
+      case 'AdvanceExpense': return 'مصروف مقدم';
+      case 'Payroll': return 'راتب';
+      case 'BonusSeparate': return 'مكافأة منفصلة';
+      case 'CommissionSeparate': return 'عمولة منفصلة';
+      case 'Loan': return 'قرض';
+      case 'TransferIn': return 'تحويل وارد';
+      case 'TransferOut': return 'تحويل صادر';
+      case 'AdvanceCharge': return 'رسوم معاينة';
+      case 'ManualReceipt': return 'سند قبض يدوي';
+      case 'ManualPayment': return 'سند صرف يدوي';
+      case 'OpeningBalance': return 'رصيد افتتاحي';
+      // القيم القديمة (توافق)
       case 'Manual': return 'يدوي';
       case 'Transfer': return 'تحويل';
       case 'Payment': return 'سداد فاتورة';
-      case 'Expense': return 'مصروف';
-      case 'Payroll': return 'راتب';
-      case 'AdvanceExpense': return 'مصروف مقدم';
       case 'Charge': return 'رسوم';
       default: return type ?? '---';
     }

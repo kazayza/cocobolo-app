@@ -32,6 +32,12 @@ class ComplaintModel {
   final String? solution;
 final DateTime? solvedDate;
 final int? satisfactionLevel;
+  final int daysOpen;
+  final int attachmentsCount;
+  final int followUpsCount;
+  final int? transactionId;
+  final int? productId;
+  final String? productName;
 
   ComplaintModel({
     required this.complaintId,
@@ -64,6 +70,12 @@ final int? satisfactionLevel;
     this.solution,
 this.solvedDate,
 this.satisfactionLevel,
+    this.daysOpen = 0,
+    this.attachmentsCount = 0,
+    this.followUpsCount = 0,
+    this.transactionId,
+    this.productId,
+    this.productName,
   });
 
   factory ComplaintModel.fromJson(Map<String, dynamic> json) {
@@ -106,6 +118,12 @@ solvedDate: json['SolvedDate'] != null
     ? DateTime.tryParse(json['SolvedDate'].toString())
     : null,
 satisfactionLevel: json['SatisfactionLevel'],
+      daysOpen: json['DaysOpen'] ?? 0,
+      attachmentsCount: json['AttachmentsCount'] ?? 0,
+      followUpsCount: json['FollowUpsCount'] ?? 0,
+      transactionId: json['TransactionID'],
+      productId: json['ProductID'],
+      productName: json['ProductName'],
     );
   }
 
@@ -220,6 +238,62 @@ class ComplaintTypeModel {
       typeId: json['TypeID'] ?? 0,
       typeName: json['TypeName'],
       typeNameAr: json['TypeNameAr'],
+    );
+  }
+}
+// ===================================
+// نموذج المرفق (صورة / مستند)
+// ===================================
+class ComplaintAttachmentModel {
+  final int attachmentId;
+  final int complaintId;
+  final String fileName;
+  final String originalFileName;
+  final String filePath;
+  final int fileSize;
+  final String mimeType;
+  final int? uploadedByUserId;
+  final String? uploadedByName;
+  final DateTime? uploadedAt;
+
+  ComplaintAttachmentModel({
+    required this.attachmentId,
+    required this.complaintId,
+    required this.fileName,
+    required this.originalFileName,
+    required this.filePath,
+    required this.fileSize,
+    required this.mimeType,
+    this.uploadedByUserId,
+    this.uploadedByName,
+    this.uploadedAt,
+  });
+
+  bool get isImage => mimeType.toLowerCase().startsWith('image/');
+
+  String get fileSizeFormatted {
+    if (fileSize < 1024) return '$fileSize B';
+    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    if (fileSize < 1024 * 1024 * 1024) {
+      return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  factory ComplaintAttachmentModel.fromJson(Map<String, dynamic> json) {
+    return ComplaintAttachmentModel(
+      attachmentId: json['AttachmentId'] ?? 0,
+      complaintId: json['ComplaintId'] ?? 0,
+      fileName: json['FileName'] ?? '',
+      originalFileName: json['OriginalFileName'] ?? 'ملف',
+      filePath: json['FilePath'] ?? '',
+      fileSize: int.tryParse('${json['FileSize'] ?? 0}') ?? 0,
+      mimeType: json['MimeType'] ?? 'application/octet-stream',
+      uploadedByUserId: json['UploadedByUserId'],
+      uploadedByName: json['UploadedByName'],
+      uploadedAt: json['UploadedAt'] != null
+          ? DateTime.tryParse('${json['UploadedAt']}')
+          : null,
     );
   }
 }

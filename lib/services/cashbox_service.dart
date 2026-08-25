@@ -77,13 +77,104 @@ class CashboxService {
       final response = await http.get(uri);
       
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        final body = jsonDecode(response.body);
+        // لو الرد الجديد (data/stats) → نرجع data
+        if (body is Map && body['data'] is List) {
+          return (body['data'] as List).cast<Map<String, dynamic>>();
+        }
+        // لو الرد القديم (قائمة مباشرة)
+        if (body is List) {
+          return body.cast<Map<String, dynamic>>();
+        }
       }
       return [];
     } catch (e) {
       print('❌ Error getting transactions: $e');
       return [];
+    }
+  }
+
+  /// جلب حركات الخزينة بنسخة كاملة: بحث + ترقيم صفحات + إحصائيات + مصادر
+  static Future<CashboxTransactionsResult> getTransactionsPaged({
+    int? cashboxId,
+    String? startDate,
+    String? endDate,
+    String? transactionType,
+    String? referenceType,
+    String? search,
+    int page = 1,
+    int limit = 25,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (cashboxId != null) queryParams['cashboxId'] = cashboxId.toString();
+      if (startDate != null && startDate.isNotEmpty) queryParams['startDate'] = startDate;
+      if (endDate != null && endDate.isNotEmpty) queryParams['endDate'] = endDate;
+      if (transactionType != null && transactionType.isNotEmpty && transactionType != 'الكل') {
+        queryParams['transactionType'] = transactionType;
+      }
+      if (referenceType != null && referenceType.isNotEmpty && referenceType != 'الكل') {
+        queryParams['referenceType'] = referenceType;
+      }
+      if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
+
+      final uri = Uri.parse('$baseUrl/api/cashbox/transactions')
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body is Map) {
+          final data = (body['data'] as List? ?? []).cast<Map<String, dynamic>>();
+          final stats = body['stats'] is Map
+              ? Map<String, dynamic>.from(body['stats'] as Map)
+              : <String, dynamic>{};
+          return CashboxTransactionsResult(
+            data: data,
+            stats: stats,
+            total: (body['total'] as num?)?.toInt() ?? data.length,
+            totalPages: (body['totalPages'] as num?)?.toInt() ?? 1,
+            page: (body['page'] as num?)?.toInt() ?? page,
+          );
+        }
+        // رد قديم (قائمة) — نلفه في النتيجة
+        if (body is List) {
+          final list = body.cast<Map<String, dynamic>>();
+          double tin = 0, tout = 0;
+          for (final t in list) {
+            final amt = (t['Amount'] ?? 0).toDouble();
+            if (t['TransactionType'] == 'قبض') tin += amt; else tout += amt;
+          }
+          return CashboxTransactionsResult(
+            data: list,
+            stats: {'TotalIn': tin, 'TotalOut': tout, 'Net': tin - tout},
+            total: list.length,
+            totalPages: 1,
+            page: 1,
+          );
+        }
+      }
+      return CashboxTransactionsResult(
+        data: const [],
+        stats: const {'TotalIn': 0, 'TotalOut': 0, 'Net': 0},
+        total: 0,
+        totalPages: 1,
+        page: page,
+      );
+    } catch (e) {
+      print('❌ Error getting transactions paged: $e');
+      return CashboxTransactionsResult(
+        data: const [],
+        stats: const {'TotalIn': 0, 'TotalOut': 0, 'Net': 0},
+        total: 0,
+        totalPages: 1,
+        page: page,
+      );
     }
   }
 
@@ -280,4 +371,25 @@ static Future<Map<String, dynamic>?> getMonthlyComparison() async {
     return null;
   }
 }
+}
+
+/// نتيجة جلب حركات الخزينة (صفحة + إحصائيات)
+class CashboxTransactionsResult {
+  final List<Map<String, dynamic>> data;
+  final Map<String, dynamic> stats;
+  final int total;
+  final int totalPages;
+  final int page;
+
+  const CashboxTransactionsResult({
+    required this.data,
+    required this.stats,
+    required this.total,
+    required this.totalPages,
+    required this.page,
+  });
+
+  double get totalIn => (stats['TotalIn'] ?? 0).toDouble();
+  double get totalOut => (stats['TotalOut'] ?? 0).toDouble();
+  double get net => (stats['Net'] ?? totalIn - totalOut).toDouble();
 }

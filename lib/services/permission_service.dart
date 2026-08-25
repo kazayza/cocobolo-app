@@ -69,7 +69,7 @@ class PermissionService {
     _permissions.clear();
     permissions.forEach((formName, permData) {
       _permissions[formName] = Permission.fromJson(
-        formName, 
+        formName,
         permData as Map<String, dynamic>,
       );
     });
@@ -88,49 +88,82 @@ class PermissionService {
     _permissions.clear();
     print('🚪 تم مسح بيانات المستخدم والصلاحيات');
   }
-  
+
   // =====================
-// دوال التحقق من الدور (Role)
-// =====================
+  // دوال التحقق من الدور (Role)
+  // =====================
 
-// هل هو أدمن؟
-bool get isAdmin => role?.toLowerCase() == 'admin';
+  // هل هو أدمن؟
+  bool get isAdmin => role?.toLowerCase() == 'admin';
 
-// هل هو مدير مبيعات؟
-bool get isSalesManager => role?.toLowerCase() == 'salesmanager';
+  // هل هو مدير مبيعات؟
+  bool get isSalesManager => role?.toLowerCase() == 'salesmanager';
 
-// هل هو المدير العام؟
-bool get isGeneralManager {
-  final r = role?.toLowerCase().replaceAll(' ', '') ?? '';
-  return r == 'generalmanager' || r == 'gm' || r == 'general_manager';
-}
+  // هل هو المدير العام؟
+  bool get isGeneralManager {
+    final r = role?.toLowerCase().replaceAll(' ', '') ?? '';
+    return r == 'generalmanager' || r == 'gm' || r == 'general_manager';
+  }
 
-// رفض Lead مباشرة (بدون طلب موافقة)
-bool get canRejectLeadDirectly => isGeneralManager || isAdmin;
+  // رفض Lead مباشرة (بدون طلب موافقة)
+  bool get canRejectLeadDirectly => isGeneralManager || isAdmin;
 
-// هل هو موظف مبيعات؟
-bool get isSales => role?.toLowerCase() == 'sales';
+  // هل هو موظف مبيعات؟
+  bool get isSales => role?.toLowerCase() == 'sales';
 
-// هل هو مدير حسابات؟
-bool get isAccountManager => role?.toLowerCase() == 'accountmanager';
+  // هل هو مدير حسابات؟
+  bool get isAccountManager => role?.toLowerCase() == 'accountmanager';
 
-// هل هو موظف حسابات؟
-bool get isAccount => role?.toLowerCase() == 'account';
+  // هل هو موظف حسابات؟
+  bool get isAccount => role?.toLowerCase() == 'account';
 
-// هل هو أمين مخزن؟
-bool get isWarehouse => role?.toLowerCase() == 'warehouse';
+  // هل هو أمين مخزن؟
+  bool get isWarehouse => role?.toLowerCase() == 'warehouse';
 
-// هل هو أمين خزينة؟
-bool get isCashier => role?.toLowerCase() == 'cashier';
+  // هل هو أمين خزينة؟
+  bool get isCashier => role?.toLowerCase() == 'cashier';
 
-// هل يشوف كل البيانات؟ (مش بتاعته بس)
-bool get canSeeAllData => isAdmin || isSalesManager || isAccountManager;
+  // هل هو مسؤول سوشيال ميديا؟
+  bool get isSocial => role?.toLowerCase() == 'social';
 
-// هل يشوف بيانات المبيعات كلها؟
-bool get canSeeAllSales => isAdmin || isSalesManager;
+  // هل هو مدير السوشيال ميديا؟
+  bool get isSocialManager => role?.toLowerCase() == 'socialmanager';
 
-// هل يشوف بيانات الحسابات كلها؟
-bool get canSeeAllAccounts => isAdmin || isAccountManager;
+  // هل هو مشاهد (عرض فقط)؟
+  bool get isViewer => role?.toLowerCase() == 'viewer';
+
+  // هل هو متصفح سوشيال ميديا؟
+  bool get isSocialView => role?.toLowerCase() == 'socialview';
+
+  // هل هو مدير الموارد البشرية؟
+  bool get isHrManager => role?.toLowerCase() == 'hrmanager';
+
+  // هل هو بوابة B2B؟
+  bool get isB2B => role?.toLowerCase() == 'b2b';
+
+  // هل يشوف بيانات HR كلها؟ (Admin + HR Manager)
+  bool get canSeeAllHR => isAdmin || isHrManager || isGeneralManager;
+
+  // هل يشوف بيانات السوشيال ميديا؟ (Admin + SocialManager)
+  bool get canSeeAllSocial => isAdmin || isSocialManager || isGeneralManager;
+
+  // هل هو من الإدارة العليا؟ (يقدر يرفض ليد مباشرة + يشوف كل حاجة)
+  bool get isExecutive =>
+      isAdmin || isGeneralManager || isSalesManager || isAccountManager;
+
+  // هل يشوف كل البيانات؟ (مش بتاعته بس)
+  bool get canSeeAllData =>
+      isAdmin ||
+      isGeneralManager ||
+      isSalesManager ||
+      isAccountManager ||
+      isHrManager;
+
+  // هل يشوف بيانات المبيعات كلها؟
+  bool get canSeeAllSales => isAdmin || isSalesManager;
+
+  // هل يشوف بيانات الحسابات كلها؟
+  bool get canSeeAllAccounts => isAdmin || isAccountManager;
 
   // =====================
   // دوال التحقق من الصلاحيات
@@ -159,11 +192,11 @@ bool get canSeeAllAccounts => isAdmin || isAccountManager;
     final perm = _permissions[formName];
     return perm?.canDelete ?? false;
   }
-  
-    // =====================
+
+  // =====================
   // صلاحيات خاصة بالأسعار (للمنتجات)
   // =====================
-// =====================
+  // =====================
   // صلاحيات خاصة بالأسعار (للمنتجات) - بالـ Role
   // =====================
 
@@ -219,7 +252,7 @@ bool get canSeeAllAccounts => isAdmin || isAccountManager;
   bool get canAddPDF {
     return isSales || isFactory || isAdmin || isAccountManager;
   }
-  
+
   // ✅ جلب صلاحية معينة
   Permission? getPermission(String formName) {
     return _permissions[formName];
@@ -239,10 +272,11 @@ bool get canSeeAllAccounts => isAdmin || isAccountManager;
   void printPermissions() {
     print('📋 صلاحيات المستخدم $username:');
     _permissions.forEach((formName, perm) {
-      print('  $formName: View=${perm.canView}, Add=${perm.canAdd}, Edit=${perm.canEdit}, Delete=${perm.canDelete}');
+      print(
+        '  $formName: View=${perm.canView}, Add=${perm.canAdd}, Edit=${perm.canEdit}, Delete=${perm.canDelete}',
+      );
     });
   }
-
 
   // =====================
   // صلاحيات الشكاوى
@@ -257,6 +291,7 @@ bool get canSeeAllAccounts => isAdmin || isAccountManager;
   // التصعيد (حسب الـ Role)
   bool get canEscalateComplaint => isSalesManager || isAccountManager;
 }
+
 // =====================
 // أسماء الشاشات (Constants)
 // =====================
@@ -306,17 +341,16 @@ class FormNames {
   static const String dailyExemptions = 'frmDailyExemptions';
   static const String allShifts = 'frm_AllShifts';
   static const String empAttendance = 'frm_empAttendance';
-  static const String rpt_empAttendance='rpt_empAttendance';
-  static const String myPermissions='frm_MyPermissions';
+  static const String rpt_empAttendance = 'rpt_empAttendance';
+  static const String myPermissions = 'frm_MyPermissions';
   static const String myschedule = 'frm_MySchedule';
-
-  
 
   // ═══════════════════════════════════════
   // 5. الخزينة
   // ═══════════════════════════════════════
   static const String payments = 'frm_Payments';
   static const String payrollPayment = 'frm_PayrollPayment';
+  static const String personalAccounts = 'frmPersonalAccounts';
   static const String cashBoxManual = 'frm_CashBoxManual';
   static const String inspectionCharge = 'frmInspectionCharge';
   static const String cashBoxTransaction = 'frm_CashBoxTransaction';
@@ -361,6 +395,7 @@ class FormNames {
   static const String allUsers = 'frm_AllUsers';
   static const String addPermission = 'frm_AddPermission';
   static const String managePermissions = 'frmManagePermissions';
+  static const String broadcastNotification = 'frm_BroadcastNotification';
   static const String auditViewer = 'frm_AuditViewer';
 
   // ═══════════════════════════════════════
@@ -369,13 +404,12 @@ class FormNames {
   static const String notificationsAll = 'frm_NotificationsAll';
   static const String changePassword = 'frm_ChangePassword';
 
-  
-
   // ═══════════════════════════════════════
   // 10. إعدادات CRM
   // ═══════════════════════════════════════
   static const String adCampaigns = 'frmAdCampain';
   static const String leadsCrm = 'frm_LeadsCRM';
+
   /// My Leads entry (Blazor /crm/leads/my) — uses same permission as leads list
   static const String myLeads = 'frm_MyLeads';
   static const String contactSources = 'frmContactSourses';
@@ -388,11 +422,10 @@ class FormNames {
   static const String lostReasons = 'frmLostReasons';
 }
 
-  
-  // ═══════════════════════════════════════
+// ═══════════════════════════════════════
 // 10. إعدادات CRM
 // ═══════════════════════════════════════
-  
+
 //static const String adCampaigns = 'frmAdCampain';
 //static const String contactSources = 'frmContactSourses';
 // ✅ لما تضيف الباقي في القاعدة ضيفهم هنا:
@@ -430,168 +463,316 @@ class SubMenuItem {
 
 class MenuStructure {
   static List<MenuItem> getItems() {
-  return [
-    // ═══════════════════════════════════════
-    // 1. البيانات الأساسية
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'البيانات الأساسية',
-      icon: Icons.domain,
-      color: const Color(0xFF4CAF50),
-      children: [
-        //SubMenuItem('بيانات الشركة', FormNames.companyInfo, Icons.business),
-        //SubMenuItem('مجموعة المنتجات', FormNames.productGroups, Icons.category),
-         
-      ],
-    ),
+    return [
+      // ═══════════════════════════════════════
+      // 1. البيانات الأساسية
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'البيانات الأساسية',
+        icon: Icons.domain,
+        color: const Color(0xFF4CAF50),
+        children: [
+          //SubMenuItem('بيانات الشركة', FormNames.companyInfo, Icons.business),
+          //SubMenuItem('مجموعة المنتجات', FormNames.productGroups, Icons.category),
+        ],
+      ),
 
-    // ═══════════════════════════════════════
-    // 2. المخازن
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'المخازن',
-      icon: Icons.warehouse,
-      color: const Color(0xFFFF9800),
-      children: [
-        SubMenuItem('أرصدة المخزون', FormNames.stockLevels, Icons.inventory),
-        SubMenuItem('حركة المخازن', FormNames.transactionProductGroup, Icons.swap_horiz),
-        SubMenuItem('الأصناف الأكثر مبيعاً', FormNames.bestSellingItems, Icons.star),
-      ],
-    ),
-    // جديد المبيعات
-    MenuItem(
-      title: 'المبيعات',
-      icon: Icons.sell, // أيقونة بيع مناسبة أكثر
-      color: const Color(0xFF2196F3), // لون أزرق هادئ بدل البرتقالي
-      children: [
-        SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2),
-        SubMenuItem('العملاء', FormNames.partiesList, Icons.people),
-        SubMenuItem('فواتير العملاء', FormNames.partiesInvoices, Icons.receipt),
-        SubMenuItem('فواتير المصنع', FormNames.supplierInvoices, Icons.receipt_long),
-        SubMenuItem('متابعة التسليم', FormNames.invoiceDeliveryStatus, Icons.local_shipping),
-        SubMenuItem('مدفوعات الفواتير', FormNames.paymentsInvoicesNew, Icons.payment),
-        SubMenuItem('عروض الأسعار', FormNames.quotationsList, Icons.request_quote),
-        SubMenuItem('طباعة مستندات العميل', FormNames.customerDocs, Icons.print),
-        SubMenuItem('طلبات تعديل الأسعار', FormNames.priceRequests, Icons.price_change),
-        SubMenuItem('نسب الربح', FormNames.pricingMargins, Icons.percent),
-      ],
-    ),
-    // ═══════════════════════════════════════
-    // 3. الحسابات
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'الحسابات',
-      icon: Icons.account_balance_wallet,
-      color: const Color(0xFF2196F3),
-      children: [
-        SubMenuItem('إضافة مصروف', FormNames.expensesAdd, Icons.add_card),
-        SubMenuItem('كافة المصروفات', FormNames.expensesList, Icons.money_off),
-        SubMenuItem('مجموعات المصروفات', FormNames.expenseTree, Icons.account_tree),
-       ],
-    ),
+      // ═══════════════════════════════════════
+      // 2. المخازن
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'المخازن',
+        icon: Icons.warehouse,
+        color: const Color(0xFFFF9800),
+        children: [
+          SubMenuItem('أرصدة المخزون', FormNames.stockLevels, Icons.inventory),
+          SubMenuItem(
+            'حركة المخازن',
+            FormNames.transactionProductGroup,
+            Icons.swap_horiz,
+          ),
+          SubMenuItem(
+            'الأصناف الأكثر مبيعاً',
+            FormNames.bestSellingItems,
+            Icons.star,
+          ),
+        ],
+      ),
+      // جديد المبيعات
+      MenuItem(
+        title: 'المبيعات',
+        icon: Icons.sell, // أيقونة بيع مناسبة أكثر
+        color: const Color(0xFF2196F3), // لون أزرق هادئ بدل البرتقالي
+        children: [
+          SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2),
+          SubMenuItem('العملاء', FormNames.partiesList, Icons.people),
+          SubMenuItem(
+            'فواتير العملاء',
+            FormNames.partiesInvoices,
+            Icons.receipt,
+          ),
+          SubMenuItem(
+            'فواتير المصنع',
+            FormNames.supplierInvoices,
+            Icons.receipt_long,
+          ),
+          SubMenuItem(
+            'متابعة التسليم',
+            FormNames.invoiceDeliveryStatus,
+            Icons.local_shipping,
+          ),
+          SubMenuItem(
+            'مدفوعات الفواتير',
+            FormNames.paymentsInvoicesNew,
+            Icons.payment,
+          ),
+          SubMenuItem(
+            'عروض الأسعار',
+            FormNames.quotationsList,
+            Icons.request_quote,
+          ),
+          SubMenuItem(
+            'طباعة مستندات العميل',
+            FormNames.customerDocs,
+            Icons.print,
+          ),
+          SubMenuItem(
+            'طلبات تعديل الأسعار',
+            FormNames.priceRequests,
+            Icons.price_change,
+          ),
+          SubMenuItem('نسب الربح', FormNames.pricingMargins, Icons.percent),
+        ],
+      ),
+      // ═══════════════════════════════════════
+      // 3. المالية (الخزينة + المصروفات + الحسابات)
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'المالية',
+        icon: Icons.account_balance_wallet,
+        color: const Color(0xFF00695C),
+        children: [
+          // ── الخزينة ──
+          SubMenuItem(
+            'مؤشرات الخزينة',
+            FormNames.cashBoxDashboard,
+            Icons.analytics,
+          ),
+          SubMenuItem(
+            'حركات الخزينة',
+            FormNames.cashBoxTransaction,
+            Icons.history,
+          ),
+          SubMenuItem('سند قبض / صرف', FormNames.cashBoxManual, Icons.receipt),
+          // ── المصروفات ──
+          SubMenuItem(
+            'كافة المصروفات',
+            FormNames.expensesList,
+            Icons.money_off,
+          ),
+          SubMenuItem('إضافة مصروف', FormNames.expensesAdd, Icons.add_card),
+          SubMenuItem(
+            'مجموعات المصروفات',
+            FormNames.expenseTree,
+            Icons.account_tree,
+          ),
+          // ── الحسابات الشخصية ──
+          SubMenuItem(
+            'الحسابات الشخصية',
+            FormNames.personalAccounts,
+            Icons.people_alt,
+          ),
+          // ── مدفوعات ──
+          SubMenuItem('مدفوعات الفواتير', FormNames.payments, Icons.payment),
+          SubMenuItem('سداد الرواتب', FormNames.payrollPayment, Icons.money),
+          SubMenuItem(
+            'رسوم المعاينة',
+            FormNames.inspectionCharge,
+            Icons.fact_check,
+          ),
+        ],
+      ),
 
-    // ═══════════════════════════════════════
-    // 4. الموارد البشرية
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'الموارد البشرية',
-      icon: Icons.people_alt,
-      color: const Color(0xFF9C27B0),
-      children: [
-        SubMenuItem('الموظفين', FormNames.employeesList, Icons.badge),
-        SubMenuItem(' بصمه الموظف', FormNames.empAttendance, Icons.fingerprint),
-        SubMenuItem('جدول مواعيدي', FormNames.myschedule, Icons.calendar_month_rounded),
-        SubMenuItem('إضافة موظف', FormNames.employeesAdd, Icons.person_add),
-        SubMenuItem('طلب اذن', FormNames.myPermissions, Icons.assignment_turned_in),
-        //SubMenuItem('الرواتب الشهرية', FormNames.payroll, Icons.attach_money),
-        //SubMenuItem('العمولات', FormNames.commissions, Icons.percent),
-        //SubMenuItem('البصمة', FormNames.importBiometric, Icons.fingerprint),
-        //SubMenuItem('تسجيل راتب جماعي', FormNames.payrollProcessor, Icons.groups),
-        SubMenuItem('شيفتات الموظفين', FormNames.employeeShifts, Icons.schedule),
-        SubMenuItem('متابعه الحضور والانصراف', FormNames.rpt_empAttendance, Icons.fingerprint),
-        SubMenuItem('متابعة الشيفتات', FormNames.allShifts, Icons.calendar_month),
-        SubMenuItem('استثناءات الموظفين', FormNames.dailyExemptions, Icons.event_busy),
-               
-      ],
-    ),
+      // ═══════════════════════════════════════
+      // 4. الموارد البشرية
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'الموارد البشرية',
+        icon: Icons.people_alt,
+        color: const Color(0xFF9C27B0),
+        children: [
+          SubMenuItem('الموظفين', FormNames.employeesList, Icons.badge),
+          SubMenuItem(
+            ' بصمه الموظف',
+            FormNames.empAttendance,
+            Icons.fingerprint,
+          ),
+          SubMenuItem(
+            'جدول مواعيدي',
+            FormNames.myschedule,
+            Icons.calendar_month_rounded,
+          ),
+          SubMenuItem('إضافة موظف', FormNames.employeesAdd, Icons.person_add),
+          SubMenuItem(
+            'طلب اذن',
+            FormNames.myPermissions,
+            Icons.assignment_turned_in,
+          ),
+          //SubMenuItem('الرواتب الشهرية', FormNames.payroll, Icons.attach_money),
+          //SubMenuItem('العمولات', FormNames.commissions, Icons.percent),
+          //SubMenuItem('البصمة', FormNames.importBiometric, Icons.fingerprint),
+          //SubMenuItem('تسجيل راتب جماعي', FormNames.payrollProcessor, Icons.groups),
+          SubMenuItem(
+            'شيفتات الموظفين',
+            FormNames.employeeShifts,
+            Icons.schedule,
+          ),
+          SubMenuItem(
+            'متابعه الحضور والانصراف',
+            FormNames.rpt_empAttendance,
+            Icons.fingerprint,
+          ),
+          SubMenuItem(
+            'متابعة الشيفتات',
+            FormNames.allShifts,
+            Icons.calendar_month,
+          ),
+          SubMenuItem(
+            'استثناءات الموظفين',
+            FormNames.dailyExemptions,
+            Icons.event_busy,
+          ),
+        ],
+      ),
 
-    // ═══════════════════════════════════════
-    // 5. الخزينة
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'الخزينة',
-      icon: Icons.savings,
-      color: const Color(0xFF009688),
-      children: [
-        SubMenuItem('مؤشرات الخزينة', FormNames.cashBoxDashboard, Icons.analytics),
-        SubMenuItem('سند قبض / صرف', FormNames.cashBoxManual, Icons.receipt),
-        SubMenuItem('حركات الخزينة', FormNames.cashBoxTransaction, Icons.history),
-        SubMenuItem('مدفوعات الفواتير', FormNames.payments, Icons.payment),
-        SubMenuItem('سداد الرواتب', FormNames.payrollPayment, Icons.money),
-        SubMenuItem('رسوم المعاينة', FormNames.inspectionCharge, Icons.fact_check),
-               
-      ],
-    ),
+      // ═══════════════════════════════════════
+      // 5. التقارير
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'التقارير',
+        icon: Icons.analytics,
+        color: const Color(0xFFE91E63),
+        children: [
+          SubMenuItem('لوحة المعلومات', FormNames.dashboard, Icons.dashboard),
+          SubMenuItem(
+            'قائمة الدخل',
+            FormNames.filterIncomeStatement,
+            Icons.bar_chart,
+          ),
+          SubMenuItem(
+            'التدفقات النقدية',
+            FormNames.cashFlowNew,
+            Icons.water_drop,
+          ),
+          SubMenuItem(
+            'مؤشر المصروفات',
+            FormNames.expensesDashboard,
+            Icons.pie_chart,
+          ),
+          SubMenuItem(
+            'مؤشر المبيعات',
+            FormNames.dashboardSales,
+            Icons.show_chart,
+          ),
+          SubMenuItem(
+            'مقارنة المبيعات',
+            FormNames.comparePeriods,
+            Icons.compare_arrows,
+          ),
+          SubMenuItem(
+            'تقرير المصروفات',
+            FormNames.expensesFilter,
+            Icons.filter_list,
+          ),
+          SubMenuItem(
+            'استعلام الرواتب',
+            FormNames.payrollReport,
+            Icons.summarize,
+          ),
+        ],
+      ),
 
-    // ═══════════════════════════════════════
-    // 6. التقارير
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'التقارير',
-      icon: Icons.analytics,
-      color: const Color(0xFFE91E63),
-      children: [
-        SubMenuItem('لوحة المعلومات', FormNames.dashboard, Icons.dashboard),
-        SubMenuItem('قائمة الدخل', FormNames.filterIncomeStatement, Icons.bar_chart),
-        SubMenuItem('التدفقات النقدية', FormNames.cashFlowNew, Icons.water_drop),
-        SubMenuItem('مؤشر المصروفات', FormNames.expensesDashboard, Icons.pie_chart),
-        SubMenuItem('مؤشر المبيعات', FormNames.dashboardSales, Icons.show_chart),
-        SubMenuItem('مقارنة المبيعات', FormNames.comparePeriods, Icons.compare_arrows),
-        SubMenuItem('تقرير المصروفات', FormNames.expensesFilter, Icons.filter_list),
-        SubMenuItem('استعلام الرواتب', FormNames.payrollReport, Icons.summarize),
-      ],
-    ),
+      // ═══════════════════════════════════════
+      // 7. إدارة علاقات العملاء (CRM)
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'إدارة العملاء (CRM)',
+        icon: Icons.handshake,
+        color: const Color(0xFF3F51B5),
+        children: [
+          SubMenuItem('تواصل جديد', FormNames.newInteraction, Icons.add_call),
+          SubMenuItem(
+            'المتابعات (ليدز + CRM)',
+            FormNames.dailyTasks,
+            Icons.event_available,
+          ),
+          SubMenuItem('مهام CRM', FormNames.crmTasksLegacy, Icons.task_alt),
+          SubMenuItem(
+            'متابعة الفرص',
+            FormNames.managerSales,
+            Icons.trending_up,
+          ),
+          SubMenuItem(
+            'مراحل البيع',
+            FormNames.salesPipeline,
+            Icons.filter_list,
+          ),
+          //SubMenuItem('إنشاء عرض سعر', FormNames.newQuotation, Icons.request_quote),
+          //SubMenuItem('سجل التواصلات', FormNames.interactionsLog, Icons.history),
+          SubMenuItem('بطاقة العميل', FormNames.clientCard, Icons.contact_page),
+          SubMenuItem(
+            'الشكاوى',
+            FormNames.complaintsMain,
+            Icons.report_problem,
+          ),
+          SubMenuItem(
+            'لوحة CRM',
+            FormNames.crmDashboard,
+            Icons.dashboard_customize,
+          ),
+          SubMenuItem('My Leads', FormNames.myLeads, Icons.assignment_ind),
+          //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
+          SubMenuItem(
+            'إعدادات CRM',
+            FormNames.adCampaigns,
+            Icons.settings_rounded,
+          ),
+          SubMenuItem(
+            'كل الـ Leads (Meta)',
+            FormNames.leadsCrm,
+            Icons.campaign,
+          ),
+        ],
+      ),
 
-    // ═══════════════════════════════════════
-    // 7. إدارة علاقات العملاء (CRM)
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'إدارة العملاء (CRM)',
-      icon: Icons.handshake,
-      color: const Color(0xFF3F51B5),
-      children: [
-        SubMenuItem('تواصل جديد', FormNames.newInteraction, Icons.add_call),
-        SubMenuItem('المتابعات (ليدز + CRM)', FormNames.dailyTasks, Icons.event_available),
-        SubMenuItem('مهام CRM', FormNames.crmTasksLegacy, Icons.task_alt),
-        SubMenuItem('متابعة الفرص', FormNames.managerSales, Icons.trending_up),
-        SubMenuItem('مراحل البيع', FormNames.salesPipeline, Icons.filter_list),
-        //SubMenuItem('إنشاء عرض سعر', FormNames.newQuotation, Icons.request_quote),
-        //SubMenuItem('سجل التواصلات', FormNames.interactionsLog, Icons.history),
-        SubMenuItem('بطاقة العميل', FormNames.clientCard, Icons.contact_page),
-        SubMenuItem('الشكاوى', FormNames.complaintsMain, Icons.report_problem),
-        SubMenuItem('لوحة CRM', FormNames.crmDashboard, Icons.dashboard_customize),
-        SubMenuItem('My Leads', FormNames.myLeads, Icons.assignment_ind),
-        //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
-        SubMenuItem('إعدادات CRM', FormNames.adCampaigns, Icons.settings_rounded),
-        SubMenuItem('كل الـ Leads (Meta)', FormNames.leadsCrm, Icons.campaign),
-      ],
-    ),
-
-    // ═══════════════════════════════════════
-    // 8. الإدارة والصلاحيات
-    // ═══════════════════════════════════════
-    MenuItem(
-      title: 'الإدارة والصلاحيات',
-      icon: Icons.admin_panel_settings,
-      color: const Color(0xFF607D8B),
-      children: [
-        SubMenuItem('إضافة مستخدم', FormNames.addUser, Icons.person_add),
-        SubMenuItem('جميع المستخدمين', FormNames.allUsers, Icons.people),
-        SubMenuItem('إضافة صلاحية', FormNames.addPermission, Icons.add_moderator),
-        SubMenuItem('إدارة الصلاحيات', FormNames.managePermissions, Icons.lock),
-        SubMenuItem('متابعة النظام', FormNames.auditViewer, Icons.visibility),
-      ],
-    ),
-  ];
-}
+      // ═══════════════════════════════════════
+      // 8. الإدارة والصلاحيات
+      // ═══════════════════════════════════════
+      MenuItem(
+        title: 'الإدارة والصلاحيات',
+        icon: Icons.admin_panel_settings,
+        color: const Color(0xFF607D8B),
+        children: [
+          SubMenuItem('إضافة مستخدم', FormNames.addUser, Icons.person_add),
+          SubMenuItem('جميع المستخدمين', FormNames.allUsers, Icons.people),
+          SubMenuItem(
+            'إضافة صلاحية',
+            FormNames.addPermission,
+            Icons.add_moderator,
+          ),
+          SubMenuItem(
+            'إدارة الصلاحيات',
+            FormNames.managePermissions,
+            Icons.lock,
+          ),
+          SubMenuItem('متابعة النظام', FormNames.auditViewer, Icons.visibility),
+          SubMenuItem(
+            '📢 إشعار عام (بث)',
+            FormNames.broadcastNotification,
+            Icons.campaign_rounded,
+          ),
+        ],
+      ),
+    ];
+  }
 }

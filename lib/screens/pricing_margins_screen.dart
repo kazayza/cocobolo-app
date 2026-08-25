@@ -27,6 +27,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
   List<dynamic> marginsHistory = [];
 
   // Controllers
+  final _cclassController = TextEditingController();
   final _premiumController = TextEditingController();
   final _eliteController = TextEditingController();
   final _reasonController = TextEditingController();
@@ -39,6 +40,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
 
   @override
   void dispose() {
+    _cclassController.dispose();
     _premiumController.dispose();
     _eliteController.dispose();
     _reasonController.dispose();
@@ -69,6 +71,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
         setState(() {
           currentMargins = margins;
           marginsHistory = history;
+          _cclassController.text = (margins?['CClassMargin'] ?? 40).toString();
           _premiumController.text = (margins?['PremiumMargin'] ?? 60).toString();
           _eliteController.text = (margins?['EliteMargin'] ?? 65).toString();
           _isLoading = false;
@@ -85,14 +88,15 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
   }
 
   Future<void> _saveMargins() async {
+    final cclass = double.tryParse(_cclassController.text);
     final premium = double.tryParse(_premiumController.text);
     final elite = double.tryParse(_eliteController.text);
 
-    if (premium == null || elite == null) {
+    if (cclass == null || premium == null || elite == null) {
       _showError('يرجى إدخال نسب صحيحة');
       return;
     }
-    if (premium <= 0 || elite <= 0) {
+    if (cclass <= 0 || premium <= 0 || elite <= 0) {
       _showError('النسب يجب أن تكون أكبر من صفر');
       return;
     }
@@ -130,6 +134,8 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
               ),
               child: Column(
                 children: [
+                  _buildConfirmRow('Standard', '${currentMargins?['CClassMargin'] ?? 0}%', '$cclass%'),
+                  const SizedBox(height: 8),
                   _buildConfirmRow('Premium', '${currentMargins?['PremiumMargin'] ?? 0}%', '$premium%'),
                   const SizedBox(height: 8),
                   _buildConfirmRow('Elite', '${currentMargins?['EliteMargin'] ?? 0}%', '$elite%'),
@@ -169,6 +175,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
         Uri.parse('$baseUrl/api/pricing/margins'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
+          'cClassMargin': cclass,
           'premiumMargin': premium,
           'eliteMargin': elite,
           'reason': _reasonController.text.isNotEmpty ? _reasonController.text : null,
@@ -298,6 +305,15 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
+              // Standard
+              Expanded(
+                child: _buildMarginDisplay(
+                  'Standard',
+                  '${currentMargins?['CClassMargin'] ?? 0}%',
+                  const Color(0xFF42A5F5),
+                ),
+              ),
+              const SizedBox(width: 16),
               // Premium
               Expanded(
                 child: _buildMarginDisplay(
@@ -375,9 +391,17 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           ),
           const SizedBox(height: 20),
 
-          // نسبة Premium
+          // نسبة Standard + Premium
           Row(
             children: [
+              Expanded(
+                child: _buildMarginInput(
+                  controller: _cclassController,
+                  label: 'نسبة ربح Standard %',
+                  color: const Color(0xFF42A5F5),
+                ),
+              ),
+              const SizedBox(width: 16),
               Expanded(
                 child: _buildMarginInput(
                   controller: _premiumController,
@@ -385,7 +409,13 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                   color: const Color(0xFFFFD700),
                 ),
               ),
-              const SizedBox(width: 16),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // نسبة Elite
+          Row(
+            children: [
               Expanded(
                 child: _buildMarginInput(
                   controller: _eliteController,
@@ -393,6 +423,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                   color: Colors.greenAccent,
                 ),
               ),
+              const Expanded(child: SizedBox()),
             ],
           ),
 
@@ -577,6 +608,16 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           // النسب
           Row(
             children: [
+              // Standard
+              Expanded(
+                child: _buildHistoryMargin(
+                  'Standard',
+                  record['PreviousCClass'],
+                  record['CClassMargin'],
+                  const Color(0xFF42A5F5),
+                ),
+              ),
+              const SizedBox(width: 12),
               // Premium
               Expanded(
                 child: _buildHistoryMargin(

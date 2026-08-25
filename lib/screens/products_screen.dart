@@ -27,6 +27,8 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   List<dynamic> products = [];
   List<dynamic> productGroups = [];
+  List<dynamic> pricingStatuses = [];
+  Map<String, dynamic> productStats = {};
   bool loading = true;
   
   // للبحث والفلتر
@@ -34,10 +36,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
   int? selectedGroupId;
   String searchQuery = '';
 
+  // فلاتر جديدة (مطابقة لبلازور)
+  int? selectedStatusId;          // فلتر الحالة (PricingStatusID)
+  String ownershipFilter = 'all'; // all / showroom / linked
+  String pricedFilter = 'all';    // all / priced / unpriced
+
   @override
   void initState() {
     super.initState();
     fetchProductGroups();
+    fetchPricingStatuses();
+    fetchStats();
     fetchProducts();
   }
 
@@ -75,7 +84,48 @@ Future<void> fetchProductGroups() async {
   }
 }
 
-  // جلب المنتجات
+  // جلب إحصائيات المنتجات
+  Future<void> fetchStats() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/products/stats'));
+      if (res.statusCode == 200) {
+        setState(() {
+          productStats = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      print('Error fetching stats: $e');
+    }
+  }
+
+  // جلب حالات التسعير (للفلتر)
+  Future<void> fetchPricingStatuses() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/products/pricing-statuses'));
+      if (res.statusCode == 200) {
+        setState(() {
+          pricingStatuses = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      print('Error fetching pricing statuses: $e');
+    }
+  }
+
+  // إعادة تعيين كل الفلاتر
+  void clearAllFilters() {
+    setState(() {
+      selectedGroupId = null;
+      selectedStatusId = null;
+      ownershipFilter = 'all';
+      pricedFilter = 'all';
+      _searchController.clear();
+      searchQuery = '';
+    });
+    fetchProducts();
+  }
+
+  // جلب المنتجات (بحث + مجموعة + حالة + ملكية + مسعرة)
 Future<void> fetchProducts() async {
   setState(() => loading = true);
   
@@ -86,8 +136,18 @@ Future<void> fetchProducts() async {
       url += 'search=${Uri.encodeComponent(searchQuery)}&';
     }
     if (selectedGroupId != null) {
-      url += 'groupId=$selectedGroupId';
+      url += 'groupId=$selectedGroupId&';
     }
+    if (selectedStatusId != null) {
+      url += 'statusId=$selectedStatusId&';
+    }
+    if (ownershipFilter != 'all') {
+      url += 'ownership=$ownershipFilter&';
+    }
+    if (pricedFilter != 'all') {
+      url += 'priced=$pricedFilter&';
+    }
+    url = url.substring(0, url.length - 1); // شيل آخر &
 
     print('📡 Fetching products from: $url');
 
@@ -483,9 +543,198 @@ Future<void> fetchProducts() async {
               ),
             ),
           ),
+
+          const SizedBox(height: 10),
+
+          // ── فلتر الحالة + الملكية (صف واحد) ──
+          Row(
+            children: [
+              Expanded(
+                child: _filterDropdown(
+                  value: selectedStatusId,
+                  hint: 'كل الحالات',
+                  icon: Icons.flag_rounded,
+                  items: [
+                    DropdownMenuItem<int?>(value: null, child: Text('كل الحالات', style: GoogleFonts.cairo(color: Colors.white))),
+                    ...pricingStatuses.map((s) => DropdownMenuItem<int?>(
+                      value: (s['PricingStatusID'] as num?)?.toInt(),
+                      child: Text(_statusName(s['StatusName']?.toString()), style: GoogleFonts.cairo(color: Colors.white)),
+                    )),
+                  ],
+                  onChanged: (v) {
+                    setState(() => selectedStatusId = v);
+                    fetchProducts();
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _filterDropdown(
+                  value: ownershipFilter,
+                  hint: 'كل المنتجات',
+                  icon: Icons.store_rounded,
+                  items: [
+                    DropdownMenuItem<String>(value: 'all', child: Text('كل المنتجات', style: GoogleFonts.cairo(color: Colors.white))),
+                    DropdownMenuItem<String>(value: 'showroom', child: Text('منتجات المعرض (${productStats['showroom'] ?? 0})', style: GoogleFonts.cairo(color: Colors.white))),
+                    DropdownMenuItem<String>(value: 'linked', child: Text('مرتبطة بعميل (${productStats['linked'] ?? 0})', style: GoogleFonts.cairo(color: Colors.white))),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => ownershipFilter = v);
+                    fetchProducts();
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // ── فلتر المسعرة/غير المسعرة (شرائح) ──
+          Row(
+            children: [
+              _statChip('الكل', productStats['total'] ?? 0, pricedFilter == 'all', () {
+                setState(() => pricedFilter = 'all');
+                fetchProducts();
+              }),
+              const SizedBox(width: 8),
+              _statChip('مسعرة', productStats['priced'] ?? 0, pricedFilter == 'priced', () {
+                setState(() => pricedFilter = 'priced');
+                fetchProducts();
+              }),
+              const SizedBox(width: 8),
+              _statChip('غير مسعرة', productStats['unpriced'] ?? 0, pricedFilter == 'unpriced', () {
+                setState(() => pricedFilter = 'unpriced');
+                fetchProducts();
+              }),
+            ],
+          ),
         ],
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0);
+  }
+
+  // قائمة منسدلة موحدة للفلاتر
+  Widget _filterDropdown<T>({
+    required T? value,
+    required String hint,
+    required IconData icon,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          hint: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: const Color(0xFFFFD700)),
+              const SizedBox(width: 6),
+              Flexible(child: Text(hint, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+          dropdownColor: const Color(0xFF1A1A1A),
+          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFFFD700)),
+          items: items,
+          onChanged: onChanged,
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  // شريحة إحصائية (مسعرة/غير مسعرة/الكل)
+  Widget _statChip(String label, int count, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: active
+                ? const Color(0xFFFFD700).withOpacity(0.15)
+                : Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active
+                  ? const Color(0xFFFFD700).withOpacity(0.5)
+                  : Colors.white.withOpacity(0.1),
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(
+                '$count',
+                style: GoogleFonts.cairo(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: active ? const Color(0xFFFFD700) : Colors.white,
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.cairo(
+                  fontSize: 10.5,
+                  color: active ? const Color(0xFFFFD700) : Colors.white54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ترجمة اسم الحالة من الإنجليزي للعربي
+  String _statusName(String? name) {
+    switch (name) {
+      case 'Draft': return 'مسودة';
+      case 'WaitingForPricing': return 'بانتظار التسعير';
+      case 'Priced': return 'تم التسعير';
+      case 'PriceChangeRequested': return 'طلب تعديل سعر';
+      case 'PriceApproved': return 'تمت الموافقة';
+      case 'PriceRejected': return 'مرفوض';
+      case 'SalePriceChangeRequested': return 'طلب تعديل سعر بيع';
+      case 'CostChangeRequested': return 'طلب تعديل تكلفة';
+      default: return name ?? '—';
+    }
+  }
+
+  // شارة الحالة في كارت المنتج (بلون حسب الحالة)
+  Widget _statusBadge(String? statusName) {
+    Color color;
+    switch (statusName) {
+      case 'Draft': color = const Color(0xFF9E9E9E); break;
+      case 'WaitingForPricing': color = const Color(0xFFFF9800); break;
+      case 'Priced': color = const Color(0xFF4CAF50); break;
+      case 'PriceChangeRequested': color = const Color(0xFF2196F3); break;
+      case 'PriceApproved': color = const Color(0xFF00BCD4); break;
+      case 'PriceRejected': color = const Color(0xFFF44336); break;
+      default: color = const Color(0xFF9E9E9E);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        _statusName(statusName),
+        style: GoogleFonts.cairo(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -542,19 +791,24 @@ Future<void> fetchProducts() async {
     final saleOnly = permService.canSeeSaleOnlyProductPricing ||
         permService.canSeeFullProductPricing;
 
-    final cost = product['PurchasePrice'] ?? 0;
-    final sale = product['SuggestedSalePrice'] ?? 0;
-
-    String priceTitle;
-    dynamic priceValue;
-
-    if (costOnly) {
-      priceTitle = 'سعر التكلفة';
-      priceValue = cost;
-    } else {
-      priceTitle = 'سعر البيع';
-      priceValue = sale;
-    }
+    // الباقات الثلاثة (Standard = CClass / Premium = الأساسي / Elite)
+    final Map<String, dynamic> packages = {
+      'Standard': {
+        'cost': product['PurchasePriceCClass'] ?? 0,
+        'sale': product['SuggestedSalePriceCClass'] ?? 0,
+        'color': const Color(0xFF42A5F5),
+      },
+      'Premium': {
+        'cost': product['PurchasePrice'] ?? 0,
+        'sale': product['SuggestedSalePrice'] ?? 0,
+        'color': const Color(0xFFFFD700),
+      },
+      'Elite': {
+        'cost': product['PurchasePriceElite'] ?? 0,
+        'sale': product['SuggestedSalePriceElite'] ?? 0,
+        'color': Colors.greenAccent,
+      },
+    };
 
     return Card(
       color: Colors.white.withOpacity(0.08),
@@ -596,16 +850,26 @@ Future<void> fetchProducts() async {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // اسم المنتج
-                    Text(
-                      product['ProductName'] ?? 'بدون اسم',
-                      style: GoogleFonts.cairo(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // اسم المنتج + شارة الحالة
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product['ProductName'] ?? 'بدون اسم',
+                            style: GoogleFonts.cairo(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (product['PricingStatusName'] != null) ...[
+                          const SizedBox(width: 6),
+                          _statusBadge(product['PricingStatusName']?.toString()),
+                        ],
+                      ],
                     ),
 
                     const SizedBox(height: 6),
@@ -656,35 +920,63 @@ Future<void> fetchProducts() async {
 
                     const SizedBox(height: 8),
 
-                    // السعر (حسب نوع المستخدم)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            priceTitle,
-                            style: GoogleFonts.cairo(
-                              color: Colors.grey[300],
-                              fontSize: 11,
+                    // أسعار الباقات الثلاثة (Standard / Premium / Elite)
+                    // — المصنع يشوف التكلفة، والباقي يشوف سعر البيع
+                    Row(
+                      children: packages.entries.map((entry) {
+                        final pkg = entry.value;
+                        final pkgCost = pkg['cost'] ?? 0;
+                        final pkgSale = pkg['sale'] ?? 0;
+                        final pkgColor = pkg['color'] as Color;
+
+                        // نخفي الباقة لو القيمتين صفر (مفيش بيانات)
+                        final hasData =
+                            (pkgCost is num ? pkgCost : 0) != 0 ||
+                            (pkgSale is num ? pkgSale : 0) != 0;
+                        if (!hasData) return const SizedBox.shrink();
+
+                        final displayValue = costOnly ? pkgCost : pkgSale;
+
+                        return Expanded(
+                          child: Container(
+                            margin: const EdgeInsets.only(left: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: pkgColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: pkgColor.withOpacity(0.35),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.key,
+                                  style: GoogleFonts.cairo(
+                                    color: pkgColor,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${_formatNumber(displayValue)} ج.م',
+                                    style: GoogleFonts.cairo(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_formatNumber(priceValue)} ج.م',
-                            style: GoogleFonts.cairo(
-                              color: const Color(0xFFFFD700),
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -725,7 +1017,7 @@ Future<void> fetchProducts() async {
         borderRadius: BorderRadius.circular(12),
         child: mainImageId != null
             ? Image.network(
-                '$baseUrl/api/product-images/$mainImageId',
+                '$baseUrl/api/product-image-by-id/$mainImageId',
                 fit: BoxFit.cover,
                 // Placeholder أثناء التحميل
                 loadingBuilder: (context, child, loadingProgress) {

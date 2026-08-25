@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../constants.dart';
 import '../models/complaint_model.dart';
 
@@ -13,6 +14,11 @@ class ComplaintsService {
     int? typeId,
     int? assignedTo,
     bool? escalated,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+    bool? openOnly,
+    int? partyId,
   }) async {
     try {
       // بناء الـ Query Parameters
@@ -23,6 +29,13 @@ class ComplaintsService {
       if (typeId != null) queryParams['typeId'] = typeId.toString();
       if (assignedTo != null) queryParams['assignedTo'] = assignedTo.toString();
       if (escalated != null) queryParams['escalated'] = escalated.toString();
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      if (dateFrom != null && dateFrom.isNotEmpty) queryParams['dateFrom'] = dateFrom;
+      if (dateTo != null && dateTo.isNotEmpty) queryParams['dateTo'] = dateTo;
+      if (openOnly == true) queryParams['openOnly'] = 'true';
+      if (partyId != null) queryParams['partyId'] = partyId.toString();
 
       String queryString = '';
       if (queryParams.isNotEmpty) {
@@ -320,6 +333,121 @@ class ComplaintsService {
   // ===================================
 // البحث عن عملاء
 // ===================================
+  // ===================================
+  // 📊 إحصائيات الشكاوى
+  // ===================================
+  static Future<Map<String, dynamic>> getComplaintStats({
+    int? status,
+    int? priority,
+    int? typeId,
+    int? assignedTo,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    try {
+      final params = <String, String>{};
+      if (status != null) params['status'] = '$status';
+      if (priority != null) params['priority'] = '$priority';
+      if (typeId != null) params['typeId'] = '$typeId';
+      if (assignedTo != null) params['assignedTo'] = '$assignedTo';
+      if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+      if (dateFrom != null && dateFrom.isNotEmpty) params['dateFrom'] = dateFrom;
+      if (dateTo != null && dateTo.isNotEmpty) params['dateTo'] = dateTo;
+
+      final uri = Uri.parse('$baseUrl/api/complaints/stats')
+          .replace(queryParameters: params.isEmpty ? null : params);
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['data'] is Map) {
+          return Map<String, dynamic>.from(body['data'] as Map);
+        }
+      }
+      return {};
+    } catch (e) {
+      print('❌ خطأ في جلب إحصائيات الشكاوى: $e');
+      return {};
+    }
+  }
+
+  // ===================================
+  // 👤 إسناد شكوى لموظف
+  // ===================================
+  static Future<bool> assignComplaint({
+    required int complaintId,
+    int? assignedTo,
+    String? updatedBy,
+  }) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/complaints/$complaintId/assign'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'assignedTo': assignedTo,
+          'updatedBy': updatedBy,
+        }),
+      );
+      final body = jsonDecode(res.body);
+      return body is Map && body['success'] == true;
+    } catch (e) {
+      print('❌ خطأ في إسناد الشكوى: $e');
+      return false;
+    }
+  }
+
+  // ===================================
+  // 🔄 تغيير حالة الشكوى (مع الحل)
+  // ===================================
+  static Future<bool> changeStatus({
+    required int complaintId,
+    required int newStatus,
+    String? solution,
+    String? updatedBy,
+  }) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/complaints/$complaintId/status'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'newStatus': newStatus,
+          'solution': solution,
+          'updatedBy': updatedBy,
+        }),
+      );
+      final body = jsonDecode(res.body);
+      return body is Map && body['success'] == true;
+    } catch (e) {
+      print('❌ خطأ في تغيير حالة الشكوى: $e');
+      return false;
+    }
+  }
+
+  // ===================================
+  // ⭐ تقييم رضا العميل
+  // ===================================
+  static Future<bool> rateComplaint({
+    required int complaintId,
+    required int satisfactionLevel,
+    String? updatedBy,
+  }) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/complaints/$complaintId/rate'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'satisfactionLevel': satisfactionLevel,
+          'updatedBy': updatedBy,
+        }),
+      );
+      final body = jsonDecode(res.body);
+      return body is Map && body['success'] == true;
+    } catch (e) {
+      print('❌ خطأ في تسجيل التقييم: $e');
+      return false;
+    }
+  }
+
 static Future<List<Map<String, dynamic>>> searchClients(String query) async {
   try {
     final response = await http.get(
@@ -356,6 +484,92 @@ static Future<List<Map<String, dynamic>>> getActiveEmployees() async {
   } catch (e) {
     print('❌ خطأ في جلب الموظفين: $e');
     return [];
+  }
+}
+
+// ═══════════════════════════════════════════
+// 📎 المرفقات (صور / مستندات)
+// ═══════════════════════════════════════════
+
+// رابط تشغيل/تحميل المرفق
+static String attachmentUrl(int attachmentId) =>
+    '$baseUrl/api/complaints/attachments/$attachmentId/file';
+
+// جلب مرفقات شكوى
+static Future<List<ComplaintAttachmentModel>> getAttachments(int complaintId) async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/complaints/$complaintId/attachments'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((e) => ComplaintAttachmentModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (e) {
+    print('❌ خطأ في جلب المرفقات: $e');
+    return [];
+  }
+}
+
+// رفع مرفق (ملتيميبارت — نفس قيود بلازور: 10MB + الصيغ المسموحة)
+static Future<int?> uploadAttachment(
+  int complaintId, {
+  required String fileName,
+  required List<int> bytes,
+  required String mimeType,
+  int? uploadedByUserId,
+}) async {
+  try {
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw Exception('الحجم يتجاوز 10 ميجا');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/complaints/$complaintId/attachments'),
+    );
+    request.files.add(http.MultipartFile.fromBytes('file', bytes,
+        filename: fileName, contentType: MediaType.parse(mimeType)));
+    if (uploadedByUserId != null) {
+      request.fields['uploadedByUserId'] = uploadedByUserId.toString();
+    }
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['attachmentId'];
+    } else {
+      print('❌ فشل الرفع: ${response.body}');
+      return null;
+    }
+  } catch (e) {
+    print('❌ خطأ في رفع المرفق: $e');
+    rethrow;
+  }
+}
+
+// حذف مرفق
+static Future<bool> deleteAttachment(int complaintId, int attachmentId) async {
+  try {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/complaints/$complaintId/attachments/$attachmentId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    }
+    return false;
+  } catch (e) {
+    print('❌ خطأ في حذف المرفق: $e');
+    return false;
   }
 }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -122,10 +123,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         search: _searchCtrl.text.trim(),
         limit: 200,
       ),
-      FollowUpsService.getSummary(
-        employeeId: _employeeId,
-        source: _source,
-      ),
+      FollowUpsService.getSummary(employeeId: _employeeId, source: _source),
     ]);
     if (!mounted) return;
     final data = results[0];
@@ -200,16 +198,19 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     final id = itemId is int ? itemId : int.tryParse('$itemId');
     if (id == null) return;
     setState(() => _busy = true);
-    final ok =
-        await FollowUpsService.completeLeadFollowUp(id, widget.username);
+    final ok = await FollowUpsService.completeLeadFollowUp(id, widget.username);
     setState(() => _busy = false);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'تم إنهاء متابعة الـ Lead' : 'تعذّر الإنهاء',
-          style: GoogleFonts.cairo()),
-      backgroundColor: ok ? Colors.green.shade700 : Colors.red,
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'تم إنهاء متابعة الـ Lead' : 'تعذّر الإنهاء',
+          style: GoogleFonts.cairo(),
+        ),
+        backgroundColor: ok ? Colors.green.shade700 : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     if (ok) _load();
   }
 
@@ -245,8 +246,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0f172a) : const Color(0xFFF4F7FB),
+        backgroundColor: _isDark
+            ? const Color(0xFF0f172a)
+            : const Color(0xFFF4F7FB),
         body: Stack(
           children: [
             NestedScrollView(
@@ -256,17 +258,17 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   expandedHeight: 168,
                   backgroundColor: AppColors.navy,
                   foregroundColor: Colors.white,
-                  title: Text('متابعاتي',
-                      style: GoogleFonts.cairo(fontWeight: FontWeight.w900)),
+                  title: Text(
+                    'متابعاتي',
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.w900),
+                  ),
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.refresh_rounded),
                       onPressed: _loading ? null : _load,
                     ),
                   ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: _buildHeader(),
-                  ),
+                  flexibleSpace: FlexibleSpaceBar(background: _buildHeader()),
                 ),
                 // KPI strip
                 SliverToBoxAdapter(child: _buildKpiStrip()),
@@ -275,37 +277,40 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               ],
               body: _loading
                   ? Center(
-                      child: CircularProgressIndicator(color: AppColors.gold))
+                      child: CircularProgressIndicator(color: AppColors.gold),
+                    )
                   : _items.isEmpty
-                      ? _emptyState()
-                      : RefreshIndicator(
-                          color: AppColors.gold,
-                          onRefresh: _load,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
-                            itemCount: _items.length,
-                            itemBuilder: (_, i) {
-                              final raw = _items[i];
-                              final item = raw is Map
-                                  ? Map<String, dynamic>.from(raw)
-                                  : <String, dynamic>{};
-                              return _FollowUpCard(
-                                item: item,
-                                isDark: _isDark,
-                                formatDate: _fmtDate,
-                                onOpen: () => _open(item),
-                                onCall: () => _call(
-                                    '${item['phone'] ?? item['Phone'] ?? ''}'),
-                                onWa: () => _wa(
-                                    '${item['phone'] ?? item['Phone'] ?? ''}'),
-                                onCompleteLead: (item['isLeadTask'] == true ||
-                                        '${item['itemType']}' == 'lead')
-                                    ? () => _completeLead(item)
-                                    : null,
-                              );
-                            },
-                          ),
-                        ),
+                  ? _emptyState()
+                  : RefreshIndicator(
+                      color: AppColors.gold,
+                      onRefresh: _load,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+                        itemCount: _items.length,
+                        itemBuilder: (_, i) {
+                          final raw = _items[i];
+                          final item = raw is Map
+                              ? Map<String, dynamic>.from(raw)
+                              : <String, dynamic>{};
+                          return _FollowUpCard(
+                            item: item,
+                            isDark: _isDark,
+                            formatDate: _fmtDate,
+                            onOpen: () => _open(item),
+                            onCall: () => _call(
+                              '${item['phone'] ?? item['Phone'] ?? ''}',
+                            ),
+                            onWa: () =>
+                                _wa('${item['phone'] ?? item['Phone'] ?? ''}'),
+                            onCompleteLead:
+                                (item['isLeadTask'] == true ||
+                                    '${item['itemType']}' == 'lead')
+                                ? () => _completeLead(item)
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
             ),
             if (_busy)
               Container(
@@ -334,16 +339,20 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('إدارة متابعات الليدز والعملاء',
-                  style: GoogleFonts.cairo(
-                      color: Colors.white70, fontSize: 12)),
+              Text(
+                'إدارة متابعات الليدز والعملاء',
+                style: GoogleFonts.cairo(color: Colors.white70, fontSize: 12),
+              ),
               const SizedBox(height: 6),
               Row(
                 children: [
                   _headerStat('ليدز', _kpi('leads'), const Color(0xFFF472B6)),
                   const SizedBox(width: 10),
                   _headerStat(
-                      'عملاء/فرص', _kpi('clients'), const Color(0xFF60A5FA)),
+                    'عملاء/فرص',
+                    _kpi('clients'),
+                    const Color(0xFF60A5FA),
+                  ),
                   const SizedBox(width: 10),
                   _headerStat('الإجمالي', _kpi('total'), AppColors.gold),
                 ],
@@ -367,11 +376,18 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$n',
-                style: GoogleFonts.cairo(
-                    color: c, fontSize: 18, fontWeight: FontWeight.w900)),
-            Text(label,
-                style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10)),
+            Text(
+              '$n',
+              style: GoogleFonts.cairo(
+                color: c,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            Text(
+              label,
+              style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10),
+            ),
           ],
         ),
       ),
@@ -413,16 +429,17 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       color: sel
                           ? color
                           : (_isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFE2E8F0)),
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFE2E8F0)),
                       width: sel ? 1.6 : 1,
                     ),
                     boxShadow: sel
                         ? [
                             BoxShadow(
-                                color: color.withOpacity(0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4))
+                              color: color.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
                           ]
                         : null,
                   ),
@@ -431,16 +448,24 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     children: [
                       Icon(icon, size: 18, color: color),
                       const SizedBox(height: 6),
-                      Text('$count',
-                          style: GoogleFonts.cairo(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: _isDark ? Colors.white : const Color(0xFF0f172a))),
-                      Text(label,
-                          style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: color)),
+                      Text(
+                        '$count',
+                        style: GoogleFonts.cairo(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: _isDark
+                              ? Colors.white
+                              : const Color(0xFF0f172a),
+                        ),
+                      ),
+                      Text(
+                        label,
+                        style: GoogleFonts.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -506,7 +531,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 12),
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: _employeeId != null
                           ? const Color(0xFF059669).withOpacity(0.12)
@@ -516,17 +543,19 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                         color: _employeeId != null
                             ? const Color(0xFF059669)
                             : (_isDark
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE2E8F0)),
+                                  ? const Color(0xFF334155)
+                                  : const Color(0xFFE2E8F0)),
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.badge_outlined,
-                            size: 18,
-                            color: _employeeId != null
-                                ? const Color(0xFF059669)
-                                : const Color(0xFF64748B)),
+                        Icon(
+                          Icons.badge_outlined,
+                          size: 18,
+                          color: _employeeId != null
+                              ? const Color(0xFF059669)
+                              : const Color(0xFF64748B),
+                        ),
                         const SizedBox(width: 6),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 90),
@@ -535,7 +564,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.cairo(
-                                fontSize: 11, fontWeight: FontWeight.w700),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -571,8 +602,8 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               color: sel
                   ? AppColors.navy
                   : (_isDark
-                      ? const Color(0xFF334155)
-                      : const Color(0xFFE2E8F0)),
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0)),
             ),
           ),
           child: Center(
@@ -606,14 +637,20 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 10),
-            Text('تقويم / فلتر الموظف',
-                style: GoogleFonts.cairo(
-                    fontWeight: FontWeight.w900, fontSize: 16)),
+            Text(
+              'تقويم / فلتر الموظف',
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+              ),
+            ),
             ListTile(
               title: Text('كل الموظفين', style: GoogleFonts.cairo()),
-              leading: Icon(_employeeId == null
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked),
+              leading: Icon(
+                _employeeId == null
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _employeeId = null);
@@ -630,17 +667,23 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   final idInt = id is int ? id : int.tryParse('$id');
                   final sel = idInt == _employeeId;
                   return ListTile(
-                    title: Text('${e['FullName']}',
-                        style: GoogleFonts.cairo(
-                            fontWeight:
-                                sel ? FontWeight.w800 : FontWeight.w600)),
+                    title: Text(
+                      '${e['FullName']}',
+                      style: GoogleFonts.cairo(
+                        fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
                     subtitle: e['Department'] != null
-                        ? Text('${e['Department']}',
-                            style: GoogleFonts.cairo(fontSize: 11))
+                        ? Text(
+                            '${e['Department']}',
+                            style: GoogleFonts.cairo(fontSize: 11),
+                          )
                         : null,
-                    leading: Icon(sel
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked),
+                    leading: Icon(
+                      sel
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
                     onTap: () {
                       Navigator.pop(ctx);
                       setState(() => _employeeId = idInt);
@@ -670,17 +713,28 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_available_rounded,
-                size: 64, color: AppColors.textSecondary(_isDark)),
+            Icon(
+              Icons.event_available_rounded,
+              size: 64,
+              color: AppColors.textSecondary(_isDark),
+            ),
             const SizedBox(height: 14),
-            Text(msg,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(
-                    fontSize: 15, fontWeight: FontWeight.w800)),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.cairo(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('غيّر التبويب أو الفلتر لعرض المزيد',
-                style: GoogleFonts.cairo(
-                    fontSize: 12, color: AppColors.textSecondary(_isDark))),
+            Text(
+              'غيّر التبويب أو الفلتر لعرض المزيد',
+              style: GoogleFonts.cairo(
+                fontSize: 12,
+                color: AppColors.textSecondary(_isDark),
+              ),
+            ),
           ],
         ),
       ),
@@ -794,20 +848,26 @@ class _FollowUpCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: _accent,
                   borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(18)),
+                    top: Radius.circular(18),
+                  ),
                 ),
               ),
               if (overdue)
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   color: const Color(0xFFEF4444).withOpacity(0.08),
-                  child: Text('⚠️ $_bucketLabel — يحتاج إجراء الآن',
-                      style: GoogleFonts.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFFB91C1C))),
+                  child: Text(
+                    '⚠️ $_bucketLabel — يحتاج إجراء الآن',
+                    style: GoogleFonts.cairo(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFB91C1C),
+                    ),
+                  ),
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -818,60 +878,77 @@ class _FollowUpCard extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: _accent.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: _accent.withOpacity(0.25)),
+                            border: Border.all(
+                              color: _accent.withOpacity(0.25),
+                            ),
                           ),
                           child: Text(
                             _isLead ? '📣 متابعة Lead' : '👤 متابعة عميل',
                             style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: _accent),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: _accent,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: _bucketColor.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(_bucketLabel,
-                              style: GoogleFonts.cairo(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: _bucketColor)),
+                          child: Text(
+                            _bucketLabel,
+                            style: GoogleFonts.cairo(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: _bucketColor,
+                            ),
+                          ),
                         ),
                         const Spacer(),
-                        Text(formatDate(item['followUpDate']),
-                            style: GoogleFonts.cairo(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF64748B))),
+                        Text(
+                          formatDate(item['followUpDate']),
+                          style: GoogleFonts.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(client,
-                        style: GoogleFonts.cairo(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0F172A))),
+                    Text(
+                      client,
+                      style: GoogleFonts.cairo(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
                     if (title.isNotEmpty && title != client)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.cairo(
-                                fontSize: 12,
-                                color: const Color(0xFF64748B),
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            fontSize: 12,
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -880,15 +957,18 @@ class _FollowUpCard extends StatelessWidget {
                       children: [
                         if (phone.isNotEmpty) _chip(Icons.phone, phone),
                         if (emp.isNotEmpty) _chip(Icons.person_outline, emp),
-                        if (status.isNotEmpty) _chip(Icons.flag_outlined, status),
+                        if (status.isNotEmpty)
+                          _chip(Icons.flag_outlined, status),
                         if (city.isNotEmpty) _chip(Icons.location_city, city),
                         if (best.isNotEmpty)
-                          _chip(Icons.access_time_filled, 'أفضل وقت: $best',
-                              highlight: true),
+                          _chip(
+                            Icons.access_time_filled,
+                            'أفضل وقت: $best',
+                            highlight: true,
+                          ),
                         if (campaign.isNotEmpty)
                           _chip(Icons.campaign, campaign),
-                        if (platform.isNotEmpty)
-                          _chip(Icons.public, platform),
+                        if (platform.isNotEmpty) _chip(Icons.public, platform),
                         if (subType.isNotEmpty)
                           _chip(Icons.label_outline, subType),
                       ],
@@ -900,21 +980,31 @@ class _FollowUpCard extends StatelessWidget {
                           _iconBtn(Icons.phone_rounded, Colors.green, onCall),
                           const SizedBox(width: 6),
                           _iconBtn(
-                              Icons.chat_rounded, const Color(0xFF25D366), onWa),
+                            FontAwesomeIcons.whatsapp.data,
+                            const Color(0xFF25D366),
+                            onWa,
+                          ),
                           const SizedBox(width: 6),
                         ],
                         if (onCompleteLead != null) ...[
-                          _iconBtn(Icons.done_all_rounded, Colors.teal,
-                              onCompleteLead!),
+                          _iconBtn(
+                            Icons.done_all_rounded,
+                            Colors.teal,
+                            onCompleteLead!,
+                          ),
                           const SizedBox(width: 6),
                         ],
                         const Spacer(),
                         TextButton.icon(
                           onPressed: onOpen,
                           icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                          label: Text('فتح',
-                              style: GoogleFonts.cairo(
-                                  fontSize: 12, fontWeight: FontWeight.w800)),
+                          label: Text(
+                            'فتح',
+                            style: GoogleFonts.cairo(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -946,23 +1036,27 @@ class _FollowUpCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 12,
-              color: highlight
-                  ? const Color(0xFF2563EB)
-                  : const Color(0xFF94A3B8)),
+          Icon(
+            icon,
+            size: 12,
+            color: highlight
+                ? const Color(0xFF2563EB)
+                : const Color(0xFF94A3B8),
+          ),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.cairo(
-                    fontSize: 10.5,
-                    fontWeight:
-                        highlight ? FontWeight.w800 : FontWeight.w600,
-                    color: highlight
-                        ? const Color(0xFF1D4ED8)
-                        : const Color(0xFF64748B))),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.cairo(
+                fontSize: 10.5,
+                fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                color: highlight
+                    ? const Color(0xFF1D4ED8)
+                    : const Color(0xFF64748B),
+              ),
+            ),
           ),
         ],
       ),

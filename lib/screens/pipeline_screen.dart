@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../services/pipeline_service.dart';
-import '../services/app_colors.dart';
-import '../services/theme_service.dart';
-import 'stage_clients_screen.dart';
 
+import '../features/home/widgets/home_accent.dart';
+import '../services/pipeline_service.dart';
+import '../services/permission_service.dart';
+import 'opportunity_detail_screen.dart';
+
+/// مُنسّق أرقام مشترك
+final NumberFormat _fmtShared = NumberFormat('#,##0');
+
+/// ─────────────────────────────────────────────────────────────
+/// 📋 مراحل البيع — عرض كانبان فخم
+///  - كروت KPI علوية (إجمالي + قيمة + مكسب + خسارة + متأخرة)
+///  - فلاتر (بحث + موظف + مصدر + حملة + متأخر/متابعة)
+///  - أعمدة لكل مرحلة بطول الشاشة كامل
+///  - كروت الفرص (عرض فقط — بدون نقل مراحل)
+///  - الضغط على كارت → تفاصيل الفرصة
+/// ─────────────────────────────────────────────────────────────
 class PipelineScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -23,1225 +32,1020 @@ class PipelineScreen extends StatefulWidget {
 }
 
 class _PipelineScreenState extends State<PipelineScreen> {
-  // ===================================
-  // 📦 المتغيرات
-  // ===================================
-  Map<String, dynamic>? _pipelineData;
+  List<Map<String, dynamic>> _columns = [];
+  Map<String, dynamic> _summary = {};
+  bool _loading = true;
+  String? _error;
+
+  // ── الفلاتر ──
+  final TextEditingController _searchCtrl = TextEditingController();
+  int? _employeeId;
+  int? _sourceId;
+  int? _adTypeId;
+  bool _overdueOnly = false;
+  bool _hasFollowUpOnly = false;
+  bool _filtersOpen = false;
+
+  // فلتر الفترة (التاريخ)
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
+  String _periodFilter = 'الكل'; // الكل | اليوم | آخر أسبوع | آخر شهر | مخصص
+
   List<dynamic> _employees = [];
   List<dynamic> _sources = [];
   List<dynamic> _adTypes = [];
-  bool _isLoading = true;
-  bool _isFilterVisible = false;
-  bool get _isDark => ThemeService().isDarkMode;
 
-  // الفلاتر
-  int? _selectedEmployeeId;
-  int? _selectedSourceId;
-  int? _selectedAdTypeId;
-  DateTimeRange? _selectedDateRange;
+  // ── حالة العرض ──
+  bool _groupByEmployee = false;
+  String _mergedFilter = 'all'; // all | lost | noint
+  final Map<int, String> _columnSort = {};
+  final Map<String, bool> _collapsedEmps = {}; // "stageId_empName" → collapsed
 
-  bool get _hasActiveFilters =>
-      _selectedEmployeeId != null ||
-      _selectedSourceId != null ||
-      _selectedAdTypeId != null ||
-      _selectedDateRange != null;
+  static const List<String> _sortCycle = [
+    'newest',
+    'oldest',
+    'value_high',
+    'overdue_first',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadLookups();
+    _load();
   }
 
-  // ===================================
-  // 📡 جلب البيانات
-  // ===================================
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
+  Future<void> _loadLookups() async {
     try {
       final results = await Future.wait([
-        PipelineService.getPipelineSummary(
-          employeeId: _selectedEmployeeId,
-          sourceId: _selectedSourceId,
-          adTypeId: _selectedAdTypeId,
-          dateFrom: _selectedDateRange != null
-              ? DateFormat('yyyy-MM-dd').format(_selectedDateRange!.start)
-              : null,
-          dateTo: _selectedDateRange != null
-              ? DateFormat('yyyy-MM-dd').format(_selectedDateRange!.end)
-              : null,
-        ),
         PipelineService.getEmployees(),
         PipelineService.getSources(),
         PipelineService.getAdTypes(),
       ]);
-
+      if (!mounted) return;
       setState(() {
-        _pipelineData = results[0] as Map<String, dynamic>?;
-        _employees = results[1] as List<dynamic>;
-        _sources = results[2] as List<dynamic>;
-        _adTypes = results[3] as List<dynamic>;
-        _isLoading = false;
+        _employees = results[0];
+        _sources = results[1];
+        _adTypes = results[2];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        PipelineService.getKanbanBoard(
+          employeeId: _employeeId,
+          sourceId: _sourceId,
+          adTypeId: _adTypeId,
+          search: _searchCtrl.text.trim().isEmpty
+              ? null
+              : _searchCtrl.text.trim(),
+          isOverdue: _overdueOnly,
+          hasFollowUp: _hasFollowUpOnly,
+          dateFrom: _dateFrom != null
+              ? _dateFrom!.toIso8601String()
+              : null,
+          dateTo: _dateTo != null ? _dateTo!.toIso8601String() : null,
+        ),
+        PipelineService.getPipelineSummary(
+          employeeId: _employeeId,
+          sourceId: _sourceId,
+          adTypeId: _adTypeId,
+          dateFrom: _dateFrom != null
+              ? _dateFrom!.toIso8601String()
+              : null,
+          dateTo: _dateTo != null ? _dateTo!.toIso8601String() : null,
+        ),
+      ]);
+
+      if (!mounted) return;
+      final board = results[0];
+      final summary = results[1];
+
+      final cols = ((board?['columns']) as List? ?? [])
+          .cast<Map<String, dynamic>>();
+      setState(() {
+        _columns = cols;
+        _summary = summary ?? {};
+        _loading = false;
       });
     } catch (e) {
-      print('❌ خطأ: $e');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
-  Future<void> _refresh() async {
-    await _loadData();
+  void _onFilterChanged() {
+    _load();
   }
 
-  void _resetFilters() {
+  // اختيار فلتر الفترة
+  void _applyPeriod(String period) {
+    final now = DateTime.now();
     setState(() {
-      _selectedEmployeeId = null;
-      _selectedSourceId = null;
-      _selectedAdTypeId = null;
-      _selectedDateRange = null;
+      _periodFilter = period;
+      switch (period) {
+        case 'اليوم':
+          _dateFrom = DateTime(now.year, now.month, now.day);
+          _dateTo = now;
+          break;
+        case 'آخر أسبوع':
+          _dateFrom = now.subtract(const Duration(days: 7));
+          _dateTo = now;
+          break;
+        case 'آخر شهر':
+          _dateFrom = now.subtract(const Duration(days: 30));
+          _dateTo = now;
+          break;
+        case 'مخصص':
+          break; // هنفتح منتقي التاريخ
+        default:
+          _dateFrom = null;
+          _dateTo = null;
+      }
     });
-    _loadData();
+    if (period == 'مخصص') {
+      _pickCustomRange();
+    } else {
+      _load();
+    }
   }
 
-  // ===================================
-  // 🎨 واجهة المستخدم
-  // ===================================
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final from = await showDatePicker(
+      context: context,
+      initialDate: _dateFrom ?? now.subtract(const Duration(days: 7)),
+      firstDate: DateTime(2000),
+      lastDate: now,
+      helpText: 'من تاريخ',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+    if (from == null) {
+      setState(() => _periodFilter = 'الكل');
+      return;
+    }
+    final to = await showDatePicker(
+      context: context,
+      initialDate: _dateTo ?? now,
+      firstDate: from,
+      lastDate: now,
+      helpText: 'إلى تاريخ',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+    if (to == null) {
+      setState(() => _periodFilter = 'الكل');
+      return;
+    }
+    setState(() {
+      _dateFrom = from;
+      _dateTo = to;
+    });
+    _load();
+  }
+
+  // ═══════════ الفرز ═══════════
+
+  String _getSort(int stageId) => _columnSort[stageId] ?? 'newest';
+
+  void _cycleSort(int stageId) {
+    final current = _getSort(stageId);
+    final idx = _sortCycle.indexOf(current);
+    setState(() {
+      _columnSort[stageId] = _sortCycle[(idx + 1) % _sortCycle.length];
+    });
+  }
+
+  String _sortLabel(String sort) {
+    switch (sort) {
+      case 'oldest':
+        return 'الأقدم';
+      case 'value_high':
+        return 'الأعلى قيمة';
+      case 'overdue_first':
+        return 'المتأخرة أولاً';
+      default:
+        return 'الأحدث';
+    }
+  }
+
+  IconData _sortIcon(String sort) {
+    switch (sort) {
+      case 'oldest':
+        return Icons.arrow_upward_rounded;
+      case 'value_high':
+        return Icons.attach_money_rounded;
+      case 'overdue_first':
+        return Icons.notification_important_rounded;
+      default:
+        return Icons.arrow_downward_rounded;
+    }
+  }
+
+  List<Map<String, dynamic>> _sortedCards(List<dynamic> cards, int stageId) {
+    final list = cards.cast<Map<String, dynamic>>().toList();
+    final sort = _getSort(stageId);
+    switch (sort) {
+      case 'oldest':
+        list.sort((a, b) =>
+            (a['OpportunityId'] as num).compareTo(b['OpportunityId'] as num));
+        break;
+      case 'value_high':
+        list.sort((a, b) => ((b['ExpectedValue'] ?? 0) as num)
+            .compareTo((a['ExpectedValue'] ?? 0) as num));
+        break;
+      case 'overdue_first':
+        list.sort((a, b) {
+          final ao = (a['IsOverdue'] == true) ? 0 : 1;
+          final bo = (b['IsOverdue'] == true) ? 0 : 1;
+          if (ao != bo) return ao.compareTo(bo);
+          final ad = a['NextFollowUpDate'] != null
+              ? DateTime.tryParse(a['NextFollowUpDate'].toString())
+              : null;
+          final bd = b['NextFollowUpDate'] != null
+              ? DateTime.tryParse(b['NextFollowUpDate'].toString())
+              : null;
+          if (ad == null && bd == null) return 0;
+          if (ad == null) return 1;
+          if (bd == null) return -1;
+          return ad.compareTo(bd);
+        });
+        break;
+      default:
+        list.sort((a, b) =>
+            (b['OpportunityId'] as num).compareTo(a['OpportunityId'] as num));
+    }
+    return list;
+  }
+
+  // ═══════════ التنسيق ═══════════
+
+  String _fmt(dynamic v) {
+    if (v == null) return '0';
+    return _fmtShared.format(v is num ? v : double.tryParse(v.toString()) ?? 0);
+  }
+
+  String _fmtMoney(dynamic v) {
+    final n = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+    if (n.abs() >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n.abs() >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toStringAsFixed(0);
+  }
+
+  Color _hexColor(String? hex) {
+    if (hex == null || hex.isEmpty) return const Color(0xFF94A3B8);
+    var h = hex.replaceAll('#', '');
+    if (h.length == 6) h = 'FF$h';
+    final v = int.tryParse(h, radix: 16);
+    return v != null ? Color(v) : const Color(0xFF94A3B8);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: AppColors.background(_isDark),
-        appBar: _buildAppBar(),
-        body: _isLoading
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('مراحل البيع'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _load,
+            tooltip: 'تحديث',
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          : _error != null
+              ? _buildError(theme)
+              : Column(
                   children: [
-                    CircularProgressIndicator(color: AppColors.gold),
-                    const SizedBox(height: 16),
-                    Text(
-                      'جاري تحميل البيانات...',
-                      style: GoogleFonts.cairo(
-                        color: AppColors.textSecondary(_isDark),
-                        fontSize: 14,
-                      ),
-                    ),
+                    // كروت KPI
+                    _buildKpiBar(theme),
+
+                    // الفلاتر
+                    _buildFilters(theme),
+
+                    // الكانبان (باقي الشاشة كاملة)
+                    Expanded(child: _buildBoard(theme, isDark)),
                   ],
                 ),
-              )
-            : _pipelineData == null
-                ? _buildErrorView()
-                : RefreshIndicator(
-                    color: AppColors.gold,
-                    onRefresh: _refresh,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          // الفلاتر
-                          if (_isFilterVisible)
-                            _buildFilters()
-                                .animate()
-                                .fadeIn(duration: 300.ms)
-                                .slideY(begin: -0.1, end: 0),
-
-                          // شريط الفلاتر النشطة
-                          if (_hasActiveFilters && !_isFilterVisible)
-                            _buildActiveFiltersBar()
-                                .animate()
-                                .fadeIn(duration: 200.ms),
-
-                          // كروت الملخص
-                          _buildSummaryCards()
-                              .animate()
-                              .fadeIn(duration: 400.ms)
-                              .slideY(begin: 0.1, end: 0),
-
-                          const SizedBox(height: 20),
-
-                          // نسبة التحويل
-                          _buildConversionCard()
-                              .animate()
-                              .fadeIn(duration: 500.ms, delay: 100.ms)
-                              .slideY(begin: 0.1, end: 0),
-
-                          const SizedBox(height: 20),
-
-                          // مراحل البيع
-                          _buildPipelineStages(),
-                        ],
-                      ),
-                    ),
-                  ),
-      ),
     );
   }
 
-  // ===================================
-  // 🔝 AppBar
-  // ===================================
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: _isDark ? AppColors.navy : Colors.white,
-      elevation: 0,
-      centerTitle: true,
-      iconTheme: IconThemeData(
-        color: _isDark ? Colors.white : AppColors.navy,
-      ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.account_tree_rounded, color: AppColors.gold, size: 24),
-          const SizedBox(width: 8),
-          Text(
-            'مراحل البيع',
-            style: GoogleFonts.cairo(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-              color: _isDark ? Colors.white : AppColors.navy,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        // زرار الفلتر
-        IconButton(
-          icon: Badge(
-            isLabelVisible: _hasActiveFilters,
-            backgroundColor: AppColors.gold,
-            label: Text(
-              '${[
-                _selectedEmployeeId,
-                _selectedSourceId,
-                _selectedAdTypeId,
-                _selectedDateRange
-              ].where((e) => e != null).length}',
-              style: const TextStyle(fontSize: 10),
-            ),
-            child: Icon(
-              _isFilterVisible ? Icons.tune_rounded : Icons.tune_outlined,
-              color: _hasActiveFilters
-                  ? AppColors.gold
-                  : (_isDark ? Colors.white : AppColors.navy),
-            ),
-          ),
-          onPressed: () {
-            setState(() => _isFilterVisible = !_isFilterVisible);
-          },
-        ),
-        // زرار التحديث
-        IconButton(
-          icon: Icon(
-            Icons.refresh_rounded,
-            color: _isDark ? Colors.white : AppColors.navy,
-          ),
-          onPressed: _refresh,
-        ),
-      ],
-    );
-  }
-
-  // ===================================
-  // 🏷️ شريط الفلاتر النشطة
-  // ===================================
-  Widget _buildActiveFiltersBar() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(_isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.filter_list_rounded, color: AppColors.gold, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  if (_selectedEmployeeId != null)
-                    _buildFilterChip(
-                      _employees.firstWhere(
-                        (e) => e['EmployeeID'] == _selectedEmployeeId,
-                        orElse: () => {'FullName': 'موظف'},
-                      )['FullName'],
-                      () {
-                        setState(() => _selectedEmployeeId = null);
-                        _loadData();
-                      },
-                    ),
-                  if (_selectedSourceId != null)
-                    _buildFilterChip(
-                      _sources.firstWhere(
-                        (s) => s['SourceID'] == _selectedSourceId,
-                        orElse: () => {'SourceNameAr': 'مصدر'},
-                      )['SourceNameAr'] ?? 'مصدر',
-                      () {
-                        setState(() => _selectedSourceId = null);
-                        _loadData();
-                      },
-                    ),
-                  if (_selectedAdTypeId != null)
-                    _buildFilterChip(
-                      _adTypes.firstWhere(
-                        (a) => a['AdTypeID'] == _selectedAdTypeId,
-                        orElse: () => {'AdTypeNameAr': 'إعلان'},
-                      )['AdTypeNameAr'] ?? 'إعلان',
-                      () {
-                        setState(() => _selectedAdTypeId = null);
-                        _loadData();
-                      },
-                    ),
-                  if (_selectedDateRange != null)
-                    _buildFilterChip(
-                      '${DateFormat('dd/MM').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM').format(_selectedDateRange!.end)}',
-                      () {
-                        setState(() => _selectedDateRange = null);
-                        _loadData();
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: _resetFilters,
-            child: Text(
-              'مسح الكل',
-              style: GoogleFonts.cairo(
-                fontSize: 12,
-                color: AppColors.gold,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, VoidCallback onRemove) {
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(_isDark ? 0.2 : 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.cairo(
-              fontSize: 12,
-              color: AppColors.text(_isDark),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onRemove,
-            child: Icon(Icons.close, size: 14, color: AppColors.textSecondary(_isDark)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===================================
-  // 🔽 الفلاتر
-  // ===================================
-  Widget _buildFilters() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // العنوان
-          Row(
-            children: [
-              Icon(Icons.tune_rounded, color: AppColors.gold, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'الفلاتر',
-                style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.text(_isDark),
-                ),
-              ),
-              const Spacer(),
-              if (_hasActiveFilters)
-                TextButton.icon(
-                  onPressed: _resetFilters,
-                  icon: Icon(Icons.restart_alt, size: 18, color: AppColors.gold),
-                  label: Text(
-                    'إعادة تعيين',
-                    style: GoogleFonts.cairo(fontSize: 12, color: AppColors.gold),
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // فلتر الموظف
-          _buildFilterDropdown<int>(
-            label: 'الموظف',
-            icon: Icons.person_outline,
-            value: _selectedEmployeeId,
-            items: [
-              DropdownMenuItem<int>(
-                value: null,
-                child: Text('الكل', style: GoogleFonts.cairo()),
-              ),
-              ..._employees.map((emp) => DropdownMenuItem<int>(
-                    value: emp['EmployeeID'],
-                    child: Text(emp['FullName'] ?? '', style: GoogleFonts.cairo()),
-                  )),
-            ],
-            onChanged: (value) {
-              setState(() => _selectedEmployeeId = value);
-              _loadData();
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          // فلتر المصدر ونوع الإعلان في صف واحد
-          Row(
-            children: [
-              // فلتر المصدر
-              Expanded(
-                child: _buildFilterDropdown<int>(
-                  label: 'المصدر',
-                  icon: Icons.source_outlined,
-                  value: _selectedSourceId,
-                  items: [
-                    DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('الكل', style: GoogleFonts.cairo()),
-                    ),
-                    ..._sources.map((s) => DropdownMenuItem<int>(
-                          value: s['SourceID'],
-                          child: Text(
-                            s['SourceNameAr'] ?? s['SourceName'] ?? '',
-                            style: GoogleFonts.cairo(fontSize: 13),
-                          ),
-                        )),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _selectedSourceId = value);
-                    _loadData();
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              // فلتر نوع الإعلان
-              Expanded(
-                child: _buildFilterDropdown<int>(
-                  label: 'الإعلان',
-                  icon: Icons.campaign_outlined,
-                  value: _selectedAdTypeId,
-                  items: [
-                    DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('الكل', style: GoogleFonts.cairo()),
-                    ),
-                    ..._adTypes.map((a) => DropdownMenuItem<int>(
-                          value: a['AdTypeID'],
-                          child: Text(
-                            a['AdTypeNameAr'] ?? a['AdTypeName'] ?? '',
-                            style: GoogleFonts.cairo(fontSize: 13),
-                          ),
-                        )),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _selectedAdTypeId = value);
-                    _loadData();
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // فلتر التاريخ
-          InkWell(
-  onTap: () async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now().add(const Duration(days: 730)),
-      initialDateRange: _selectedDateRange,
-      locale: const Locale('ar', 'EG'),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme(
-              brightness: _isDark ? Brightness.dark : Brightness.light,
-              primary: AppColors.gold,
-              onPrimary: _isDark ? Colors.black87 : Colors.white,
-              surface: AppColors.card(_isDark),
-              onSurface: AppColors.text(_isDark),
-              onSurfaceVariant: AppColors.textSecondary(_isDark),
-              secondary: AppColors.gold,
-              onSecondary: _isDark ? Colors.black87 : Colors.white,
-              error: const Color(0xFFE74C3C),
-              onError: Colors.white,
-              background: AppColors.background(_isDark),
-              onBackground: AppColors.text(_isDark),
-              shadow: Colors.black,
-              scrim: Colors.black54,
-              surfaceTint: AppColors.gold.withOpacity(0.1),
-            ),
-            dialogBackgroundColor: AppColors.card(_isDark),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.gold,
-                textStyle: GoogleFonts.cairo(fontWeight: FontWeight.w600),
-              ),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              rangeSelectionBackgroundColor: AppColors.gold.withOpacity(_isDark ? 0.28 : 0.15),
-              rangeSelectionOverlayColor: WidgetStateProperty.all(
-                AppColors.gold.withOpacity(_isDark ? 0.15 : 0.10),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() => _selectedDateRange = picked);
-      _loadData();
-    }
-  },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.inputFill(_isDark),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider(_isDark)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.date_range_rounded, color: AppColors.gold, size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    _selectedDateRange != null
-                        ? '${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.end)}'
-                        : 'اختر الفترة',
-                    style: GoogleFonts.cairo(
-                      color: _selectedDateRange != null
-                          ? AppColors.text(_isDark)
-                          : AppColors.textHint(_isDark),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_selectedDateRange != null)
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedDateRange = null);
-                        _loadData();
-                      },
-                      child: Icon(Icons.close, size: 18, color: AppColors.textHint(_isDark)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterDropdown<T>({
-    required String label,
-    required IconData icon,
-    required T? value,
-    required List<DropdownMenuItem<T>> items,
-    required void Function(T?) onChanged,
-  }) {
-    return DropdownButtonFormField<T>(
-      value: value,
-      dropdownColor: AppColors.card(_isDark),
-      style: GoogleFonts.cairo(
-        color: AppColors.text(_isDark),
-        fontSize: 14,
-      ),
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.cairo(color: AppColors.textSecondary(_isDark)),
-        prefixIcon: Icon(icon, color: AppColors.gold, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.divider(_isDark)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.divider(_isDark)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.gold, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        filled: true,
-        fillColor: AppColors.inputFill(_isDark),
-      ),
-      items: items,
-      onChanged: onChanged,
-    );
-  }
-
-  // ===================================
-  // 📊 كروت الملخص العلوي (2×2)
-  // ===================================
-  Widget _buildSummaryCards() {
-    final totals = _pipelineData!['totals'] ?? {};
-    final totalOpps = totals['TotalOpportunities'] ?? 0;
-    final wonCount = totals['WonCount'] ?? 0;
-    final wonValue = (totals['WonValue'] ?? 0).toDouble();
-    final lostCount = totals['LostCount'] ?? 0;
-    final overdueCount = totals['OverdueCount'] ?? 0;
-    final todayFollowUps = totals['TodayFollowUps'] ?? 0;
-
-    // الفرص النشطة = الإجمالي - المكسوب - الخسران
-    final activeCount = totalOpps - wonCount - lostCount;
-
-    return Column(
-      children: [
-        // الصف الأول
-        Row(
-          children: [
-            _buildSummaryCard(
-              icon: Icons.people_alt_rounded,
-              label: 'إجمالي الفرص',
-              value: '$totalOpps',
-              color: AppColors.gold,
-            ),
-            const SizedBox(width: 10),
-            _buildSummaryCard(
-              icon: Icons.rocket_launch_rounded,
-              label: 'فرص نشطة',
-              value: '$activeCount',
-              color: const Color(0xFF3498DB),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // الصف الثاني
-        Row(
-          children: [
-            _buildSummaryCard(
-              icon: Icons.emoji_events_rounded,
-              label: ' ناجحه/مكتسبه ',
-              value: '$wonCount',
-              subtitle: wonValue > 0
-                  ? '${NumberFormat('#,###').format(wonValue)} ج.م'
-                  : null,
-              color: const Color(0xFF27AE60),
-            ),
-            const SizedBox(width: 10),
-            _buildSummaryCard(
-              icon: Icons.schedule_rounded,
-              label: 'متأخر / اليوم',
-              value: '$overdueCount / $todayFollowUps',
-              color: overdueCount > 0
-                  ? const Color(0xFFE74C3C)
-                  : const Color(0xFFFF9800),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    String? subtitle,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: AppColors.card(_isDark),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withOpacity(_isDark ? 0.3 : 0.15),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(_isDark ? 0.3 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // الأيقونة
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(_isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            // النص
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: GoogleFonts.cairo(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text(_isDark),
-                    ),
-                  ),
-                  Text(
-                    label,
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      color: AppColors.textSecondary(_isDark),
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.cairo(
-                        fontSize: 10,
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===================================
-  // 📈 كارت نسبة التحويل
-  // ===================================
-  Widget _buildConversionCard() {
-    final totals = _pipelineData!['totals'] ?? {};
-    final conversionRate = (totals['ConversionRate'] ?? 0).toDouble();
-    final totalValue = (totals['TotalExpectedValue'] ?? 0).toDouble();
-
-    Color rateColor;
-    String rateLabel;
-    IconData rateIcon;
-
-    if (conversionRate >= 30) {
-      rateColor = const Color(0xFF27AE60);
-      rateLabel = 'ممتاز';
-      rateIcon = Icons.trending_up_rounded;
-    } else if (conversionRate >= 15) {
-      rateColor = const Color(0xFFFF9800);
-      rateLabel = 'جيد';
-      rateIcon = Icons.trending_flat_rounded;
-    } else {
-      rateColor = const Color(0xFFE74C3C);
-      rateLabel = 'يحتاج تحسين';
-      rateIcon = Icons.trending_down_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: rateColor.withOpacity(_isDark ? 0.3 : 0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: rateColor.withOpacity(_isDark ? 0.2 : 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(rateIcon, color: rateColor, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'نسبة التحويل',
-                      style: GoogleFonts.cairo(
-                        fontSize: 14,
-                        color: AppColors.textSecondary(_isDark),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          '${conversionRate.toStringAsFixed(1)}%',
-                          style: GoogleFonts.cairo(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: rateColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: rateColor.withOpacity(_isDark ? 0.2 : 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            rateLabel,
-                            style: GoogleFonts.cairo(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: rateColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // القيمة الإجمالية
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'القيمة المتوقعة',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      color: AppColors.textSecondary(_isDark),
-                    ),
-                  ),
-                  Text(
-                    '${NumberFormat('#,###').format(totalValue)}',
-                    style: GoogleFonts.cairo(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.gold,
-                    ),
-                  ),
-                  Text(
-                    'ج.م',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      color: AppColors.textSecondary(_isDark),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // شريط التحويل
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: (conversionRate / 100).clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: AppColors.divider(_isDark),
-              valueColor: AlwaysStoppedAnimation<Color>(rateColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===================================
-  // 🏗️ مراحل البيع
-  // ===================================
-  Widget _buildPipelineStages() {
-    final stages = _pipelineData!['stages'] as List<dynamic>? ?? [];
-    final totals = _pipelineData!['totals'] ?? {};
-    final totalOpps = totals['TotalOpportunities'] ?? 1;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Icon(Icons.account_tree_rounded, color: AppColors.gold, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'المراحل',
-                style: GoogleFonts.cairo(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text(_isDark),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${stages.length} مراحل',
-                style: GoogleFonts.cairo(
-                  fontSize: 12,
-                  color: AppColors.textSecondary(_isDark),
-                ),
-              ),
-            ],
-          ),
-        ),
-        ...List.generate(stages.length, (index) {
-          final stage = stages[index];
-          final isLast = index == stages.length - 1;
-          return Column(
-            children: [
-              _buildStageCard(stage, totalOpps)
-                  .animate()
-                  .fadeIn(
-                    duration: 400.ms,
-                    delay: Duration(milliseconds: 100 * index),
-                  )
-                  .slideX(begin: 0.1, end: 0),
-              if (!isLast) _buildConnector(stage),
-            ],
-          );
-        }),
-      ],
-    );
-  }
-
-  // ===================================
-  // 🎴 كارت المرحلة
-  // ===================================
-  Widget _buildStageCard(Map<String, dynamic> stage, int totalOpps) {
-    final color = _hexToColor(stage['StageColor'] ?? '#3498db');
-    final count = stage['Count'] ?? 0;
-    final percentage = stage['Percentage'] ?? 0.0;
-    final expectedValue = (stage['ExpectedValue'] ?? 0).toDouble();
-    final overdueCount = stage['OverdueCount'] ?? 0;
-    final todayCount = stage['TodayCount'] ?? 0;
-    final stageNameAr = stage['StageNameAr'] ?? '';
-
-    return GestureDetector(
-      onTap: () {
-        if (count > 0) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => StageClientsScreen(
-                stageId: stage['StageID'],
-                stageName: stageNameAr,
-                stageColor: stage['StageColor'] ?? '#3498db',
-                count: count,
-                employeeId: _selectedEmployeeId,
-                sourceId: _selectedSourceId,       // ✅ جديد
-                adTypeId: _selectedAdTypeId,       // ✅ جديد
-                userId: widget.userId,
-                username: widget.username,
-                dateFrom: _selectedDateRange != null
-                    ? DateFormat('yyyy-MM-dd').format(_selectedDateRange!.start)
-                    : null,
-                dateTo: _selectedDateRange != null
-                    ? DateFormat('yyyy-MM-dd').format(_selectedDateRange!.end)
-                    : null,
-              ),
-            ),
-          ).then((_) => _refresh());
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card(_isDark),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withOpacity(_isDark ? 0.4 : 0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(_isDark ? 0.3 : 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // الصف العلوي
-            Row(
-              children: [
-                // رقم العدد
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(_isDark ? 0.2 : 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: color.withOpacity(0.3), width: 1),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$count',
-                      style: GoogleFonts.cairo(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // اسم المرحلة والقيمة
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stageNameAr,
-                        style: GoogleFonts.cairo(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.text(_isDark),
-                        ),
-                      ),
-                      if (expectedValue > 0)
-                        Text(
-                          '${NumberFormat('#,###').format(expectedValue)} ج.م',
-                          style: GoogleFonts.cairo(
-                            fontSize: 12,
-                            color: AppColors.textSecondary(_isDark),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // شارات المتأخر واليوم
-                if (overdueCount > 0 || todayCount > 0)
-                  Row(
-                    children: [
-                      if (overdueCount > 0)
-                        _buildBadge('$overdueCount', Colors.red, Icons.warning_rounded),
-                      if (todayCount > 0) ...[
-                        const SizedBox(width: 4),
-                        _buildBadge('$todayCount', Colors.orange, Icons.today_rounded),
-                      ],
-                    ],
-                  ),
-
-                const SizedBox(width: 8),
-
-                // سهم
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: count > 0
-                        ? color.withOpacity(_isDark ? 0.2 : 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.chevron_left_rounded,
-                    color: count > 0 ? color : AppColors.textHint(_isDark),
-                    size: 24,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            // شريط النسبة
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: (percentage / 100).clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: AppColors.divider(_isDark),
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // النسبة + العدد
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '$count عميل',
-                  style: GoogleFonts.cairo(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(_isDark),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(_isDark ? 0.15 : 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$percentage%',
-                    style: GoogleFonts.cairo(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===================================
-  // 🔗 خط الربط
-  // ===================================
-  Widget _buildConnector(Map<String, dynamic> stage) {
-    final color = _hexToColor(stage['StageColor'] ?? '#3498db');
-    return Container(
-      height: 24,
-      width: 3,
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [color.withOpacity(0.6), color.withOpacity(0.1)],
-        ),
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-
-  // ===================================
-  // 🔴 شارة محسنة
-  // ===================================
-  Widget _buildBadge(String text, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(_isDark ? 0.2 : 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 3),
-          Text(
-            text,
-            style: GoogleFonts.cairo(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===================================
-  // ❌ شاشة الخطأ
-  // ===================================
-  Widget _buildErrorView() {
+  Widget _buildError(ThemeData theme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_rounded, size: 80, color: AppColors.textHint(_isDark)),
+          Icon(Icons.error_outline_rounded,
+              size: 60, color: theme.colorScheme.error),
           const SizedBox(height: 16),
-          Text(
-            'فشل تحميل البيانات',
-            style: GoogleFonts.cairo(
-              fontSize: 18,
-              color: AppColors.textSecondary(_isDark),
-            ),
+          Text(_error!, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('إعادة المحاولة'),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'تأكد من اتصالك بالإنترنت وحاول مرة أخرى',
-            style: GoogleFonts.cairo(
-              fontSize: 13,
-              color: AppColors.textHint(_isDark),
-            ),
-          ),
-          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════ كروت KPI ═══════════
+
+  Widget _buildKpiBar(ThemeData theme) {
+    final totals = _summary['totals'] is Map
+        ? Map<String, dynamic>.from(_summary['totals'] as Map)
+        : <String, dynamic>{};
+
+    final totalCount = (totals['TotalOpportunities'] ?? 0) as num;
+    final totalValue = (totals['TotalExpectedValue'] ?? 0) as num;
+    final wonCount = (totals['WonCount'] ?? 0) as num;
+    final lostCount = (totals['LostCount'] ?? 0) as num;
+
+    // مجموع المتأخرات من المراحل
+    final stages = (_summary['stages'] as List? ?? []);
+    int overdue = 0;
+    int todayFollow = 0;
+    for (final s in stages) {
+      if (s is Map) {
+        overdue += (s['OverdueCount'] ?? 0) as int;
+        todayFollow += (s['TodayCount'] ?? 0) as int;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _kpiCard('الفرص', '${_fmt(totalCount)}', Icons.lightbulb_rounded,
+                const Color(0xFF2563EB), theme),
+            _kpiCard('القيمة', '${_fmtMoney(totalValue)}',
+                Icons.attach_money_rounded, const Color(0xFFF59E0B), theme),
+            _kpiCard('مكسب', '${_fmt(wonCount)}', Icons.emoji_events_rounded,
+                const Color(0xFF43A047), theme),
+            _kpiCard('خسارة', '${_fmt(lostCount)}', Icons.trending_down_rounded,
+                const Color(0xFFEF4444), theme),
+            _kpiCard('متأخرة', '${_fmt(overdue)}',
+                Icons.notification_important_rounded, const Color(0xFFEF4444),
+                theme),
+            _kpiCard('متابعة اليوم', '${_fmt(todayFollow)}',
+                Icons.event_available_rounded, const Color(0xFF8B5CF6), theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String label, String value, IconData icon, Color color,
+      ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Container(
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: AppColors.buttonGradient(_isDark),
-              ),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: ElevatedButton.icon(
-              onPressed: _loadData,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: _isDark ? AppColors.navy : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Icon(icon, size: 15, color: color),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: color,
                 ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════ الفلاتر ═══════════
+
+  Widget _buildFilters(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        children: [
+          // رأس الفلاتر
+          InkWell(
+            onTap: () => setState(() => _filtersOpen = !_filtersOpen),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.filter_list_rounded, size: 17, color: HomeAccent.accent),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'بحث وتصفية',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                  ),
+                  if (_hasActiveFilters) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: HomeAccent.gold,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'فلتر نشط',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (_hasActiveFilters)
+                    InkWell(
+                      onTap: () {
+                        _searchCtrl.clear();
+                        setState(() {
+                          _employeeId = null;
+                          _sourceId = null;
+                          _adTypeId = null;
+                          _overdueOnly = false;
+                          _hasFollowUpOnly = false;
+                          _periodFilter = 'الكل';
+                          _dateFrom = null;
+                          _dateTo = null;
+                        });
+                        _load();
+                      },
+                      child: Icon(Icons.close_rounded, size: 16, color: theme.colorScheme.error),
+                    ),
+                  AnimatedRotation(
+                    turns: _filtersOpen ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 18, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // المحتوى
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 250),
+            crossFadeState:
+                _filtersOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            firstChild: Container(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  // البحث
+                  TextField(
+                    controller: _searchCtrl,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _onFilterChanged(),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'بحث باسم العميل أو الهاتف أو المنتج...',
+                      hintStyle: const TextStyle(fontSize: 11.5),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      isDense: true,
+                      filled: true,
+                      fillColor: isDark
+                          ? theme.colorScheme.surfaceContainerHighest
+                          : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: _searchCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                _onFilterChanged();
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // موظف + مصدر
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _filterDropdown<int?>(
+                          value: _employeeId,
+                          hint: 'كل الموظفين',
+                          icon: Icons.person_rounded,
+                          items: [
+                            DropdownMenuItem<int?>(
+                                value: null,
+                                child: const Text('كل الموظفين',
+                                    style: TextStyle(fontSize: 11.5))),
+                            ..._employees.map((e) => DropdownMenuItem<int?>(
+                                  value: (e['EmployeeId'] ?? e['EmployeeID'] ?? 0) as int?,
+                                  child: Text(
+                                    e['FullName']?.toString() ?? '',
+                                    style: const TextStyle(fontSize: 11.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )),
+                          ],
+                          onChanged: (v) {
+                            setState(() => _employeeId = v);
+                            _onFilterChanged();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _filterDropdown<int?>(
+                          value: _sourceId,
+                          hint: 'كل المصادر',
+                          icon: Icons.contact_phone_rounded,
+                          items: [
+                            DropdownMenuItem<int?>(
+                                value: null,
+                                child: const Text('كل المصادر',
+                                    style: TextStyle(fontSize: 11.5))),
+                            ..._sources.map((s) => DropdownMenuItem<int?>(
+                                  value: (s['SourceID'] as num?)?.toInt(),
+                                  child: Text(
+                                    (s['SourceNameAr'] ?? s['SourceName'] ?? '')
+                                        .toString(),
+                                    style: const TextStyle(fontSize: 11.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )),
+                          ],
+                          onChanged: (v) {
+                            setState(() => _sourceId = v);
+                            _onFilterChanged();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // حملة + مفاتيح
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _filterDropdown<int?>(
+                          value: _adTypeId,
+                          hint: 'كل الحملات',
+                          icon: Icons.campaign_rounded,
+                          items: [
+                            DropdownMenuItem<int?>(
+                                value: null,
+                                child: const Text('كل الحملات',
+                                    style: TextStyle(fontSize: 11.5))),
+                            ..._adTypes.map((a) => DropdownMenuItem<int?>(
+                                  value: (a['AdTypeID'] as num?)?.toInt(),
+                                  child: Text(
+                                    (a['AdTypeNameAr'] ?? a['AdTypeName'] ?? '')
+                                        .toString(),
+                                    style: const TextStyle(fontSize: 11.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )),
+                          ],
+                          onChanged: (v) {
+                            setState(() => _adTypeId = v);
+                            _onFilterChanged();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // متأخر فقط
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _overdueOnly = !_overdueOnly);
+                          _onFilterChanged();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _overdueOnly
+                                ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                                : theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _overdueOnly
+                                  ? const Color(0xFFEF4444)
+                                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.notification_important_rounded,
+                                size: 13,
+                                color: _overdueOnly
+                                    ? const Color(0xFFEF4444)
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'متأخر',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: _overdueOnly
+                                      ? const Color(0xFFEF4444)
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // ليه متابعة
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _hasFollowUpOnly = !_hasFollowUpOnly);
+                          _onFilterChanged();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _hasFollowUpOnly
+                                ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                                : theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _hasFollowUpOnly
+                                  ? const Color(0xFF8B5CF6)
+                                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.event_available_rounded,
+                                size: 13,
+                                color: _hasFollowUpOnly
+                                    ? const Color(0xFF8B5CF6)
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'متابعة',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: _hasFollowUpOnly
+                                      ? const Color(0xFF8B5CF6)
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // ── فلتر الفترة ──
+                  Row(
+                    children: [
+                      for (final period in ['الكل', 'اليوم', 'آخر أسبوع', 'آخر شهر', 'مخصص'])
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: GestureDetector(
+                            onTap: () => _applyPeriod(period),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _periodFilter == period
+                                    ? HomeAccent.accent.withValues(alpha: 0.15)
+                                    : theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _periodFilter == period
+                                      ? HomeAccent.accent
+                                      : theme.colorScheme.outlineVariant
+                                          .withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                period == 'مخصص' && _periodFilter == 'مخصص' &&
+                                        _dateFrom != null && _dateTo != null
+                                    ? '${_dateFrom!.day}/${_dateFrom!.month} - ${_dateTo!.day}/${_dateTo!.month}'
+                                    : period,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: _periodFilter == period
+                                      ? HomeAccent.accent
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            secondChild: const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool get _hasActiveFilters =>
+      _employeeId != null ||
+      _sourceId != null ||
+      _adTypeId != null ||
+      _overdueOnly ||
+      _hasFollowUpOnly ||
+      _periodFilter != 'الكل' ||
+      _searchCtrl.text.trim().isNotEmpty;
+
+  Widget _filterDropdown<T>({
+    required T? value,
+    required String hint,
+    required IconData icon,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          hint: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  hint,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          items: items,
+          onChanged: onChanged,
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor: theme.colorScheme.surfaceContainerHigh,
+          icon: Icon(Icons.arrow_drop_down_rounded,
+              color: theme.colorScheme.onSurfaceVariant, size: 20),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════ اللوحة (كانبان) ═══════════
+
+  Widget _buildBoard(ThemeData theme, bool isDark) {
+    // دمج خسارة(4) + غير مهتم(5) في عمود واحد
+    final mergedColumns = <Map<String, dynamic>>[];
+    for (final col in _columns) {
+      final stageId = (col['StageId'] as num).toInt();
+      if (stageId == 5) continue; // غير مهتم بتتدمج مع خسارة
+
+      if (stageId == 4) {
+        final lostCards = _sortedCards(col['Cards'] as List? ?? [], 4);
+        final niCol = _columns.firstWhere(
+          (c) => (c['StageId'] as num).toInt() == 5,
+          orElse: () => <String, dynamic>{},
+        );
+        final niCards = niCol.isNotEmpty
+            ? _sortedCards(niCol['Cards'] as List? ?? [], 5)
+            : <Map<String, dynamic>>[];
+
+        List<Map<String, dynamic>> display;
+        if (_mergedFilter == 'lost') {
+          display = lostCards;
+        } else if (_mergedFilter == 'noint') {
+          display = niCards;
+        } else {
+          display = [...lostCards, ...niCards];
+        }
+
+        final allCards = [...lostCards, ...niCards];
+        mergedColumns.add({
+          'StageId': -1,
+          'StageName': col['StageName'],
+          'StageNameAr': 'مغلق / خاسر',
+          'StageColor': '#94a3b8',
+          'Count': allCards.length,
+          'Value':
+              allCards.fold<num>(0, (s, c) => s + ((c['ExpectedValue'] ?? 0) as num)),
+          'Cards': display,
+        });
+      } else {
+        final cards = _sortedCards(col['Cards'] as List? ?? [], stageId);
+        mergedColumns.add({...col, 'Cards': cards});
+      }
+    }
+
+    return Column(
+      children: [
+        // شريط الملخص + الأدوات
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final col in mergedColumns)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 5),
+                          child: _pill(
+                            label: col['StageNameAr']?.toString() ?? '',
+                            count: (col['Count'] as num?)?.toInt() ?? 0,
+                            color: _hexColor(col['StageColor']?.toString()),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // تجميع بالموظف
+              GestureDetector(
+                onTap: () => setState(() => _groupByEmployee = !_groupByEmployee),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _groupByEmployee
+                        ? HomeAccent.accent.withValues(alpha: 0.15)
+                        : theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _groupByEmployee
+                          ? HomeAccent.accent
+                          : theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.group_work_rounded,
+                          size: 13,
+                          color: _groupByEmployee
+                              ? HomeAccent.accent
+                              : theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 3),
+                      Text(
+                        'تجميع',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _groupByEmployee
+                              ? HomeAccent.accent
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // الأعمدة — بطول الشاشة كامل
+        Expanded(
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            itemCount: mergedColumns.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, i) {
+              final col = mergedColumns[i];
+              final stageId = (col['StageId'] as num).toInt();
+              return _buildLane(theme, isDark, col, stageId == -1);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill({required String label, required int count, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w900,
+                color: color,
               ),
             ),
           ),
@@ -1250,12 +1054,511 @@ class _PipelineScreenState extends State<PipelineScreen> {
     );
   }
 
-  // ===================================
-  // 🎨 تحويل Hex لـ Color
-  // ===================================
-  Color _hexToColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
+  // ═══════════ العمود ═══════════
+
+  Widget _buildLane(ThemeData theme, bool isDark, Map<String, dynamic> col, bool isMerged) {
+    final stageId = (col['StageId'] as num).toInt();
+    final color = _hexColor(col['StageColor']?.toString());
+    final cards = (col['Cards'] as List? ?? []).cast<Map<String, dynamic>>();
+    final count = (col['Count'] as num?)?.toInt() ?? cards.length;
+    final value = (col['Value'] ?? 0) as num;
+
+    return Container(
+      width: 260,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس العمود
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 10, 8, 8),
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              color: color.withValues(alpha: 0.08),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        (col['StageNameAr']?.toString() ?? '?').isNotEmpty
+                            ? (col['StageNameAr']!.toString())[0]
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            col['StageNameAr']?.toString() ?? '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            '$count فرصة · ${_fmtMoney(value)} ج.م',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _cycleSort(stageId),
+                      child: Tooltip(
+                        message: _sortLabel(_getSort(stageId)),
+                        child: Icon(
+                          _sortIcon(_getSort(stageId)),
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (isMerged) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _mergedTab('الكل', _mergedFilter == 'all', () {
+                        setState(() => _mergedFilter = 'all');
+                      }),
+                      const SizedBox(width: 4),
+                      _mergedTab('خسارة', _mergedFilter == 'lost', () {
+                        setState(() => _mergedFilter = 'lost');
+                      }),
+                      const SizedBox(width: 4),
+                      _mergedTab('غير مهتم', _mergedFilter == 'noint', () {
+                        setState(() => _mergedFilter = 'noint');
+                      }),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          // الكروت
+          Expanded(
+            child: _groupByEmployee
+                ? _buildGroupedCards(theme, cards, stageId, color)
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    itemCount: cards.length,
+                    itemBuilder: (context, i) =>
+                        _buildCard(theme, cards[i], color),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mergedTab(String label, bool selected, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected
+              ? HomeAccent.accent.withValues(alpha: 0.15)
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected
+                ? HomeAccent.accent
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.w800,
+            color:
+                selected ? HomeAccent.accent : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════ تجميع بالموظف ═══════════
+
+  Widget _buildGroupedCards(ThemeData theme, List<Map<String, dynamic>> cards,
+      int stageId, Color color) {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final c in cards) {
+      final emp = c['EmployeeName']?.toString() ?? '—';
+      groups.putIfAbsent(emp, () => []).add(c);
+    }
+
+    final empNames = groups.keys.toList()..sort();
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+      itemCount: empNames.length,
+      itemBuilder: (context, i) {
+        final emp = empNames[i];
+        final empCards = groups[emp]!;
+        final key = '${stageId}_$emp';
+        final isCollapsed = _collapsedEmps[key] == true;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // رأس مجموعة الموظف
+            InkWell(
+              onTap: () => setState(() {
+                _collapsedEmps[key] = !isCollapsed;
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        emp.isNotEmpty ? emp[0] : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        emp,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${empCards.length}',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      isCollapsed
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_up_rounded,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (!isCollapsed)
+              ...empCards.map((c) => _buildCard(theme, c, color)),
+            const SizedBox(height: 4),
+          ],
+        );
+      },
+    );
+  }
+
+  // ═══════════ الكارت (عرض فقط — بدون سحب) ═══════════
+
+  Widget _buildCard(ThemeData theme, Map<String, dynamic> card, Color laneColor) {
+    final stageId = (card['StageId'] as num).toInt();
+    final isLost = stageId == 4;
+    final isNI = stageId == 5;
+    final isOverdue = card['IsOverdue'] == true;
+    final cardColor = isOverdue ? const Color(0xFFEF4444) : laneColor;
+    final days = (card['LifecycleDays'] as num?)?.toInt() ?? 0;
+    final followUp = card['NextFollowUpDate'] != null
+        ? DateTime.tryParse(card['NextFollowUpDate'].toString())
+        : null;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OpportunityDetailScreen(
+              opportunityId: (card['OpportunityId'] as num).toInt(),
+              userId: widget.userId,
+              username: widget.username,
+            ),
+          ),
+        ).then((_) => _load());
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cardColor.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // شريط علوي ملون
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // الاسم + الشارات
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          card['ClientName']?.toString() ?? '—',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      if (isOverdue) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text(
+                            'متأخر',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFEF4444),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      if (isLost) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6B7280)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text(
+                            'خسارة',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ),
+                      ] else if (isNI) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text(
+                            'غير مهتم',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // الشرائح
+                  if ((card['SourceName'] ?? '').toString().isNotEmpty ||
+                      (card['InterestedProduct'] ?? '').toString().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        if ((card['SourceName'] ?? '').toString().isNotEmpty)
+                          _chip(
+                            (card['SourceName'] ?? '').toString(),
+                            const Color(0xFF0EA5E9),
+                          ),
+                        if ((card['InterestedProduct'] ?? '').toString().isNotEmpty)
+                          _chip(
+                            (card['InterestedProduct'] ?? '').toString(),
+                            const Color(0xFF8B5CF6),
+                          ),
+                      ],
+                    ),
+                  ],
+
+                  // نقاط تقدم المراحل
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (final col in _columns)
+                        if ((col['StageId'] as num).toInt() != 4 &&
+                            (col['StageId'] as num).toInt() != 5) ...[
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(left: 3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: (col['StageId'] as num).toInt() == stageId
+                                  ? _hexColor(col['StageColor']?.toString())
+                                  : ((col['StageId'] as num).toInt() < stageId
+                                      ? _hexColor(col['StageColor']?.toString())
+                                          .withValues(alpha: 0.5)
+                                      : theme.colorScheme.outlineVariant),
+                            ),
+                          ),
+                        ],
+                    ],
+                  ),
+
+                  // القيمة + المتابعة
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${_fmtMoney(card['ExpectedValue'] ?? 0)} ج.م',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: cardColor,
+                          ),
+                        ),
+                      ),
+                      if (isOverdue && followUp != null)
+                        Text(
+                          DateFormat('dd/MM').format(followUp),
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // القدم
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          days >= 0 ? '$days يوم' : '—',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: days > 7
+                                ? const Color(0xFFEF4444)
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${card['InteractionsCount'] ?? 0}/${card['TasksCount'] ?? 0}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
   }
 }

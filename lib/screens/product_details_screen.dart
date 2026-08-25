@@ -269,7 +269,27 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
                       )
-                    : _buildImagePlaceholder(),
+                    : (image['id'] != null
+                        ? Image.network(
+                            '$baseUrl/api/product-image-by-id/${image['id']}',
+                            fit: BoxFit.contain,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFFFD700),
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (_, __, ___) =>
+                                _buildImagePlaceholder(),
+                          )
+                        : _buildImagePlaceholder()),
               ),
             );
           },
@@ -333,7 +353,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   void _showFullImage(Map<String, dynamic> image) {
-    if (image['image'] == null) return;
+    if (image['image'] == null && image['id'] == null) return;
 
     showDialog(
       context: context,
@@ -345,10 +365,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             // الصورة
             InteractiveViewer(
               child: Center(
-                child: Image.memory(
-                  base64Decode(image['image']),
-                  fit: BoxFit.contain,
-                ),
+                child: image['image'] != null
+                    ? Image.memory(
+                        base64Decode(image['image']),
+                        fit: BoxFit.contain,
+                      )
+                    : Image.network(
+                        '$baseUrl/api/product-image-by-id/${image['id']}',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white38,
+                          size: 60,
+                        ),
+                      ),
               ),
             ),
             // زر الإغلاق
@@ -408,6 +438,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     final salePremium = product!['SuggestedSalePrice'] ?? 0;
     final marginPremium = _calcMargin(costPremium, salePremium);
 
+    final costStandard = product!['PurchasePriceCClass'] ?? 0;
+    final saleStandard = product!['SuggestedSalePriceCClass'] ?? 0;
+    final marginStandard = _calcMargin(costStandard, saleStandard);
+
     final costElite = product!['PurchasePriceElite'] ?? 0;
     final saleElite = product!['SuggestedSalePriceElite'] ?? 0;
     final marginElite = _calcMargin(costElite, saleElite);
@@ -452,33 +486,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
         const SizedBox(height: 16),
 
-        // أسعار Premium / Elite
-        Row(
-          children: [
-            // كارت Premium
-            Expanded(
-              child: _buildPackagePriceCard(
-                title: 'Premium',
-                cost: costPremium,
-                sale: salePremium,
-                margin: marginPremium,
-                color: const Color(0xFFFFD700),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // كارت Elite (نظهره بس لو فيه بيانات)
-            Expanded(
-              child: (costElite == 0 && saleElite == 0)
-                  ? _buildEmptyEliteCard()
-                  : _buildPackagePriceCard(
-                      title: 'Elite',
-                      cost: costElite,
-                      sale: saleElite,
-                      margin: marginElite,
-                      color: Colors.greenAccent,
-                    ),
-            ),
-          ],
+        // أسعار الباقات الثلاث: Standard / Premium / Elite
+        // — كاروسيل الباقات (Standard / Premium / Elite) زي كروت الهوم
+        _PricingCarousel(
+          costStandard: costStandard,
+          saleStandard: saleStandard,
+          marginStandard: marginStandard,
+          costPremium: costPremium,
+          salePremium: salePremium,
+          marginPremium: marginPremium,
+          costElite: costElite,
+          saleElite: saleElite,
+          marginElite: marginElite,
+          hasElite: costElite != 0 || saleElite != 0,
         ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
       ],
     );
@@ -585,24 +605,42 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ValueListenableBuilder<String>(
                 valueListenable: priceTypeController,
                 builder: (context, priceType, _) {
-                  return Row(
+                  return Column(
                     children: [
-                      Expanded(
-                        child: _buildTypeChip(
-                          'Premium',
-                          priceType == 'Premium',
-                          const Color(0xFFFFD700),
-                          () => priceTypeController.value = 'Premium',
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Standard',
+                              priceType == 'Standard',
+                              const Color(0xFF42A5F5),
+                              () => priceTypeController.value = 'Standard',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Premium',
+                              priceType == 'Premium',
+                              const Color(0xFFFFD700),
+                              () => priceTypeController.value = 'Premium',
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildTypeChip(
-                          'Elite',
-                          priceType == 'Elite',
-                          Colors.greenAccent,
-                          () => priceTypeController.value = 'Elite',
-                        ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Elite',
+                              priceType == 'Elite',
+                              Colors.greenAccent,
+                              () => priceTypeController.value = 'Elite',
+                            ),
+                          ),
+                          const Expanded(child: SizedBox()),
+                        ],
                       ),
                     ],
                   );
@@ -616,7 +654,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 builder: (context, priceType, _) {
                   final currentPrice = priceType == 'Premium'
                       ? (product?['SuggestedSalePrice'] ?? 0)
-                      : (product?['SuggestedSalePriceElite'] ?? 0);
+                      : (priceType == 'Standard'
+                          ? (product?['SuggestedSalePriceCClass'] ?? 0)
+                          : (product?['SuggestedSalePriceElite'] ?? 0));
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -709,7 +749,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 priceType: priceTypeController.value,
                 currentPrice: priceTypeController.value == 'Premium'
                     ? (product?['SuggestedSalePrice'] ?? 0).toDouble()
-                    : (product?['SuggestedSalePriceElite'] ?? 0).toDouble(),
+                    : (priceTypeController.value == 'Standard'
+                        ? (product?['SuggestedSalePriceCClass'] ?? 0).toDouble()
+                        : (product?['SuggestedSalePriceElite'] ?? 0).toDouble()),
                 requestedPrice: requestedPrice,
                 reason: reasonController.text,
               );
@@ -808,24 +850,42 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ValueListenableBuilder<String>(
                 valueListenable: priceTypeController,
                 builder: (context, priceType, _) {
-                  return Row(
+                  return Column(
                     children: [
-                      Expanded(
-                        child: _buildTypeChip(
-                          'Premium',
-                          priceType == 'Premium',
-                          const Color(0xFFFFD700),
-                          () => priceTypeController.value = 'Premium',
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Standard',
+                              priceType == 'Standard',
+                              const Color(0xFF42A5F5),
+                              () => priceTypeController.value = 'Standard',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Premium',
+                              priceType == 'Premium',
+                              const Color(0xFFFFD700),
+                              () => priceTypeController.value = 'Premium',
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildTypeChip(
-                          'Elite',
-                          priceType == 'Elite',
-                          Colors.greenAccent,
-                          () => priceTypeController.value = 'Elite',
-                        ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTypeChip(
+                              'Elite',
+                              priceType == 'Elite',
+                              Colors.greenAccent,
+                              () => priceTypeController.value = 'Elite',
+                            ),
+                          ),
+                          const Expanded(child: SizedBox()),
+                        ],
                       ),
                     ],
                   );
@@ -839,7 +899,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 builder: (context, priceType, _) {
                   final currentPrice = priceType == 'Premium'
                       ? (product?['SuggestedSalePrice'] ?? 0)
-                      : (product?['SuggestedSalePriceElite'] ?? 0);
+                      : (priceType == 'Standard'
+                          ? (product?['SuggestedSalePriceCClass'] ?? 0)
+                          : (product?['SuggestedSalePriceElite'] ?? 0));
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -1086,6 +1148,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════
+  // كاروسيل كروت التسعير (يمين/شمال زي كروت الهوم)
+  // ═══════════════════════════════════════════════════════
+
   Widget _buildPackagePriceCard({
     required String title,
     required dynamic cost,
@@ -1094,183 +1160,58 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     required Color color,
   }) {
     final permService = PermissionService();
-    final showFull = permService.canSeeFullProductPricing;          // admin / nabil / hassan
+    final showFull = permService.canSeeFullProductPricing;          // admin / accountmanager
     final costOnly = permService.canSeeCostOnlyProductPricing;      // factory
     final saleOnly = permService.canSeeSaleOnlyProductPricing;      // باقي اليوزرات
 
-    final costText = '${_formatNumber(cost ?? 0)} ج.م';
-    final saleText = '${_formatNumber(sale ?? 0)} ج.م';
-    final marginText = '${margin.toStringAsFixed(1)} %';
+    final costText = '${_formatNumber(cost ?? 0)}';
+    final saleText = '${_formatNumber(sale ?? 0)}';
+    final marginText = '${margin.toStringAsFixed(1)}';
+
+    // القيم اللي تظهر حسب الصلاحية — كلها جنب بعض في صف واحد
+    final List<Widget> values = [];
+
+    if (showFull) {
+      values.add(_miniValue('التكلفة', costText, Colors.white, color));
+      values.add(_miniValue('نسبة الربح', marginText, color, color));
+      values.add(_miniValue('سعر البيع', saleText, color, color));
+    } else if (costOnly) {
+      values.add(_miniValue('التكلفة', costText, Colors.white, color));
+    } else if (saleOnly) {
+      values.add(_miniValue('سعر البيع', saleText, color, color));
+    }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // العنوان (Premium / Elite)
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
           Text(
             title,
             style: GoogleFonts.cairo(
               color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
-
-          // 🌕 الحالة الأولى: يشوف كل حاجة
-          if (showFull) ...[
-            // التكلفة
-            Row(
-              children: [
-                Text(
-                  'التكلفة:',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  costText,
-                  style: GoogleFonts.cairo(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-
-            // سعر البيع
-            Row(
-              children: [
-                Text(
-                  'سعر البيع:',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  saleText,
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-
-            // نسبة الربح
-            Row(
-              children: [
-                Text(
-                  'نسبة الربح:',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  marginText,
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ]
-
-          // 🌗 الحالة الثانية: يشوف تكلفة بس (factory)
-          else if (costOnly) ...[
-            Row(
-              children: [
-                Text(
-                  'التكلفة:',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  costText,
-                  style: GoogleFonts.cairo(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ]
-
-          // 🌘 الحالة الثالثة: يشوف سعر البيع بس (الباقيين)
-          else if (saleOnly) ...[
-            Row(
-              children: [
-                Text(
-                  'سعر البيع:',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  saleText,
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyEliteCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Elite',
-            style: GoogleFonts.cairo(
-              color: Colors.grey[500],
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'لم يتم إدخال أسعار Elite',
-            style: GoogleFonts.cairo(
-              color: Colors.grey[500],
-              fontSize: 12,
+          const SizedBox(width: 12),
+          Container(width: 1, height: 20, color: color.withOpacity(0.2)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: values,
             ),
           ),
         ],
@@ -1278,31 +1219,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildPriceCard(String label, dynamic price, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 12),
+  // قيمة مصغرة داخل كارت السعر
+  Widget _miniValue(String label, String value, Color textColor, Color accent) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: GoogleFonts.cairo(
+            color: textColor,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${_formatNumber(price ?? 0)} ج.م',
-            style: GoogleFonts.cairo(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          label,
+          style: GoogleFonts.cairo(
+            color: Colors.grey[400],
+            fontSize: 9.5,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1473,4 +1411,287 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       (Match m) => '${m[1]},',
     );
   }
+}
+
+class _PricingCarousel extends StatefulWidget {
+  final dynamic costStandard, saleStandard;
+  final double marginStandard;
+  final dynamic costPremium, salePremium;
+  final double marginPremium;
+  final dynamic costElite, saleElite;
+  final double marginElite;
+  final bool hasElite;
+
+  const _PricingCarousel({
+    required this.costStandard,
+    required this.saleStandard,
+    required this.marginStandard,
+    required this.costPremium,
+    required this.salePremium,
+    required this.marginPremium,
+    required this.costElite,
+    required this.saleElite,
+    required this.marginElite,
+    required this.hasElite,
+  });
+
+  @override
+  State<_PricingCarousel> createState() => _PricingCarouselState();
+}
+
+class _PricingCarouselState extends State<_PricingCarousel> {
+  final PageController _controller = PageController(viewportFraction: 0.92);
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int get _count => widget.hasElite ? 3 : 2;
+
+  // تنسيق الأرقام (محلية — لأن _formatNumber في الشاشة الرئيسية)
+  String _fmt(dynamic number) {
+    if (number == null) return '0';
+    // تحويل لأرقام نظيفة (من غير .0 زائدة)
+    double d;
+    if (number is num) {
+      d = number.toDouble();
+    } else {
+      d = double.tryParse(number.toString()) ?? 0;
+    }
+    final rounded = d == d.roundToDouble() ? d.toInt() : d;
+    final s = rounded.toString();
+    return s.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => m.group(1)! + ',',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 210,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: _count,
+            onPageChanged: (i) => setState(() => _currentPage = i),
+            itemBuilder: (context, i) {
+              final Widget card;
+              if (i == 0) {
+                card = _buildCarouselCard(
+                  title: 'Standard',
+                  cost: widget.costStandard,
+                  sale: widget.saleStandard,
+                  margin: widget.marginStandard,
+                  color: const Color(0xFF42A5F5),
+                );
+              } else if (i == 1) {
+                card = _buildCarouselCard(
+                  title: 'Premium',
+                  cost: widget.costPremium,
+                  sale: widget.salePremium,
+                  margin: widget.marginPremium,
+                  color: const Color(0xFFFFD700),
+                );
+              } else {
+                card = _buildCarouselCard(
+                  title: 'Elite',
+                  cost: widget.costElite,
+                  sale: widget.saleElite,
+                  margin: widget.marginElite,
+                  color: Colors.greenAccent,
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: card,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        // نقاط التنقل
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < _count; i++)
+              GestureDetector(
+                onTap: () => _controller.animateToPage(
+                  i,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: i == _currentPage ? 22 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: i == _currentPage
+                        ? const Color(0xFFFFD700)
+                        : Colors.white38,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // كارت داخل الكاروسيل — بنفس محتوى كارت السعر الرفيع
+  Widget _buildCarouselCard({
+    required String title,
+    required dynamic cost,
+    required dynamic sale,
+    required double margin,
+    required Color color,
+  }) {
+    final permService = PermissionService();
+    final showFull = permService.canSeeFullProductPricing;
+    final costOnly = permService.canSeeCostOnlyProductPricing;
+    final saleOnly = permService.canSeeSaleOnlyProductPricing;
+
+    final costText = _fmt(cost ?? 0);
+    final saleText = _fmt(sale ?? 0);
+    final marginText = '${margin.toStringAsFixed(1)}';
+
+    // قيمة رئيسية كبيرة (حسب الصلاحية)
+    String mainValue, mainLabel;
+    if (showFull) {
+      mainValue = saleText;
+      mainLabel = 'سعر البيع';
+    } else if (costOnly) {
+      mainValue = costText;
+      mainLabel = 'سعر التكلفة';
+    } else {
+      mainValue = saleText;
+      mainLabel = 'سعر البيع';
+    }
+
+    // الصفوف الفرعية حسب الصلاحية — التكلفة مرة واحدة + النسبة بدون %
+    final List<Widget> subRows = [];
+    if (showFull) {
+      subRows.add(_carouselSubRow('التكلفة', costText, Colors.white));
+      subRows.add(_carouselSubRow('نسبة الربح', marginText, color));
+    } else if (costOnly) {
+      subRows.add(_carouselSubRow('نسبة الربح', marginText, color));
+    } else {
+      subRows.add(_carouselSubRow('التكلفة', costText, Colors.white));
+      subRows.add(_carouselSubRow('نسبة الربح', marginText, color));
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس الباقة: أيقونة + الاسم
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  title == 'Standard'
+                      ? Icons.view_agenda_outlined
+                      : (title == 'Premium'
+                          ? Icons.star_rounded
+                          : Icons.workspace_premium_rounded),
+                  color: color,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: GoogleFonts.cairo(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          Container(height: 1, color: color.withOpacity(0.15)),
+          const SizedBox(height: 10),
+
+          // السعر الرئيسي — كبير وواضح
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                mainLabel + ':',
+                style: GoogleFonts.cairo(
+                  color: Colors.grey[400],
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '$mainValue ج.م',
+                  style: GoogleFonts.cairo(
+                    color: color,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // التفاصيل الفرعية
+          ...subRows,
+        ],
+      ),
+    );
+  }
+
+  // صف فرعي داخل الكارت
+  Widget _carouselSubRow(String label, String value, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.cairo(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            label.contains('نسبة') ? '$value%' : '$value ج.م',
+            style: GoogleFonts.cairo(
+              color: textColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
