@@ -32,7 +32,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   bool _busy = false;
   String? _error;
   Map<String, dynamic>? _lead;
-  Map<String, dynamic>? _pendingReject;
+  // تم إلغاء طلب المدير من الليدز - الرفض مباشر بدون GM
+  // Map<String, dynamic>? _pendingReject; // ملغي
   List<dynamic> _interactions = [];
   List<dynamic> _employees = [];
   List<dynamic> _sources = [];
@@ -67,7 +68,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
         LeadsService.getLeadById(widget.leadId),
         LeadsService.getInteractions(widget.leadId),
         LeadsService.getEmployees(),
-        LeadsService.getPendingReject(widget.leadId),
         _sources.isEmpty ? _oppService.getSources() : Future.value(_sources),
         _categories.isEmpty ? _oppService.getCategories() : Future.value(_categories),
         _taskTypes.isEmpty ? _oppService.getTaskTypes() : Future.value(_taskTypes),
@@ -78,11 +78,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
         _lead = results[0] as Map<String, dynamic>?;
         _interactions = results[1] as List<dynamic>;
         _employees = results[2] as List<dynamic>;
-        _pendingReject = results[3] as Map<String, dynamic>?;
-        _sources = List<dynamic>.from(results[4] as List? ?? const []);
-        _categories = List<dynamic>.from(results[5] as List? ?? const []);
-        _taskTypes = List<dynamic>.from(results[6] as List? ?? const []);
-        _adTypes = List<dynamic>.from(results[7] as List? ?? const []);
+        _sources = List<dynamic>.from(results[3] as List? ?? const []);
+        _categories = List<dynamic>.from(results[4] as List? ?? const []);
+        _taskTypes = List<dynamic>.from(results[5] as List? ?? const []);
+        _adTypes = List<dynamic>.from(results[6] as List? ?? const []);
         _loading = false;
         if (_lead == null) _error = 'الـ Lead غير موجود';
       });
@@ -581,7 +580,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                           fontSize: 17, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   Text(
-                    'مثل بلازور: موظف + مصدر + فئة + نوع مهمة + قيمة متوقعة',
+                    'حدد الموظف والمصدر والفئة ونوع المهمة والقيمة المتوقعة',
                     style: GoogleFonts.cairo(
                         fontSize: 12,
                         color: AppColors.textSecondary(_isDark)),
@@ -795,48 +794,25 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Future<void> _confirmReject() async {
+    // تم إلغاء طلب المدير - رفض مباشر للجميع
     final ctrl = TextEditingController();
-    final direct = _perms.canRejectLeadDirectly;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(
-          direct ? 'رفض الـ Lead' : 'طلب رفض Lead',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!direct)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  'سيتم إرسال الطلب للمدير العام (GeneralManager) للموافقة. لن تتغير الحالة إلا بعد الاعتماد.',
-                  style: GoogleFonts.cairo(
-                      fontSize: 12, color: Colors.orange.shade800),
-                ),
-              ),
-            TextField(
-              controller: ctrl,
-              decoration: _inputDeco('سبب الرفض *'),
-              style: GoogleFonts.cairo(),
-              maxLines: 3,
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.red.withOpacity(0.12), shape: BoxShape.circle), child: const Icon(Icons.block_rounded, color: Colors.red, size: 20)),
+          const SizedBox(width: 10),
+          Text('رفض الـ Lead مباشر', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: Text('سيتم رفض الـ Lead مباشرة بدون إرسال طلب للمدير العام. الخسارة الحقيقية تكون في العملاء الفعليين بعد التحويل.', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey.shade700))),
+          const SizedBox(height: 12),
+          TextField(controller: ctrl, decoration: _inputDeco('سبب الرفض *'), style: GoogleFonts.cairo(), maxLines: 3),
+        ]),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: Text('إلغاء', style: GoogleFonts.cairo())),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(c, true),
-            child: Text(
-              direct ? 'رفض' : 'إرسال الطلب',
-              style: GoogleFonts.cairo(color: Colors.white),
-            ),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text('إلغاء', style: GoogleFonts.cairo())),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), onPressed: () => Navigator.pop(c, true), child: Text('رفض مباشر', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -846,24 +822,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       _toast('سبب الرفض مطلوب', ok: false);
       return;
     }
-
-    if (direct) {
-      await _quickStatus(LeadsService.statusRejected, rejectedReason: reason);
-      return;
-    }
-
-    setState(() => _busy = true);
-    final res = await LeadsService.requestReject(
-      leadId: widget.leadId,
-      userName: widget.username,
-      reason: reason,
-    );
-    setState(() => _busy = false);
-    if (!mounted) return;
-    final success = res['success'] == true;
-    _toast(success ? (res['message'] ?? 'تم إرسال الطلب') : (res['message'] ?? 'فشل'),
-        ok: success);
-    if (success) await _loadAll();
+    await _quickStatus(LeadsService.statusRejected, rejectedReason: reason);
   }
 
   Future<void> _editNotes() async {
@@ -950,10 +909,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                             const SizedBox(height: 12),
                             if (_canEdit && !_locked) _buildActionsRow(),
                             if (_canEdit && !_locked) const SizedBox(height: 12),
-                            if (_pendingReject != null) ...[
-                              _buildPendingRejectBanner(),
-                              const SizedBox(height: 12),
-                            ],
+                            // تم إلغاء بانر طلب المدير - الرفض مباشر الآن
                             _buildSection(
                               'بيانات العميل',
                               Icons.person_rounded,
@@ -1019,113 +975,58 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Widget _buildHeaderCard() {
     final s = _status;
     final color = _statusColor(s);
+    final name = '${_lead?['FullName'] ?? ''}';
+    final initials = name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+    final phone = '${_lead?['Phone'] ?? ''}';
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [AppColors.navy, const Color(0xFF1E3A5F), const Color(0xFF2A4A7F)]),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: AppColors.navy.withOpacity(0.35), blurRadius: 22, offset: const Offset(0, 10))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: color.withOpacity(0.15),
-                child: Icon(_statusIcon(s), color: color),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${_lead!['FullName'] ?? ''}',
-                      style: GoogleFonts.cairo(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.text(_isDark),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(s,
-                          style: GoogleFonts.cairo(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: color)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _quickActionBtn(
-                  Icons.phone,
-                  'اتصال',
-                  Colors.blue,
-                  () => _launchTel('${_lead!['Phone'] ?? ''}'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _quickActionBtn(
-                  Icons.chat,
-                  'واتساب',
-                  const Color(0xFF25D366),
-                  () => _launchWhatsApp('${_lead!['Phone'] ?? ''}'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _quickActionBtn(
-                  Icons.copy_rounded,
-                  'نسخ',
-                  Colors.blueGrey,
-                  () async {
-                    await Clipboard.setData(
-                        ClipboardData(text: '${_lead!['Phone'] ?? ''}'));
-                    _toast('تم نسخ الرقم');
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              _metaChip(Icons.tag, '#${_lead!['LeadId']}'),
-              if (_lead!['LeadDate'] != null)
-                _metaChip(Icons.event, _fmtDate(_lead!['LeadDate'])),
-              if (_lead!['LastContactDate'] != null)
-                _metaChip(Icons.history, 'آخر تواصل: ${_fmtDate(_lead!['LastContactDate'])}'),
-              if (_lead!['Platform'] != null)
-                _metaChip(Icons.public, '${_lead!['Platform']}'),
-            ],
-          ),
-        ],
-      ),
+      child: Stack(children: [
+        Positioned(top: -20, left: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), shape: BoxShape.circle))),
+        Positioned(bottom: -30, right: -30, child: Container(width: 140, height: 140, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.08), shape: BoxShape.circle))),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Stack(children: [
+                Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withOpacity(0.14), shape: BoxShape.circle, border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.5)), child: Center(child: Text(initials, style: GoogleFonts.cairo(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)))),
+                Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(5), decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: AppColors.navy, width: 2.5)), child: Icon(_statusIcon(s), size: 12, color: Colors.white))),
+              ]),
+              const SizedBox(width: 16),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 6, children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))]), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(_statusIcon(s), size: 12, color: Colors.white), const SizedBox(width: 5), Text(s, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white))])),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.15))), child: Text('#${_lead!['LeadId']}', style: GoogleFonts.cairo(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w700))),
+                ]),
+              ])),
+            ]),
+            const SizedBox(height: 18),
+            Row(children: [
+              Expanded(child: _quickActionBtn(Icons.phone_rounded, 'اتصال', const Color(0xFF60A5FA), () => _launchTel(phone))),
+              const SizedBox(width: 10),
+              Expanded(child: _quickActionBtn(Icons.chat_bubble_rounded, 'واتساب', const Color(0xFF4ADE80), () => _launchWhatsApp(phone))),
+              const SizedBox(width: 10),
+              Expanded(child: _quickActionBtn(Icons.copy_rounded, 'نسخ الرقم', Colors.white70, () async {
+                await Clipboard.setData(ClipboardData(text: phone));
+                _toast('تم نسخ الرقم');
+              })),
+            ]),
+            const SizedBox(height: 16),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              _metaChip(Icons.calendar_today_rounded, _fmtDate(_lead!['CreatedAt'])),
+              if (_lead!['LastContactDate'] != null) _metaChip(Icons.history_rounded, 'آخر تواصل: ${_fmtDate(_lead!['LastContactDate'])}'),
+              if (_lead!['Platform'] != null) _metaChip(Icons.public_rounded, '${_lead!['Platform']}'),
+              if (_lead!['City'] != null) _metaChip(Icons.location_on_rounded, '${_lead!['City']}'),
+              if (_lead!['Budget'] != null) _metaChip(Icons.payments_rounded, '${_lead!['Budget']}'),
+            ]),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -1174,155 +1075,69 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Widget _buildActionsRow() {
-    // ألوان واضحة على الوضع الداكن والفاتح (تجنب navy الغامق كنص)
     final contactColor = _isDark ? AppColors.gold : const Color(0xFF1D4ED8);
     final contactedColor = const Color(0xFFEA580C);
     final assignColor = const Color(0xFF7C3AED);
     final convertColor = const Color(0xFF15803D);
     final rejectColor = const Color(0xFFDC2626);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _actionChip(Icons.record_voice_over, 'تواصل', contactColor,
-            _openInteractionSheet),
-        if (_status != LeadsService.statusContacted)
-          _actionChip(Icons.phone_callback, 'تم التواصل', contactedColor,
-              () => _quickStatus(LeadsService.statusContacted)),
-        _actionChip(
-            Icons.assignment_ind, 'إسناد', assignColor, _openAssignSheet),
-        if (_canConvert)
-          _actionChip(
-              Icons.transform, 'تحويل', convertColor, _openConvertSheet),
-        if (_status != LeadsService.statusRejected && _pendingReject == null)
-          _actionChip(
-            Icons.cancel,
-            _perms.canRejectLeadDirectly ? 'رفض' : 'طلب رفض',
-            rejectColor,
-            _confirmReject,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPendingRejectBanner() {
-    final reason = '${_pendingReject?['Reason'] ?? ''}';
-    final by = '${_pendingReject?['RequestedBy'] ?? ''}';
-    final reqId = _pendingReject?['RequestId'];
-    final canDecide = _perms.canRejectLeadDirectly;
-
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withOpacity(0.45)),
+        color: AppColors.card(_isDark),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold.withOpacity(0.22)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('⏳ طلب رفض معلّق',
-              style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.w900, color: Colors.orange.shade900)),
-          const SizedBox(height: 4),
-          Text('من: $by', style: GoogleFonts.cairo(fontSize: 12)),
-          if (reason.isNotEmpty)
-            Text('السبب: $reason', style: GoogleFonts.cairo(fontSize: 12)),
-          if (canDecide && reqId != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white),
-                    onPressed: _busy
-                        ? null
-                        : () => _decideReject(
-                              reqId is int ? reqId : int.parse('$reqId'),
-                              true,
-                            ),
-                    child: Text('اعتماد الرفض', style: GoogleFonts.cairo()),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _decideReject(
-                              reqId is int ? reqId : int.parse('$reqId'),
-                              false,
-                            ),
-                    child: Text('رفض الطلب', style: GoogleFonts.cairo()),
-                  ),
-                ),
-              ],
-            ),
-          ] else
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'بانتظار موافقة المدير العام',
-                style: GoogleFonts.cairo(
-                    fontSize: 11, color: Colors.orange.shade800),
-              ),
-            ),
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.bolt_rounded, size: 16, color: AppColors.gold)),
+          const SizedBox(width: 8),
+          Text('إجراءات سريعة', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 14)),
+          const Spacer(),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.green.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: Text('بدون موافقة مدير - مباشر', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+        ]),
+        const SizedBox(height: 12),
+        Wrap(spacing: 10, runSpacing: 10, children: [
+          _actionChip(Icons.record_voice_over_rounded, 'تسجيل تواصل', contactColor, _openInteractionSheet),
+          if (_status != LeadsService.statusContacted) _actionChip(Icons.phone_callback_rounded, 'تم التواصل', contactedColor, () => _quickStatus(LeadsService.statusContacted)),
+          _actionChip(Icons.assignment_ind_rounded, 'إسناد موظف', assignColor, _openAssignSheet),
+          if (_canConvert) _actionChip(Icons.rocket_launch_rounded, 'تحويل لعميل فعلي', convertColor, _openConvertSheet, isPrimary: true),
+          if (_status != LeadsService.statusRejected) _actionChip(Icons.block_rounded, 'رفض مباشر', rejectColor, _confirmReject),
+        ]),
+      ]),
     );
   }
 
+  // تم إلغاء بانر طلب المدير - نحتفظ بالدالة كـ stub عشان عدد الأسطر
+  Widget _buildPendingRejectBanner() {
+    return const SizedBox.shrink();
+  }
+
+  // تم إلغاء منطق اعتماد طلب الرفض - نحتفظ كـ stub
   Future<void> _decideReject(int requestId, bool approve) async {
-    setState(() => _busy = true);
-    final res = await LeadsService.decideRejectRequest(
-      requestId: requestId,
-      approve: approve,
-      userName: widget.username,
-      actorRole: _perms.role,
-    );
-    setState(() => _busy = false);
-    if (!mounted) return;
-    final ok = res['success'] == true;
-    _toast(ok ? (res['message'] ?? 'تم') : (res['message'] ?? 'فشل'), ok: ok);
-    if (ok) await _loadAll();
+    return;
   }
 
-  Widget _actionChip(
-      IconData icon, String label, Color c, VoidCallback onTap) {
-    // Material 3 ActionChip أحيانًا يطغى على لون النص — نثبّت التباين يدويًا
+  Widget _actionChip(IconData icon, String label, Color c, VoidCallback onTap, {bool isPrimary = false}) {
     final bg = c.withOpacity(_isDark ? 0.22 : 0.14);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _busy ? null : onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: isPrimary ? 18 : 12, vertical: isPrimary ? 11 : 8),
           decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: c.withOpacity(0.55), width: 1.2),
+            color: isPrimary ? c : bg,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: c.withOpacity(isPrimary ? 1 : 0.55), width: isPrimary ? 0 : 1.2),
+            boxShadow: isPrimary ? [BoxShadow(color: c.withOpacity(0.32), blurRadius: 10, offset: const Offset(0, 4))] : null,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: c),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.cairo(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                  color: c,
-                  height: 1.1,
-                ),
-              ),
-            ],
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 16, color: isPrimary ? Colors.white : c),
+            const SizedBox(width: 6),
+            Text(label, style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.w900, color: isPrimary ? Colors.white : c, height: 1.1)),
+          ]),
         ),
       ),
     );
@@ -1330,30 +1145,26 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
     final visible = children.whereType<Widget>().toList();
-    // filter empty infos — _info returns SizedBox.shrink
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 5))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: AppColors.gold),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.w900, fontSize: 15)),
-            ],
-          ),
-          const Divider(height: 18),
-          ...visible,
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+          child: Row(children: [
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, size: 20, color: AppColors.gold)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title, style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 15))),
+            Container(width: 5, height: 20, decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(4))),
+          ]),
+        ),
+        Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: visible)),
+      ]),
     );
   }
 

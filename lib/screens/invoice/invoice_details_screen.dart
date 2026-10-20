@@ -15,6 +15,10 @@ import 'package:path_provider/path_provider.dart';
 import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
 import '../../services/permission_service.dart';
+import '../../services/invoice_service.dart';
+import '../../core/network/api_client.dart';
+import 'add_invoice_screen.dart';
+import 'invoice_edit_history_sheet.dart';
 
 /// تفاصيل فاتورة مبيعات - نسخة محسنة UI + PDF آمن
 class InvoiceDetailsScreen extends StatefulWidget {
@@ -41,24 +45,16 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
   final PermissionService _perms = PermissionService();
 
-  bool get _isAdminOrAccountMgr => _perms.isAdmin || _perms.isAccountManager;
-  bool get _canApprove =>
-      _perms.isAdmin || _perms.isAccountManager || _perms.isSalesManager;
-  bool get _canRequestEdit {
-    if (widget.invoiceType == 'Purchase') {
-      return _perms.isAdmin ||
-          _perms.isAccountManager ||
-          _perms.isFactory ||
-          _perms.isAccount;
-    }
-    return _perms.isAdmin ||
-        _perms.isAccountManager ||
-        _perms.isSalesManager ||
-        _perms.isSales ||
-        _perms.isAccount;
-  }
+  bool get _isAdminOrAccountMgr => _perms.canFullEditInvoices;
+  bool get _canApprove => _perms.canApproveInvoiceEdit;
+  // طلب التعديل في المرجع الحالي لفاتورة البيع فقط؛ الشراء له مسار تشغيل مستقل.
+  bool get _canRequestEdit => !isPurchase && _perms.canViewSalesInvoices;
+  bool get _canViewHistory => _perms.canViewInvoiceHistory;
+  bool get _canViewProfit => _perms.canViewInvoiceProfit;
 
-  bool get isPurchase => widget.invoiceType == 'Purchase';
+  bool get isPurchase =>
+      (_data?['header']?['TransactionType']?.toString() ?? widget.invoiceType) ==
+      'Purchase';
 
   @override
   void initState() {
@@ -72,24 +68,20 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       _error = null;
     });
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/api/transactions/${widget.transactionId}/full'),
-      );
-      if (res.statusCode == 200) {
-        final json = jsonDecode(res.body);
-        setState(() {
-          _data = json['data'] is Map
-              ? Map<String, dynamic>.from(json['data'])
-              : null;
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'فشل تحميل التفاصيل (${res.statusCode})';
-          _loading = false;
-        });
-      }
-    } catch (e) {
+      final data = await InvoiceService.instance.getFull(widget.transactionId);
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'فشل الاتصال بالخادم';
         _loading = false;
@@ -125,92 +117,95 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   // ──────────── طلبات التعديل ────────────────
   Future<void> _requestEdit() async {
     final reasonCtrl = TextEditingController();
-    final submitted = await showDialog<bool>(
+    final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('طلب تعديل الفاتورة'),
         content: TextField(
           controller: reasonCtrl,
           maxLines: 3,
+          autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'سبب التعديل (اختياري)',
+            labelText: 'سبب التعديل *',
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () {
+              final value = reasonCtrl.text.trim();
+              if (value.isNotEmpty) Navigator.pop(ctx, value);
+            },
             child: const Text('إرسال الطلب'),
           ),
         ],
       ),
     );
-    if (submitted != true || !mounted) return;
+    reasonCtrl.dispose();
+    if (reason == null || !mounted) return;
     try {
-      final res = await http.post(
-        Uri.parse(
-          '$baseUrl/api/transactions/${widget.transactionId}/request-edit',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requestedBy': widget.username,
-          'reason': reasonCtrl.text.trim(),
-        }),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تم إرسال الطلب',
-          result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+      await InvoiceService.instance.requestEdit(widget.transactionId, reason);
+      _showMsg('تم إرسال طلب التعديل وتوجيه الإشعار للمسؤول', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
   }
 
   Future<void> _approveEdit() async {
-    final ok = await _confirm('الموافقة على التعديل',
-        'هل توافق على طلب تعديل هذه الفاتورة؟', 'موافقة', const Color(0xFF43A047));
+    final ok = await _confirm(
+      'الموافقة على التعديل',
+      'هل توافق على طلب تعديل هذه الفاتورة؟',
+      'موافقة',
+      const Color(0xFF43A047),
+    );
     if (ok != true || !mounted) return;
     try {
-      final res = await http.post(
-        Uri.parse(
-          '$baseUrl/api/transactions/${widget.transactionId}/approve-edit',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'approvedBy': widget.username}),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تمت الموافقة', result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+      await InvoiceService.instance.approveEdit(widget.transactionId);
+      _showMsg('تمت الموافقة وإرسال إشعار لصاحب الطلب', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
   }
 
   Future<void> _rejectEdit() async {
-    final ok = await _confirm('رفض طلب التعديل',
-        'هل ترفض طلب تعديل هذه الفاتورة؟', 'رفض', const Color(0xFFE53935));
-    if (ok != true || !mounted) return;
-    try {
-      final res = await http.post(
-        Uri.parse(
-          '$baseUrl/api/transactions/${widget.transactionId}/reject-edit',
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رفض طلب التعديل'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'سبب الرفض *',
+            border: OutlineInputBorder(),
+          ),
         ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'rejectedBy': widget.username}),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تم الرفض', result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(ctx, value);
+            },
+            child: const Text('تأكيد الرفض'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    try {
+      await InvoiceService.instance.rejectEdit(widget.transactionId, reason);
+      _showMsg('تم الرفض وإرسال إشعار لصاحب الطلب', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
   }
 
@@ -301,22 +296,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       return;
     }
     try {
-      final res = await http.put(
-        Uri.parse(
-            '$baseUrl/api/transactions/${widget.transactionId}/apply-edit'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'discountPercentage': discPct,
-          'discountAmount': discAmt,
-          'editedBy': widget.username,
-        }),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تم تطبيق الخصم',
-          result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+      await InvoiceService.instance.applyEdit(widget.transactionId, {
+        'discountPercentage': discPct,
+        'discountAmount': discAmt,
+      });
+      _showMsg('تم تطبيق الخصم', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
   }
 
@@ -411,22 +398,15 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     }
 
     try {
-      final res = await http.put(
-        Uri.parse(
-            '$baseUrl/api/transactions/${widget.transactionId}/apply-edit'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'dueDate': pickedDueDate?.toIso8601String(),
-          'discountPercentage': discPct,
-          'discountAmount': discAmt,
-          'editedBy': widget.username,
-        }),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تم التعديل', result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+      await InvoiceService.instance.applyEdit(widget.transactionId, {
+        'dueDate': pickedDueDate?.toIso8601String(),
+        'discountPercentage': discPct,
+        'discountAmount': discAmt,
+      });
+      _showMsg('تم التعديل', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
   }
 
@@ -485,23 +465,46 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       return;
     }
     try {
-      final res = await http.put(
-        Uri.parse(
-            '$baseUrl/api/transactions/${widget.transactionId}/details/${detail['DetailID']}/price'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'newUnitPrice': newPrice,
-          'editedBy': widget.username,
-          'changeReason': 'تعديل من الموبايل',
-        }),
+      await InvoiceService.instance.updateDetailPrice(
+        widget.transactionId,
+        detail['DetailID'],
+        newPrice,
+        reason: 'تعديل سعر صنف من تفاصيل الفاتورة',
       );
-      final result = jsonDecode(res.body);
-      _showMsg(result['message'] ?? 'تم تعديل السعر',
-          result['success'] == true);
-      if (result['success'] == true) _load();
-    } catch (_) {
-      _showMsg('خطأ في الاتصال', false);
+      _showMsg('تم تعديل السعر وإعادة حساب الإجماليات', true);
+      await _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
     }
+  }
+
+  Future<void> _openInvoiceEdit() async {
+    final userId = _perms.userId ?? 0;
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddInvoiceScreen(
+          userId: userId,
+          username: widget.username,
+          invoiceId: widget.transactionId,
+          initialType: isPurchase ? 'Purchase' : 'Sale',
+        ),
+      ),
+    );
+    if (changed == true && mounted) await _load();
+  }
+
+  Future<void> _openEditHistory() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => InvoiceEditHistorySheet(
+        transactionId: widget.transactionId,
+        onRestored: _load,
+      ),
+    );
   }
 
   // ═════════════════ PDF - نسخة آمنة ومستقرة ═════════════════
@@ -1446,6 +1449,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     final header = _data?['header'] ?? {};
     final details = (_data?['details'] as List?) ?? [];
     final payments = (_data?['payments'] as List?) ?? [];
+    final profit = _data?['profit'] is Map
+        ? Map<String, dynamic>.from(_data!['profit'] as Map)
+        : <String, dynamic>{};
     final editStatus = header['EditStatus'] ?? 0;
 
     final (statusColor, statusText, statusIcon) =
@@ -1826,6 +1832,47 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             ),
           ),
 
+          if (_canViewProfit && !isPurchase && profit.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _SectionCard(
+              title: 'تحليل الربح',
+              icon: Icons.trending_up_rounded,
+              color: const Color(0xFF059669),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ProfitTile(
+                        label: 'التكلفة',
+                        value: _fmt(profit['totalCost']),
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _ProfitTile(
+                        label: 'مجمل الربح',
+                        value: _fmt(profit['grossProfit']),
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _ProfitTile(
+                        label: 'الهامش',
+                        value:
+                            '${_fmt(profit['profitMarginPercentage'])}%',
+                        color: HomeAccent.gold,
+                        hasCurrency: false,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 14),
 
           // الأصناف
@@ -1857,7 +1904,8 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                                   .withValues(alpha: 0.3)),
                         _ProductRow(
                           detail: Map<String, dynamic>.from(details[i]),
-                          canEditPrice: _isAdminOrAccountMgr,
+                          // تعديل السعر أصبح داخل Full Edit حتى يمر بسبب/Audit وتصحيح مخزون.
+                          canEditPrice: false,
                           onEditPrice: () => _editDetailPrice(
                               Map<String, dynamic>.from(details[i])),
                         ),
@@ -1891,7 +1939,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
           const SizedBox(height: 20),
 
-          if (editStatus == 1 || editStatus == 2 || editStatus == 3) ...[
+          if (editStatus == 1 || editStatus == 2 || editStatus == 3 || editStatus == 4) ...[
             _EditRequestCard(
               editStatus: editStatus,
               editBy: header['EditBy']?.toString(),
@@ -1902,7 +1950,10 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           ],
 
           // أزرار
-          if (_canRequestEdit && editStatus == 0)
+          if (_canRequestEdit &&
+              editStatus != 1 &&
+              editStatus != 2 &&
+              header['InvoiceStatus'] != 'Cancelled')
             _ActionButton(
               icon: Icons.edit_note_rounded,
               label: 'طلب تعديل الفاتورة',
@@ -1929,22 +1980,30 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               ],
             ),
           ],
-          if (_isAdminOrAccountMgr) ...[
+          if (header['InvoiceStatus'] != 'Cancelled' &&
+              header['InvoiceStatus'] != 'Paid' &&
+              (isPurchase
+                  ? (_isAdminOrAccountMgr ||
+                      _perms.canEdit('frm_SalesInvoiveNew') ||
+                      _perms.canView('frm_SupplierInvoices'))
+                  : (_canApprove && editStatus != 1))) ...[
             const SizedBox(height: 12),
             _ActionButton(
-              icon: Icons.percent_rounded,
-              label: 'إضافة خصم مباشر',
-              color: const Color(0xFFFF9800),
-              onTap: _applyDiscount,
+              icon: Icons.edit_rounded,
+              label: _isAdminOrAccountMgr
+                  ? 'تعديل الفاتورة بالكامل'
+                  : 'تعديل بيانات الفاتورة',
+              color: HomeAccent.gold,
+              onTap: _openInvoiceEdit,
             ),
           ],
-          if ((editStatus == 2 || editStatus == 4) && _isAdminOrAccountMgr) ...[
+          if (_canViewHistory) ...[
             const SizedBox(height: 12),
             _ActionButton(
-              icon: Icons.tune_rounded,
-              label: 'تعديل تاريخ التسليم / الخصم',
-              color: HomeAccent.gold,
-              onTap: _applyEdit,
+              icon: Icons.history_rounded,
+              label: 'سجل التعديلات والاسترجاع',
+              color: HomeAccent.indigo,
+              onTap: _openEditHistory,
             ),
           ],
 
@@ -1962,6 +2021,53 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 }
 
 // ═════════════════ Widgets احترافية ═════════════════
+
+class _ProfitTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool hasCurrency;
+
+  const _ProfitTile({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.hasCurrency = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        children: [
+          Text(label,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 10,
+              )),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              hasCurrency ? '$value ج' : value,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _StatTile extends StatelessWidget {
   final String label;
@@ -2449,14 +2555,19 @@ class _EditRequestCard extends StatelessWidget {
           'طلب تعديل معلق'
         ),
       2 => (
-          const Color(0xFF2196F3),
-          Icons.check_circle_rounded,
-          'تمت الموافقة على التعديل'
+          const Color(0xFF43A047),
+          Icons.lock_open_rounded,
+          'تمت الموافقة على فتح التعديل'
         ),
-      _ => (
+      3 => (
           const Color(0xFFE53935),
           Icons.cancel_rounded,
           'تم رفض طلب التعديل'
+        ),
+      _ => (
+          const Color(0xFF2196F3),
+          Icons.edit_rounded,
+          'تم تنفيذ التعديل'
         ),
     };
 

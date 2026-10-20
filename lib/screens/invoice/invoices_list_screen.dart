@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
 import '../../services/permission_service.dart';
+import '../../services/invoice_service.dart';
+import '../../core/network/api_client.dart';
 import 'invoice_details_screen.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -58,30 +58,24 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
   final PermissionService _perms = PermissionService();
 
   // ── الصلاحيات ─────────────────────────────────────────
-  bool get _canViewPurchases =>
-      _perms.isAdmin ||
-      _perms.isAccountManager ||
-      _perms.isFactory ||
-      _perms.isAccount;
+  bool get _canViewPurchases => _perms.canViewPurchaseInvoices;
 
-  bool get _canSeeAmounts {
-    if (_activeTab == 'Sale') {
-      return _perms.isAdmin ||
-          _perms.isAccountManager ||
-          _perms.isSales ||
-          _perms.isAccount;
-    }
-    return _perms.isAdmin ||
-        _perms.isAccountManager ||
-        _perms.isFactory ||
-        _perms.isAccount;
-  }
+  bool get _canSeeAmounts => _activeTab == 'Sale'
+      ? _perms.canViewSalesInvoices
+      : _perms.canViewPurchaseInvoices;
 
-  bool get _canSeeInvoices => _canSeeAmounts;
+  bool get _canSeeInvoices => _activeTab == 'Sale'
+      ? _perms.canViewSalesInvoices
+      : _perms.canViewPurchaseInvoices;
+
+  bool get _canSeeProfit =>
+      _activeTab == 'Sale' && _perms.canViewInvoiceProfit;
 
   bool get _canAdd => _activeTab == 'Sale'
-      ? (_perms.isAdmin || _perms.isAccountManager || _perms.isSales)
-      : (_perms.isAdmin || _perms.isAccountManager || _perms.isFactory);
+      ? (_perms.isAdmin || _perms.canAdd('frm_SalesInvoiveNew'))
+      : (_perms.isAdmin ||
+          _perms.isFactory ||
+          _perms.canView('frm_SupplierInvoices'));
 
   @override
   void initState() {
@@ -146,62 +140,52 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
       _error = null;
     });
 
+    if (!_canSeeInvoices) {
+      setState(() {
+        _error = 'ليس لديك صلاحية عرض هذا النوع من الفواتير';
+        _isLoading = false;
+      });
+      return;
+    }
+
     try {
-      final params = <String, String>{
-        'type': _activeTab,
-        'page': '$_page',
-        'limit': '$_pageSize',
+      final filters = <String, dynamic>{
+        'page': _page,
+        'limit': _pageSize,
+        if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+        if (_dateFrom != null)
+          'dateFrom': DateFormat('yyyy-MM-dd').format(_dateFrom!),
+        if (_dateTo != null)
+          'dateTo': DateFormat('yyyy-MM-dd').format(_dateTo!),
+        if (_statusFilter != null) 'status': _statusFilter,
+        if (_hasRemaining != null) 'hasRemaining': _hasRemaining,
+        if (_isOverdue == true) 'overdue': true,
       };
-      if (_searchText.trim().isNotEmpty) {
-        params['search'] = _searchText.trim();
-      }
-      if (_dateFrom != null) {
-        params['dateFrom'] = DateFormat('yyyy-MM-dd').format(_dateFrom!);
-      }
-      if (_dateTo != null) {
-        params['dateTo'] = DateFormat('yyyy-MM-dd').format(_dateTo!);
-      }
-      if (_statusFilter != null) {
-        params['status'] = _statusFilter!;
-      }
-      if (_hasRemaining != null) {
-        params['hasRemaining'] = '${_hasRemaining!}';
-      }
-      if (_isOverdue == true) {
-        params['overdue'] = 'true';
-      }
 
-      final qs = params.entries
-          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
-      final res = await http.get(Uri.parse('$baseUrl/api/transactions?$qs'));
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        List<Map<String, dynamic>> list = [];
-        if (data is List) {
-          list = data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        } else if (data is Map && data['data'] is List) {
-          list = (data['data'] as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          _stats = data['stats'] is Map
-              ? Map<String, dynamic>.from(data['stats'])
-              : {};
-        }
-        setState(() {
-          _invoices = list;
-          _isLoading = false;
-        });
-        _saveFilters();
-      } else {
-        setState(() {
-          _error = 'فشل تحميل الفواتير (${res.statusCode})';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+      final data = await InvoiceService.instance.list(
+        type: _activeTab,
+        filters: filters,
+      );
+      final list = ((data['data'] as List?) ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _invoices = list;
+        _stats = data['stats'] is Map
+            ? Map<String, dynamic>.from(data['stats'] as Map)
+            : {};
+        _isLoading = false;
+      });
+      _saveFilters();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'فشل الاتصال بالخادم';
         _isLoading = false;
@@ -383,6 +367,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                     itemBuilder: (context, index) => _InvoiceCard(
                       invoice: _invoices[index],
                       canSeeAmounts: _canSeeAmounts,
+                      canSeeProfit: _canSeeProfit,
                       isPurchase: _activeTab == 'Purchase',
                       onTap: () {
                         Navigator.push(
@@ -1039,12 +1024,14 @@ class _FilterField extends StatelessWidget {
 class _InvoiceCard extends StatelessWidget {
   final Map<String, dynamic> invoice;
   final bool canSeeAmounts;
+  final bool canSeeProfit;
   final bool isPurchase;
   final VoidCallback onTap;
 
   const _InvoiceCard({
     required this.invoice,
     required this.canSeeAmounts,
+    required this.canSeeProfit,
     required this.isPurchase,
     required this.onTap,
   });
@@ -1319,6 +1306,28 @@ class _InvoiceCard extends StatelessWidget {
                                 fontSize: 9.5,
                               ),
                             ),
+                            if (canSeeProfit && invoice['GrossProfit'] != null) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'ربح ${_fmt(invoice['GrossProfit'])} ج',
+                                  style: const TextStyle(
+                                    color: Color(0xFF059669),
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                     ],

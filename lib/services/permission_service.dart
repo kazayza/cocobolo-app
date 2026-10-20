@@ -1,5 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+
+import 'app_colors.dart';
 
 class Permission {
   final int permissionId;
@@ -49,13 +50,15 @@ class PermissionService {
   int? employeeId;
   String? role;
 
-  // الصلاحيات
-  Map<String, Permission> _permissions = {};
+  // الصلاحيات + Claims كاملة من الـAPI
+  final Map<String, Permission> _permissions = {};
+  final Set<String> _claims = {};
 
   // ✅ تهيئة الصلاحيات بعد تسجيل الدخول
   void initialize({
     required Map<String, dynamic> user,
     required Map<String, dynamic> permissions,
+    List<dynamic> claims = const [],
   }) {
     // حفظ بيانات المستخدم
     userId = user['UserID'];
@@ -73,8 +76,19 @@ class PermissionService {
         permData as Map<String, dynamic>,
       );
     });
+    _claims
+      ..clear()
+      ..addAll(claims.map((e) => e.toString()));
 
-    print('✅ تم تحميل ${_permissions.length} صلاحية للمستخدم $username');
+    // توافق مع API أقدم: نولّد Claims القياسية من الأربع صلاحيات.
+    _permissions.forEach((formName, permission) {
+      if (permission.canView) _claims.add('$formName:View');
+      if (permission.canAdd) _claims.add('$formName:Add');
+      if (permission.canEdit) _claims.add('$formName:Edit');
+      if (permission.canDelete) _claims.add('$formName:Delete');
+    });
+
+    print('✅ تم تحميل ${_permissions.length} صلاحية و${_claims.length} claim للمستخدم $username');
   }
 
   // ✅ مسح البيانات عند تسجيل الخروج
@@ -86,6 +100,7 @@ class PermissionService {
     employeeId = null;
     role = null;
     _permissions.clear();
+    _claims.clear();
     print('🚪 تم مسح بيانات المستخدم والصلاحيات');
   }
 
@@ -93,53 +108,39 @@ class PermissionService {
   // دوال التحقق من الدور (Role)
   // =====================
 
-  // هل هو أدمن؟
-  bool get isAdmin => role?.toLowerCase() == 'admin';
+  String get _roleNorm =>
+      (role ?? '').toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+  bool _isRole(String value) =>
+      _roleNorm == value.toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
 
-  // هل هو مدير مبيعات؟
-  bool get isSalesManager => role?.toLowerCase() == 'salesmanager';
+  bool get isAdmin => _isRole('Admin');
+  bool get isSalesManager => _isRole('SalesManager');
+  bool get isGeneralManager =>
+      _isRole('GeneralManager') || _isRole('GM') || _isRole('General');
 
-  // هل هو المدير العام؟
-  bool get isGeneralManager {
-    final r = role?.toLowerCase().replaceAll(' ', '') ?? '';
-    return r == 'generalmanager' || r == 'gm' || r == 'general_manager';
-  }
+  // Leads لا يوجد بها طلب موافقة رفض؛ أي مستخدم مصادق يرفض مباشرة.
+  bool get canRejectLeadDirectly => userId != null;
 
-  // رفض Lead مباشرة (بدون طلب موافقة)
-  bool get canRejectLeadDirectly => isGeneralManager || isAdmin;
+  bool get isSales => _isRole('Sales');
+  bool get isAccountManager => _isRole('AccountManager');
+  bool get isAccount => _isRole('Account') || _isRole('Accountant');
+  bool get isWarehouse => _isRole('Warehouse');
+  bool get isCashier => _isRole('Cashier');
+  bool get isSocial => _isRole('Social');
+  bool get isSocialManager => _isRole('SocialManager');
+  bool get isViewer => _isRole('Viewer');
+  bool get isSocialView => _isRole('SocialView');
+  bool get isHrManager => _isRole('HrManager') || _isRole('HRManager');
+  bool get isProductionManager => _isRole('ProductionManager');
+  bool get isFactoryManager => _isRole('FactoryManager');
+  bool get isUserRole => _isRole('User');
 
-  // هل هو موظف مبيعات؟
-  bool get isSales => role?.toLowerCase() == 'sales';
+  // هل هو خدمة عملاء؟
+  bool get isCustomerService =>
+      _isRole('CustomerService') || _isRole('CS') || _isRole('خدمة العملاء');
 
-  // هل هو مدير حسابات؟
-  bool get isAccountManager => role?.toLowerCase() == 'accountmanager';
-
-  // هل هو موظف حسابات؟
-  bool get isAccount => role?.toLowerCase() == 'account';
-
-  // هل هو أمين مخزن؟
-  bool get isWarehouse => role?.toLowerCase() == 'warehouse';
-
-  // هل هو أمين خزينة؟
-  bool get isCashier => role?.toLowerCase() == 'cashier';
-
-  // هل هو مسؤول سوشيال ميديا؟
-  bool get isSocial => role?.toLowerCase() == 'social';
-
-  // هل هو مدير السوشيال ميديا؟
-  bool get isSocialManager => role?.toLowerCase() == 'socialmanager';
-
-  // هل هو مشاهد (عرض فقط)؟
-  bool get isViewer => role?.toLowerCase() == 'viewer';
-
-  // هل هو متصفح سوشيال ميديا؟
-  bool get isSocialView => role?.toLowerCase() == 'socialview';
-
-  // هل هو مدير الموارد البشرية؟
-  bool get isHrManager => role?.toLowerCase() == 'hrmanager';
-
-  // هل هو بوابة B2B؟
-  bool get isB2B => role?.toLowerCase() == 'b2b';
+  // هل هو مختص B2B؟
+  bool get isB2B => _isRole('B2B');
 
   // هل يشوف بيانات HR كلها؟ (Admin + HR Manager)
   bool get canSeeAllHR => isAdmin || isHrManager || isGeneralManager;
@@ -193,6 +194,76 @@ class PermissionService {
     return perm?.canDelete ?? false;
   }
 
+  bool hasClaim(String claim) => _claims.contains(claim);
+  bool hasAnyClaim(Iterable<String> claims) => claims.any(_claims.contains);
+  Set<String> get claims => Set.unmodifiable(_claims);
+
+  // ═══════════════════════════════════════════════════════════
+  // Policies مطابقة لمراجع الصلاحيات في Blazor 913cc57
+  // ═══════════════════════════════════════════════════════════
+
+  bool get canViewSalesInvoices =>
+      isAdmin || canView('frm_PartiesInvoices');
+  bool get canViewPurchaseInvoices =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      isFactory ||
+      isProductionManager ||
+      isFactoryManager ||
+      canView('frm_SupplierInvoices');
+  bool get canFullEditInvoices => isAdmin || isAccountManager;
+  bool get canApproveInvoiceEdit => isAdmin || isAccountManager;
+  bool get canViewInvoiceProfit => isAdmin || isAccountManager;
+  bool get canViewInvoiceHistory => isAdmin || isAccountManager;
+  bool get canRestoreInvoiceSnapshot => isAdmin || isAccountManager;
+  bool get canSeeProtectedAccountManagerInvoices =>
+      isAdmin || isAccountManager || isAccount;
+
+  bool get canViewLostRecovery =>
+      isAdmin ||
+      isGeneralManager ||
+      isSalesManager ||
+      isCustomerService ||
+      canView('frm_LostRecovery');
+  bool get canReviveLostOpportunity =>
+      isAdmin ||
+      isGeneralManager ||
+      isSalesManager ||
+      isCustomerService ||
+      hasClaim('frm_LostRecovery:Revive');
+  bool get canLogLostRecoveryContact =>
+      isAdmin ||
+      isGeneralManager ||
+      isSalesManager ||
+      isCustomerService ||
+      hasClaim('frm_LostRecovery:LogContact');
+
+  // ComplaintPermissions.CanEscalate: Admin + AM + GM فقط.
+  bool get canEscalateComplaint =>
+      isAdmin || isAccountManager || isGeneralManager;
+
+  bool get canViewDelivery =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      isSales ||
+      isUserRole ||
+      canView('frmInvoiceDeliveryStatus');
+  bool get canSeeDeliveryAmounts =>
+      isAdmin || isAccountManager || isAccount || isSales;
+  bool get canEditDeliveryFull =>
+      isAdmin ||
+      isAccountManager ||
+      isSales ||
+      canEdit('frmInvoiceDeliveryStatus');
+  bool get canConfirmDelivery =>
+      isAdmin ||
+      isSales ||
+      isUserRole ||
+      hasClaim('frmInvoiceDeliveryStatus:Deliver');
+  bool get canOverrideDeliveryRemaining => isAdmin || isAccountManager;
+
   // =====================
   // صلاحيات خاصة بالأسعار (للمنتجات)
   // =====================
@@ -201,7 +272,7 @@ class PermissionService {
   // =====================
 
   // هل هو مصنع؟
-  bool get isFactory => role?.toLowerCase() == 'factory';
+  bool get isFactory => _isRole('factory');
 
   /// Admin + AccountManager: يشوفوا (تكلفة + بيع + نسبة ربح) + يعدلوا بيع ونسبة
   bool get canSeeFullProductPricing {
@@ -238,10 +309,54 @@ class PermissionService {
     return isSales;
   }
 
-  /// هل يقدر يوافق/يرفض طلبات تعديل السعر؟ (SalesManager)
+  /// مراجعة طلبات تعديل الأسعار: Admin + AccountManager + SalesManager.
   bool get canReviewPriceRequests {
-    return isSalesManager;
+    return isAdmin || isAccountManager || isSalesManager;
   }
+
+  bool get canViewPriceList => isAdmin || canView(FormNames.priceList);
+  bool get canSeePriceListSalePrices => !isFactory;
+  bool get canSeePriceListCosts => isAdmin || isAccountManager || isAccount;
+  bool get canEditPriceListSalePrice => isAdmin || isAccountManager;
+  bool get canEditPriceListCost => isAdmin || isAccountManager || isAccount;
+  bool get canViewPriceListHistory => isAdmin || isAccountManager;
+  bool get canExportPriceList => isAdmin || isAccountManager;
+
+  bool get isQuotationCostOnlyViewer => isProductionManager || isFactory;
+  bool get canViewQuotations =>
+      isAdmin || isQuotationCostOnlyViewer || canView(FormNames.quotationsList);
+  bool get canAddQuotation =>
+      !isQuotationCostOnlyViewer &&
+      (isAdmin || canAdd(FormNames.quotationsList));
+  bool get canEditQuotation =>
+      !isQuotationCostOnlyViewer &&
+      (isAdmin || canEdit(FormNames.quotationsList));
+  bool get canDeleteQuotation =>
+      !isQuotationCostOnlyViewer &&
+      (isAdmin || canDelete(FormNames.quotationsList));
+  bool get canViewQuotationCost =>
+      isAdmin || isAccountManager || isQuotationCostOnlyViewer;
+  bool get canEditQuotationCost => isFactory && !isAdmin;
+  bool get canViewQuotationSalePrices => !isQuotationCostOnlyViewer;
+
+  bool get canViewJobOrders =>
+      isAdmin ||
+      isSalesManager ||
+      isSales ||
+      isAccountManager ||
+      isHrManager ||
+      isProductionManager ||
+      isFactoryManager ||
+      isFactory ||
+      canView(FormNames.jobOrders);
+  bool get canSeeJobOrderAmounts => isAdmin || isAccountManager || isAccount;
+  bool get canEditJobOrderDueDate =>
+      isAdmin ||
+      isProductionManager ||
+      isFactoryManager ||
+      canEdit(FormNames.jobOrders);
+  bool get canOpenJobOrderInvoices =>
+      isAdmin || canView(FormNames.partiesInvoices);
 
   /// هل يشوف ملف PDF؟ (الكل ماعدا Account)
   bool get canSeePDF {
@@ -288,8 +403,7 @@ class PermissionService {
   // إضافة شكوى جديدة (نفس الشاشة)
   bool get canAddComplaint => canAdd(FormNames.complaintsMain);
 
-  // التصعيد (حسب الـ Role)
-  bool get canEscalateComplaint => isSalesManager || isAccountManager;
+  // التصعيد معرف مركزيًا في Policy أعلاه.
 }
 
 // =====================
@@ -310,6 +424,7 @@ class FormNames {
   static const String pricingMargins = 'frm_PricingMargins';
   static const String priceRequests = 'frm_PriceRequests';
   static const String priceHistory = 'frm_PriceHistory';
+  static const String priceList = 'frm_PriceList';
 
   // ═══════════════════════════════════════
   // 2. المخازن
@@ -322,6 +437,7 @@ class FormNames {
   // 3. الحسابات
   // ═══════════════════════════════════════
   static const String quotationsList = 'frmQuotationsList';
+  static const String jobOrders = 'frm_JobOrders';
   static const String partiesInvoices = 'frm_PartiesInvoices';
   static const String supplierInvoices = 'frm_SupplierInvoices';
   static const String expensesAdd = 'frm_Expenses';
@@ -383,6 +499,16 @@ class FormNames {
   static const String interactionsLog = 'frmInteractionsLog';
   static const String clientCard = 'frmClientCard';
   static const String managerSales = 'frmManamgerSales';
+  static const String closureApprovalRequests = 'frm_ClosureApprovalRequests';
+  static const String lostRecovery = 'frm_LostRecovery';
+  static const String lostRecoveryReport = 'frm_LostRecoveryReport';
+  static const String generalTasks = 'frm_GeneralTasks';
+  static const String stockTransactions = 'frm_StockTransactions';
+  static const String stockEntry = 'frm_StockEntry';
+  static const String stockTransfer = 'frm_StockTransfer';
+  static const String warehouses = 'frm_Warehouses';
+  static const String stockCount = 'frm_StockCount';
+  static const String stockValue = 'frm_StockValue';
   static const String complaintsMain = 'frm_Complaints_Main';
   static const String crmDashboard = 'frmCRM_Dashboard';
   static const String invoiceDeliveryStatus = 'frmInvoiceDeliveryStatus';
@@ -458,7 +584,16 @@ class SubMenuItem {
   final String formName;
   final IconData icon;
 
-  SubMenuItem(this.title, this.formName, this.icon);
+  /// هل هذا العنوان مجرد عنوان تجميع داخل القسم (غير قابل للنقر)؟
+  final bool isHeader;
+
+  SubMenuItem(this.title, this.formName, this.icon, {this.isHeader = false});
+
+  /// عنوان تجميع يوضح بداية مجموعة فرعية داخل القسم.
+  SubMenuItem.header(this.title)
+      : formName = '',
+        icon = Icons.chevron_right_rounded,
+        isHeader = true;
 }
 
 class MenuStructure {
@@ -470,7 +605,7 @@ class MenuStructure {
       MenuItem(
         title: 'البيانات الأساسية',
         icon: Icons.domain,
-        color: const Color(0xFF4CAF50),
+        color: AppColors.success,
         children: [
           //SubMenuItem('بيانات الشركة', FormNames.companyInfo, Icons.business),
           //SubMenuItem('مجموعة المنتجات', FormNames.productGroups, Icons.category),
@@ -483,29 +618,35 @@ class MenuStructure {
       MenuItem(
         title: 'المخازن',
         icon: Icons.warehouse,
-        color: const Color(0xFFFF9800),
+        color: AppColors.warning,
         children: [
-          SubMenuItem('أرصدة المخزون', FormNames.stockLevels, Icons.inventory),
-          SubMenuItem(
-            'حركة المخازن',
-            FormNames.transactionProductGroup,
-            Icons.swap_horiz,
-          ),
-          SubMenuItem(
-            'الأصناف الأكثر مبيعاً',
-            FormNames.bestSellingItems,
-            Icons.star,
-          ),
+          SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2_rounded),
+          SubMenuItem('أرصدة المخزون', FormNames.stockLevels, Icons.inventory_rounded),
+          SubMenuItem('إضافة رصيد', FormNames.stockEntry, Icons.add_box_rounded),
+          SubMenuItem('حركة المخزون', FormNames.stockTransactions, Icons.history_rounded),
+          SubMenuItem('تحويل مخزني', FormNames.stockTransfer, Icons.swap_horiz_rounded),
+          SubMenuItem('جرد فعلي', FormNames.stockCount, Icons.fact_check_rounded),
+          SubMenuItem('قيمة المخزون', FormNames.stockValue, Icons.attach_money_rounded),
+          SubMenuItem('إدارة المخازن', FormNames.warehouses, Icons.warehouse_rounded),
+          SubMenuItem('حركة المخازن', FormNames.transactionProductGroup, Icons.swap_horiz),
+          SubMenuItem('الأصناف الأكثر مبيعاً', FormNames.bestSellingItems, Icons.star_rounded),
         ],
       ),
       // جديد المبيعات
       MenuItem(
         title: 'المبيعات',
-        icon: Icons.sell, // أيقونة بيع مناسبة أكثر
-        color: const Color(0xFF2196F3), // لون أزرق هادئ بدل البرتقالي
+        icon: Icons.sell,
+        color: AppColors.gold,
         children: [
+          // ── الأسعار والعروض ──
+          SubMenuItem.header('الأسعار والعروض'),
           SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2),
-          SubMenuItem('العملاء', FormNames.partiesList, Icons.people),
+          SubMenuItem('قائمة الأسعار', FormNames.priceList, Icons.sell_rounded),
+          SubMenuItem('طلبات تعديل الأسعار', FormNames.priceRequests, Icons.price_change),
+          SubMenuItem('نسب الربح', FormNames.pricingMargins, Icons.percent),
+          SubMenuItem('عروض الأسعار', FormNames.quotationsList, Icons.request_quote),
+          // ── الفواتير والتحصيل ──
+          SubMenuItem.header('الفواتير والتحصيل'),
           SubMenuItem(
             'فواتير العملاء',
             FormNames.partiesInvoices,
@@ -526,31 +667,39 @@ class MenuStructure {
             FormNames.paymentsInvoicesNew,
             Icons.payment,
           ),
+          // ── العملاء والإنتاج ──
+          SubMenuItem.header('العملاء والإنتاج'),
+          SubMenuItem('العملاء', FormNames.partiesList, Icons.people),
           SubMenuItem(
-            'عروض الأسعار',
-            FormNames.quotationsList,
-            Icons.request_quote,
+            'أوامر التشغيل',
+            FormNames.jobOrders,
+            Icons.factory_rounded,
           ),
           SubMenuItem(
             'طباعة مستندات العميل',
             FormNames.customerDocs,
             Icons.print,
           ),
-          SubMenuItem(
-            'طلبات تعديل الأسعار',
-            FormNames.priceRequests,
-            Icons.price_change,
-          ),
-          SubMenuItem('نسب الربح', FormNames.pricingMargins, Icons.percent),
         ],
       ),
-      // ═══════════════════════════════════════
+      // ══════════════════════════════════════════════════════════════════════
+      // قائمة الأسعار (مستقلة للوصول السريع من المبيعات)
+      // ══════════════════════════════════════════════════════════════════════
+      MenuItem(
+        title: 'قائمة الأسعار',
+        icon: Icons.sell_rounded,
+        color: AppColors.gold,
+        children: [
+          SubMenuItem('قائمة الأسعار', FormNames.priceList, Icons.sell_rounded),
+        ],
+      ),
+      // ══════════════════════════════════════════════════════════════════════
       // 3. المالية (الخزينة + المصروفات + الحسابات)
-      // ═══════════════════════════════════════
+      // ══════════════════════════════════════════════════════════════════════
       MenuItem(
         title: 'المالية',
         icon: Icons.account_balance_wallet,
-        color: const Color(0xFF00695C),
+        color: AppColors.navy,
         children: [
           // ── الخزينة ──
           SubMenuItem(
@@ -599,7 +748,7 @@ class MenuStructure {
       MenuItem(
         title: 'الموارد البشرية',
         icon: Icons.people_alt,
-        color: const Color(0xFF9C27B0),
+        color: AppColors.info,
         children: [
           SubMenuItem('الموظفين', FormNames.employeesList, Icons.badge),
           SubMenuItem(
@@ -651,7 +800,7 @@ class MenuStructure {
       MenuItem(
         title: 'التقارير',
         icon: Icons.analytics,
-        color: const Color(0xFFE91E63),
+        color: AppColors.error,
         children: [
           SubMenuItem('لوحة المعلومات', FormNames.dashboard, Icons.dashboard),
           SubMenuItem(
@@ -698,7 +847,7 @@ class MenuStructure {
       MenuItem(
         title: 'إدارة العملاء (CRM)',
         icon: Icons.handshake,
-        color: const Color(0xFF3F51B5),
+        color: AppColors.info,
         children: [
           SubMenuItem('تواصل جديد', FormNames.newInteraction, Icons.add_call),
           SubMenuItem(
@@ -731,6 +880,10 @@ class MenuStructure {
             Icons.dashboard_customize,
           ),
           SubMenuItem('My Leads', FormNames.myLeads, Icons.assignment_ind),
+          SubMenuItem('طلبات موافقة إغلاق الفرص', FormNames.closureApprovalRequests, Icons.admin_panel_settings_rounded),
+          SubMenuItem('استرداد الفرص الخاسرة', FormNames.lostRecovery, Icons.restart_alt_rounded),
+          SubMenuItem('تقرير الاسترداد', FormNames.lostRecoveryReport, Icons.assessment_rounded),
+          SubMenuItem('التكليفات العامة', FormNames.generalTasks, Icons.assignment_ind_rounded),
           //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
           SubMenuItem(
             'إعدادات CRM',
@@ -751,7 +904,7 @@ class MenuStructure {
       MenuItem(
         title: 'الإدارة والصلاحيات',
         icon: Icons.admin_panel_settings,
-        color: const Color(0xFF607D8B),
+        color: AppColors.neutral,
         children: [
           SubMenuItem('إضافة مستخدم', FormNames.addUser, Icons.person_add),
           SubMenuItem('جميع المستخدمين', FormNames.allUsers, Icons.people),

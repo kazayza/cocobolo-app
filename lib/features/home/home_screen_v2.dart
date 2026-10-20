@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/navigation/app_routes.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/add_client_screen.dart';
@@ -22,6 +23,8 @@ import '../../services/update_service.dart';
 import '../../services/user_service.dart';
 import '../../services/profile_avatar_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/app_colors.dart';
+import '../../core/responsive.dart';
 import '../../widgets/app_drawer.dart';
 
 import 'models/home_dashboard_config.dart';
@@ -333,7 +336,7 @@ class _HomeViewState extends State<_HomeView> {
           content: Text(
             'جلسة المستخدم غير صالحة. الرجاء تسجيل الدخول مرة أخرى.',
           ),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -397,7 +400,12 @@ class _HomeViewState extends State<_HomeView> {
                   ),
 
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      16,
+                      Responsive.horizontalPadding(context),
+                      32,
+                    ),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         // ── كاروسيل مالي متحرك (خزينة/مبيعات/مصروفات) ──
@@ -642,18 +650,18 @@ class _OfflineBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.orange.shade100,
+        color: AppColors.warningLight.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
+        border: Border.all(color: AppColors.warningLight.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
-          Icon(Icons.wifi_off_rounded, color: Colors.orange.shade800, size: 20),
+          Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'أنت متصل أوفلاين — البيانات قد تكون قديمة',
-              style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+              style: TextStyle(color: AppColors.warning, fontSize: 12),
             ),
           ),
         ],

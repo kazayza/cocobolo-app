@@ -8,6 +8,8 @@ import '../features/home/widgets/home_accent.dart';
 import '../features/home/widgets/profile_avatar.dart';
 import '../services/notification_service.dart';
 import '../services/permission_service.dart';
+import '../core/auth/session_service.dart';
+import '../providers/auth_provider.dart';
 import '../services/profile_avatar_service.dart';
 import '../services/theme_service.dart';
 import '../services/update_service.dart';
@@ -182,10 +184,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _logout() async {
     PermissionService().clear();
+    AuthProvider().clear();
     NotificationService().stopPolling();
+    await SessionService.instance.clear();
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_in', false);
     await prefs.remove('userId');
     await prefs.remove('username');
     await prefs.remove('fullName');

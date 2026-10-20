@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/permission_service.dart';
-import '../services/app_colors.dart';
 import 'reports/crm_dashboard_screen.dart';
 import 'products_screen.dart';
+import 'price_list_screen.dart';
+import 'quotations_screen.dart';
+import 'job_orders_screen.dart';
 import 'expenses/expense_dashboard_screen.dart';
 import 'clients_screen.dart';
 import 'tasks_screen.dart';
@@ -13,7 +15,6 @@ import 'add_client_screen.dart';
 import 'add_expense_screen.dart';
 import 'add_opportunity_screen.dart';
 import 'reports_screen.dart';
-import 'settings_screen.dart';
 
 class AllAppsScreen extends StatefulWidget {
   final int userId;
@@ -33,22 +34,38 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
   // لتتبع القسم المفتوح حالياً
   int? _expandedIndex;
 
+  bool _canOpenForm(String formName) {
+    final permissions = PermissionService();
+    if (formName == FormNames.priceList) return permissions.canViewPriceList;
+    if (formName == FormNames.quotationsList ||
+        formName == FormNames.newQuotation) {
+      return permissions.canViewQuotations;
+    }
+    if (formName == FormNames.jobOrders) {
+      return permissions.canViewJobOrders;
+    }
+    return permissions.canView(formName) || permissions.canAdd(formName);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     // تصفية الأقسام (نعرض فقط اللي فيه صلاحية لحاجة جواه)
     final allItems = MenuStructure.getItems();
     final visibleItems = allItems.where((item) {
-      return item.children.any((sub) => PermissionService().canView(sub.formName) || PermissionService().canAdd(sub.formName));
+      return item.children.any((sub) => _canOpenForm(sub.formName));
     }).toList();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF5F5F5),
+      backgroundColor:
+          isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: Text(
           'كل التطبيقات',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+          style: GoogleFonts.cairo(
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -56,7 +73,9 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
         iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
       ),
       body: visibleItems.isEmpty
-          ? Center(child: Text('لا توجد تطبيقات متاحة', style: GoogleFonts.cairo(color: Colors.grey)))
+          ? Center(
+              child: Text('لا توجد تطبيقات متاحة',
+                  style: GoogleFonts.cairo(color: Colors.grey)))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               itemCount: visibleItems.length,
@@ -74,7 +93,7 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
 
     // تصفية الأزرار الفرعية
     final subItems = item.children.where((sub) {
-      return PermissionService().canView(sub.formName) || PermissionService().canAdd(sub.formName);
+      return _canOpenForm(sub.formName);
     }).toList();
 
     return AnimatedContainer(
@@ -123,7 +142,7 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
                     child: Icon(item.icon, color: item.color, size: 24),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   // العنوان
                   Expanded(
                     child: Text(
@@ -155,8 +174,10 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
             firstChild: const SizedBox(height: 0),
             secondChild: Column(
               children: [
-                Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey[200]),
-                
+                Divider(
+                    height: 1,
+                    color: isDark ? Colors.white10 : Colors.grey[200]),
+
                 // Grid للأزرار الفرعية
                 GridView.builder(
                   padding: const EdgeInsets.all(16),
@@ -170,17 +191,23 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
                   ),
                   itemCount: subItems.length,
                   itemBuilder: (context, subIndex) {
-                    return _buildSubButton(subItems[subIndex], item.color, isDark);
+                    return _buildSubButton(
+                        subItems[subIndex], item.color, isDark);
                   },
                 ),
               ],
             ),
-            crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: isExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 300),
           ),
         ],
       ),
-    ).animate().fadeIn(delay: Duration(milliseconds: 50 * index)).slideY(begin: 0.1, end: 0);
+    )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: 50 * index))
+        .slideY(begin: 0.1, end: 0);
   }
 
   // === الزر الفرعي الصغير ===
@@ -192,7 +219,8 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF252525) : const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+          border:
+              Border.all(color: isDark ? Colors.white10 : Colors.transparent),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -223,34 +251,53 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
     switch (formName) {
       // --- CRM ---
       case FormNames.dashboardCRM:
-        screen = CrmDashboardScreen(userId: widget.userId, username: widget.username);
+        screen = CrmDashboardScreen(
+            userId: widget.userId, username: widget.username);
         break;
       case FormNames.salesPipeline:
-        screen = OpportunitiesScreen(userId: widget.userId, username: widget.username);
+        screen = OpportunitiesScreen(
+            userId: widget.userId, username: widget.username);
         break;
       case FormNames.dailyTasks:
         screen = TasksScreen(userId: widget.userId, username: widget.username);
         break;
       case FormNames.newInteraction:
-        screen = AddOpportunityScreen(userId: widget.userId, username: widget.username);
+        screen = AddOpportunityScreen(
+            userId: widget.userId, username: widget.username);
         break;
-      
+
       // --- منتجات ---
       case FormNames.productsList:
-        screen = ProductsScreen(userId: widget.userId, username: widget.username);
+        screen =
+            ProductsScreen(userId: widget.userId, username: widget.username);
         break;
-      
+      case FormNames.priceList:
+        screen =
+            PriceListScreen(userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.quotationsList:
+      case FormNames.newQuotation:
+        screen =
+            QuotationsScreen(userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.jobOrders:
+        screen =
+            JobOrdersScreen(userId: widget.userId, username: widget.username);
+        break;
+
       // --- حسابات ---
       case FormNames.expensesList:
-        screen = ExpenseDashboardScreen(userId: widget.userId, username: widget.username);
+        screen = ExpenseDashboardScreen(
+            userId: widget.userId, username: widget.username);
         break;
       case FormNames.expensesAdd:
         screen = AddExpenseScreen(username: widget.username);
         break;
-      
+
       // --- عملاء ---
       case FormNames.partiesList:
-        screen = ClientsScreen(userId: widget.userId, username: widget.username);
+        screen =
+            ClientsScreen(userId: widget.userId, username: widget.username);
         break;
       case FormNames.partiesAdd:
         screen = AddClientScreen(username: widget.username);
@@ -259,13 +306,14 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
       // --- تقارير ---
       case FormNames.reportCustomerBalance:
       case FormNames.reportExpenses:
-        screen = ReportsScreen(userId: widget.userId, username: widget.username);
+        screen =
+            ReportsScreen(userId: widget.userId, username: widget.username);
         break;
 
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('قريباً: $formName 🛠️', style: GoogleFonts.cairo()),
+            content: Text('قريباً: $formName', style: GoogleFonts.cairo()),
             backgroundColor: Colors.grey[800],
             behavior: SnackBarBehavior.floating,
           ),
@@ -273,8 +321,6 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
         return;
     }
 
-    if (screen != null) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
-    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
   }
 }

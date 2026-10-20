@@ -57,6 +57,20 @@ class AppColors {
   static Color inputFill(bool isDark) =>
       isDark ? darkInputFill : lightInputFill;
 
+  // ===================================
+  // 🚦 ألوان الحالات (Semantic Status Colors)
+  // ===================================
+  static const Color success = Color(0xFF10B981);
+  static const Color successLight = Color(0xFF34D399);
+  static const Color error = Color(0xFFEF4444);
+  static const Color errorLight = Color(0xFFF87171);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color warningLight = Color(0xFFFB923C);
+  static const Color info = Color(0xFF3B82F6);
+  static const Color infoLight = Color(0xFF60A5FA);
+  static const Color neutral = Color(0xFF64748B);
+  static const Color neutralLight = Color(0xFF94A3B8);
+
   static Color primary(bool isDark) => gold;
   
   static Color primaryDark(bool isDark) => isDark ? gold : navy;
@@ -73,9 +87,9 @@ class AppColors {
       ];
     } else {
       return [
-        const Color(0xFFF5F7FA),
-        Colors.white,
-        const Color(0xFFF0F4F8),
+        navy.withValues(alpha: 0.06),
+        navy.withValues(alpha: 0.03),
+        navy.withValues(alpha: 0.06),
       ];
     }
   }

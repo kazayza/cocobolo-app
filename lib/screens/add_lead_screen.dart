@@ -148,6 +148,24 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_saving) return;
 
+    // ── تحقق إجباري: المصدر وتاريخ المتابعة مطلوب ──
+    if (_selectedSource == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('⚠️ مصدر التواصل مطلوب - اختر من قائمة المصادر', style: GoogleFonts.cairo()),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (_nextFollowUp == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('⚠️ تاريخ المتابعة مطلوب - إجباري', style: GoogleFonts.cairo()),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final result = await LeadsService.createLead(
@@ -166,15 +184,15 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
         bestTimeToReach: _bestTimeCtrl.text.trim(),
         assignedEmployeeId: _assignedEmployeeId,
         notes: _notesCtrl.text.trim(),
-        // المصدر + الحملة + المتابعة (من الفرص البيعية)
+        // المصدر + الحملة + المتابعة - الإرسال الصحيح (sourceId هو المطلوب في API)
+        sourceId: _selectedSource?['SourceID'] is int ? _selectedSource!['SourceID'] as int : int.tryParse('${_selectedSource?['SourceID'] ?? ''}'),
+        adTypeId: _selectedAdType?['AdTypeID'] is int ? _selectedAdType!['AdTypeID'] as int : int.tryParse('${_selectedAdType?['AdTypeID'] ?? ''}'),
         platform: _selectedSource?['SourceName']?.toString(),
         sourceNameAr: _selectedSource?['SourceNameAr']?.toString(),
         campaignName: _selectedAdType?['AdTypeName']?.toString(),
         adTypeNameAr: _selectedAdType?['AdTypeNameAr']?.toString(),
         guidance: _guidanceCtrl.text.trim(),
-        nextFollowUp: _nextFollowUp != null
-            ? _nextFollowUp!.toIso8601String()
-            : null,
+        nextFollowUp: _nextFollowUp != null ? _nextFollowUp!.toIso8601String() : null,
         userName: _uname(),
       );
 

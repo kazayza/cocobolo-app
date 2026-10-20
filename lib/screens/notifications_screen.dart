@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import '../constants.dart';
+import '../core/network/api_client.dart';
 import '../features/home/widgets/home_accent.dart';
 import '../core/notifications/notification_navigator.dart';
 import '../core/notifications/blazor_form_routes.dart';
@@ -40,20 +38,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> fetchNotifications() async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/api/notifications?username=${widget.username}'),
-      );
-      if (res.statusCode == 200) {
-        setState(() {
-          notifications = jsonDecode(res.body);
-          _applyFilter();
-          loading = false;
-        });
-      } else {
-        setState(() => loading = false);
-      }
-    } catch (e) {
-      setState(() => loading = false);
+      final res = await ApiClient.instance.get('/api/notifications');
+      final data = ApiClient.instance.decode(res);
+      if (!mounted) return;
+      setState(() {
+        notifications = data is List ? data : [];
+        _applyFilter();
+        loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -76,22 +70,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> markAsRead(int notificationId) async {
     try {
-      await http.put(
-        Uri.parse('$baseUrl/api/notifications/$notificationId/read'),
+      final res = await ApiClient.instance.put(
+        '/api/notifications/$notificationId/read',
       );
+      ApiClient.instance.decode(res);
       fetchNotifications();
     } catch (e) {
-      print('Error marking as read: $e');
+      debugPrint('Error marking as read: $e');
     }
   }
 
   Future<void> markAllAsRead() async {
     try {
-      await http.put(
-        Uri.parse('$baseUrl/api/notifications/read-all'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': widget.username}),
-      );
+      final res = await ApiClient.instance.put('/api/notifications/read-all');
+      ApiClient.instance.decode(res);
       fetchNotifications();
 
       if (!mounted) return;

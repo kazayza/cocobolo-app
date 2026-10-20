@@ -375,6 +375,25 @@ class OpportunitiesService {
     return [];
   }
 
+  /// كل طلبات الإغلاق مع فلتر حالة - للشاشة الجديدة
+  Future<List<dynamic>> getClosureRequests({String? status}) async {
+    try {
+      final q = <String, String>{};
+      if (status != null && status != 'all') q['status'] = status;
+      final uri = Uri.parse('$baseUrl/api/opportunities/closure-requests').replace(queryParameters: q.isEmpty ? null : q);
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is List) return data;
+      }
+      // fallback للـ pending endpoint لو الـ all مش موجود
+      if (status == null || status == 'Pending' || status == 'all') {
+        return await getPendingClosureRequests();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// اعتماد طلب إغلاق (GM/SalesManager)
   Future<Map<String, dynamic>> approveClosureRequest({required int requestId, required String userName, String? reviewNotes, String? actorRole}) async {
     try {

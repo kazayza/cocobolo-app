@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+import '../services/app_colors.dart';
 import '../services/icon_utils.dart';
 
 class SpeechTextField extends StatefulWidget {
@@ -46,60 +47,71 @@ class _SpeechTextFieldState extends State<SpeechTextField> {
   }
 
   Future<void> _initSpeech() async {
-    _speechAvailable = await _speech.initialize(
-      onError: (error) {
+    final bool available = await _speech.initialize(
+      onError: (dynamic error) {
         debugPrint('Speech error: $error');
-        setState(() => _isListening = false);
+        if (mounted) setState(() => _isListening = false);
       },
-      onStatus: (status) {
-        if (status == 'done' || status == 'notListening') {
+      onStatus: (String status) {
+        if ((status == 'done' || status == 'notListening') && mounted) {
           setState(() => _isListening = false);
         }
       },
     );
-    setState(() {});
+    if (mounted) setState(() => _speechAvailable = available);
   }
 
-  void _toggleListening() async {
+  Future<void> _toggleListening() async {
     if (_isListening) {
       await _speech.stop();
-      setState(() => _isListening = false);
-    } else {
-      if (_speechAvailable) {
-        setState(() => _isListening = true);
-        await _speech.listen(
-          onResult: (result) {
-            setState(() {
-              // لو فيه نص قبل كده نضيف عليه
-              if (widget.controller.text.isNotEmpty && result.finalResult) {
-                widget.controller.text += ' ${result.recognizedWords}';
-              } else if (result.finalResult) {
-                widget.controller.text = result.recognizedWords;
-              }
-              
-              // نحرك الـ cursor لآخر النص
-              widget.controller.selection = TextSelection.fromPosition(
-                TextPosition(offset: widget.controller.text.length),
-              );
-            });
-          },
-          localeId: 'ar-EG',
-          listenMode: stt.ListenMode.dictation,
-          cancelOnError: false,
-          partialResults: true,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'المايك غير متاح - تأكد من إعطاء الصلاحيات',
-              style: GoogleFonts.cairo(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) setState(() => _isListening = false);
+      return;
     }
+
+    if (!_speechAvailable) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: <Widget>[
+              const Icon(Icons.mic_off_rounded, color: Colors.white),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'الإدخال الصوتي غير متاح. تأكد من منح صلاحية الميكروفون.',
+                  style: GoogleFonts.cairo(),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (dynamic result) {
+        if (!mounted || !result.finalResult) return;
+        final String recognized = result.recognizedWords.toString().trim();
+        if (recognized.isEmpty) return;
+
+        final String previous = widget.controller.text.trim();
+        widget.controller.text =
+            previous.isEmpty ? recognized : '$previous $recognized';
+        widget.controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: widget.controller.text.length),
+        );
+        widget.onChanged?.call(widget.controller.text);
+        setState(() {});
+      },
+      localeId: 'ar-EG',
+      listenMode: stt.ListenMode.dictation,
+      cancelOnError: false,
+      partialResults: true,
+    );
   }
 
   @override
@@ -110,95 +122,107 @@ class _SpeechTextFieldState extends State<SpeechTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = AppColors.text(isDark);
+    final Color secondaryColor = AppColors.textSecondary(isDark);
+    final Color fillColor = _isListening
+        ? Colors.red.withOpacity(isDark ? 0.10 : 0.06)
+        : AppColors.inputFill(isDark);
+    final Color borderColor = _isListening
+        ? Colors.red.withOpacity(0.48)
+        : AppColors.divider(isDark);
+
+    final OutlineInputBorder border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(13),
+      borderSide: BorderSide(color: borderColor),
+    );
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: widget.controller,
-        style: GoogleFonts.cairo(color: Colors.white),
+        enabled: widget.enabled,
         keyboardType: widget.keyboardType,
         validator: widget.validator,
         onChanged: widget.onChanged,
         maxLines: widget.maxLines,
-        enabled: widget.enabled,
+        textInputAction: widget.maxLines > 1
+            ? TextInputAction.newline
+            : TextInputAction.next,
+        style: GoogleFonts.cairo(color: textColor, fontSize: 13),
         decoration: InputDecoration(
           labelText: widget.label,
-          hintText: _isListening ? '🎤 بتكلم...' : widget.hint,
-          labelStyle: GoogleFonts.cairo(color: Colors.grey),
+          hintText: _isListening ? 'جاري الاستماع...' : widget.hint,
+          labelStyle: GoogleFonts.cairo(
+            color: secondaryColor,
+            fontSize: 12,
+          ),
           hintStyle: GoogleFonts.cairo(
-            color: _isListening ? Colors.red : Colors.grey[600],
+            color: _isListening ? Colors.red.shade400 : AppColors.textHint(isDark),
+            fontSize: 11.5,
           ),
           prefixIcon: Padding(
             padding: const EdgeInsets.all(12),
-            child: compatIcon(widget.icon, color: Colors.grey, size: 18),
+            child: compatIcon(
+              widget.icon,
+              color: AppColors.goldDark,
+              size: 19,
+            ),
           ),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
+            children: <Widget>[
               if (widget.suffixText != null)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 7),
                   child: Text(
                     widget.suffixText!,
-                    style: GoogleFonts.cairo(color: Colors.grey),
-                  ),
-                ),
-              // ✅ زرار المايك
-              GestureDetector(
-                onTap: widget.enabled ? _toggleListening : null,
-                child: Container(
-                  margin: const EdgeInsets.only(left: 8, right: 8),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _isListening
-                        ? Colors.red.withOpacity(0.2)
-                        : const Color(0xFFFFD700).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _isListening
-                          ? Colors.red.withOpacity(0.5)
-                          : const Color(0xFFFFD700).withOpacity(0.3),
+                    style: GoogleFonts.cairo(
+                      color: AppColors.goldDark,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: FaIcon(
-                    _isListening
-                        ? FontAwesomeIcons.stop
-                        : FontAwesomeIcons.microphone,
-                    color: _isListening ? Colors.red : const Color(0xFFFFD700),
-                    size: 16,
+                ),
+              Tooltip(
+                message: _isListening
+                    ? 'إيقاف الاستماع'
+                    : 'إدخال النص باستخدام الصوت',
+                child: IconButton(
+                  onPressed: widget.enabled ? _toggleListening : null,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                      key: ValueKey<bool>(_isListening),
+                      color: _isListening ? Colors.red : AppColors.goldDark,
+                      size: 21,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           filled: true,
-          fillColor: _isListening
-              ? Colors.red.withOpacity(0.05)
-              : Colors.white.withOpacity(0.05),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+          fillColor: fillColor,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
+          border: border,
+          enabledBorder: border,
+          focusedBorder: border.copyWith(
             borderSide: BorderSide(
-              color: _isListening
-                  ? Colors.red.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.1),
+              color: _isListening ? Colors.red : AppColors.gold,
+              width: 1.5,
             ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+          errorBorder: border.copyWith(
+            borderSide: BorderSide(color: Colors.red.shade500),
+          ),
+          focusedErrorBorder: border.copyWith(
+            borderSide: BorderSide(color: Colors.red.shade500, width: 1.5),
+          ),
+          disabledBorder: border.copyWith(
             borderSide: BorderSide(
-              color: _isListening ? Colors.red : const Color(0xFFFFD700),
+              color: AppColors.divider(isDark).withOpacity(0.55),
             ),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red),
-          ),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
           ),
         ),
       ),

@@ -265,7 +265,9 @@ class LeadsService {
     String? bestTimeToReach,
     int? assignedEmployeeId,
     String? notes,
-    // حقول من الفرص البيعية (المصدر + الحملة + المتابعة)
+    // حقول من الفرص البيعية (المصدر + الحملة + المتابعة) - مطابقة بلازور
+    int? sourceId,
+    int? adTypeId,
     String? platform,
     String? sourceNameAr,
     String? campaignName,
@@ -275,6 +277,15 @@ class LeadsService {
     required String userName,
   }) async {
     try {
+      // ── التحقق: المصدر وتاريخ المتابعة إجباري ──
+      if (sourceId == null || sourceId <= 0) {
+        // حاول استخراجه من platform لو كان رقم
+        final parsed = int.tryParse('${platform ?? ''}');
+        if (parsed != null && parsed > 0) {
+          sourceId = parsed;
+        }
+      }
+
       final body = <String, dynamic>{
         'fullName': fullName,
         'phone': phone,
@@ -293,7 +304,10 @@ class LeadsService {
       if (bestTimeToReach != null && bestTimeToReach.trim().isNotEmpty) body['bestTimeToReach'] = bestTimeToReach;
       if (assignedEmployeeId != null) body['assignedEmployeeId'] = assignedEmployeeId;
       if (notes != null && notes.trim().isNotEmpty) body['notes'] = notes;
-      // المصدر والحملة (بالإنجليزي للتخزين + بالعربي للعرض)
+      // المصدر والحملة - الإرسال الصحيح للـ API
+      if (sourceId != null && sourceId > 0) body['sourceId'] = sourceId;
+      if (adTypeId != null && adTypeId > 0) body['adTypeId'] = adTypeId;
+      // للتوافق الخلفي
       if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform;
       if (sourceNameAr != null && sourceNameAr.trim().isNotEmpty) body['sourceNameAr'] = sourceNameAr;
       if (campaignName != null && campaignName.trim().isNotEmpty) body['campaignName'] = campaignName;

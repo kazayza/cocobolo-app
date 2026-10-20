@@ -116,7 +116,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
     final permissionService = PermissionService();
     
     // التحقق من الصلاحية
-    if (!(permissionService.isSalesManager || permissionService.isAccountManager)) {
+    if (!permissionService.canEscalateComplaint) {
       return Scaffold(
         appBar: AppBar(title: const Text('تصعيد شكوى')),
         body: const Center(

@@ -17,9 +17,14 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import '../constants.dart';
 import '../services/icon_utils.dart';
+import '../services/permission_service.dart';
 import 'add_opportunity_screen.dart';
 import 'add_interaction_screen.dart';
 import 'opportunity_details_screen.dart';
+import 'closure_approval_requests_screen.dart'
+    show ClosureApprovalRequestsScreen;
+import 'lost_recovery_screen.dart';
+import 'general_tasks_screen.dart';
 
 class OpportunitiesScreen extends StatefulWidget {
   final int userId;
@@ -1169,6 +1174,14 @@ if (loadingMore)
   }
 
   PreferredSizeWidget _buildAppBar() {
+  final perms = PermissionService();
+  final canViewClosure =
+      perms.isAdmin || perms.isSalesManager || perms.isGeneralManager;
+  final canViewRecovery = perms.canViewLostRecovery;
+  final canViewGeneralTasks = perms.isAdmin ||
+      perms.isGeneralManager ||
+      perms.isAccountManager ||
+      perms.canView(FormNames.generalTasks);
   return AppBar(
     backgroundColor: const Color(0xFF1A1A1A),
     title: Row(
@@ -1191,6 +1204,46 @@ if (loadingMore)
       onPressed: () => Navigator.pop(context),
     ),
     actions: [
+      if (canViewGeneralTasks)
+        IconButton(
+          tooltip: 'التكليفات العامة',
+          icon: const Icon(
+            Icons.assignment_turned_in_rounded,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GeneralTasksScreen(
+                  userId: widget.userId,
+                  username: widget.username,
+                ),
+              ),
+            );
+          },
+        ),
+      // زر استرداد الفرص الخاسرة
+      if (canViewRecovery)
+        IconButton(
+          tooltip: 'استرداد الفرص الخاسرة',
+          icon: const Icon(Icons.restart_alt_rounded, color: Color(0xFF4F46E5)),
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => LostRecoveryScreen(userId: widget.userId, username: widget.username)));
+          },
+        ),
+      // 🛑 زر طلبات موافقة الإغلاق - يظهر للـ GM/SalesManager/Admin فقط
+      if (canViewClosure)
+        IconButton(
+          tooltip: 'طلبات موافقة الإغلاق',
+          icon: Stack(children: [
+            const Icon(Icons.admin_panel_settings_rounded, color: Colors.orange),
+            Positioned(top: 0, right: 0, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))),
+          ]),
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ClosureApprovalRequestsScreen(userId: widget.userId, username: widget.username)));
+          },
+        ),
       // ✅ زر التقرير الجديد
       PopupMenuButton<String>(
         icon: const FaFaIcon(FontAwesomeIcons.fileExport, color: Colors.white, size: 18),

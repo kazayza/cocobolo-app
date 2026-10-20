@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/app_colors.dart';
 import 'home_accent.dart';
 import 'sparkline.dart';
 
@@ -134,8 +135,8 @@ class _PercentageBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: isPositive
-            ? Colors.green.withValues(alpha: .12)
-            : Colors.red.withValues(alpha: .12),
+            ? AppColors.success.withValues(alpha: .12)
+            : AppColors.error.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -143,7 +144,7 @@ class _PercentageBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+          color: isPositive ? AppColors.success : AppColors.error,
         ),
       ),
     );

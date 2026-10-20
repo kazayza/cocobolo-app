@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/permission_service.dart';
+import '../core/auth/session_service.dart';
+import '../providers/auth_provider.dart';
 import 'login_screen.dart';
 
 class FullMenuScreen extends StatefulWidget {
@@ -263,8 +265,11 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
             child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               PermissionService().clear();
+              AuthProvider().clear();
+              await SessionService.instance.clear();
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,

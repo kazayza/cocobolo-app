@@ -43,11 +43,9 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
 
   final PermissionService _perms = PermissionService();
 
-  // ── الصلاحيات (زي DeliveryPermissions في بلازور) ──────────
-  bool get _canSeeAmounts =>
-      _perms.isAdmin || _perms.isAccountManager || _perms.isAccount;
-  bool get _canConfirmDelivery =>
-      _perms.isAdmin || _perms.isSales || _perms.role?.toLowerCase() == 'user';
+  // ── صلاحيات التسليم المركزية ──────────
+  bool get _canSeeAmounts => _perms.canSeeDeliveryAmounts;
+  bool get _canConfirmDelivery => _perms.canConfirmDelivery;
 
   @override
   void initState() {

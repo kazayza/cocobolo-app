@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../constants.dart';
+import '../core/network/api_client.dart';
 import '../services/permission_service.dart';
 
 class PriceRequestsScreen extends StatefulWidget {
@@ -32,12 +30,6 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
   void initState() {
     super.initState();
 
-    // تحديد عدد التابات حسب الـ Role
-    int tabCount = 1;
-    if (perm.canReviewPriceRequests) tabCount = 2; // SalesManager: Pending + All
-    if (perm.isAdmin || perm.isAccountManager) tabCount = 2; // Admin: All + Pending
-    if (perm.canRequestPriceChange) tabCount = 1; // Sales: My Requests only
-
     _tabController = TabController(length: _getTabCount(), vsync: this);
     _fetchData();
   }
@@ -56,44 +48,40 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
   }
 
   // =====================
-  // 📡 API Calls
+  // API Calls
   // =====================
 
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      // SalesManager / Admin / AccountManager → Pending + All
-      if (perm.canReviewPriceRequests || perm.isAdmin || perm.isAccountManager) {
-        final pendingRes = await http.get(
-          Uri.parse('$baseUrl/api/pricing/price-requests/pending'),
+      if (perm.canReviewPriceRequests) {
+        final results = await Future.wait<dynamic>(<Future<dynamic>>[
+          ApiClient.instance.get('/api/pricing/price-requests/pending'),
+          ApiClient.instance.get('/api/pricing/price-requests/all'),
+        ]);
+        pendingRequests = List<dynamic>.from(
+          ApiClient.instance.decode(results[0]) as List,
         );
-        final allRes = await http.get(
-          Uri.parse('$baseUrl/api/pricing/price-requests/all'),
+        allRequests = List<dynamic>.from(
+          ApiClient.instance.decode(results[1]) as List,
         );
-
-        if (pendingRes.statusCode == 200) {
-          pendingRequests = jsonDecode(pendingRes.body);
-        }
-        if (allRes.statusCode == 200) {
-          allRequests = jsonDecode(allRes.body);
-        }
       }
 
-      // Sales → My Requests
       if (perm.canRequestPriceChange) {
-        final myRes = await http.get(
-          Uri.parse('$baseUrl/api/pricing/price-requests/my?username=${widget.username}'),
+        final response = await ApiClient.instance.get(
+          '/api/pricing/price-requests/my',
+          query: <String, dynamic>{'username': widget.username},
         );
-        if (myRes.statusCode == 200) {
-          myRequests = jsonDecode(myRes.body);
-        }
+        myRequests = List<dynamic>.from(
+          ApiClient.instance.decode(response) as List,
+        );
       }
 
+      if (mounted) setState(() => _isLoading = false);
+    } catch (error) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-    } catch (e) {
-      print('Error fetching requests: $e');
-      setState(() => _isLoading = false);
-      _showError('فشل تحميل الطلبات');
+      _showError('فشل تحميل الطلبات: $error');
     }
   }
 
@@ -165,17 +153,18 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
     if (confirmed != true) return;
 
     try {
-      final res = await http.put(
-        Uri.parse('$baseUrl/api/pricing/price-requests/$requestId/approve'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final response = await ApiClient.instance.put(
+        '/api/pricing/price-requests/$requestId/approve',
+        body: <String, dynamic>{
           'reviewedBy': widget.username,
-          'reviewNotes': notesController.text.isNotEmpty ? notesController.text : null,
+          'reviewNotes': notesController.text.isNotEmpty
+              ? notesController.text
+              : null,
           'clientTime': DateTime.now().toIso8601String(),
-        }),
+        },
       );
 
-      final result = jsonDecode(res.body);
+      final result = ApiClient.instance.decode(response);
       if (result['success'] == true) {
         _showSuccess('تمت الموافقة على الطلب وتم تحديث السعر');
         _fetchData();
@@ -261,17 +250,16 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
     if (confirmed != true) return;
 
     try {
-      final res = await http.put(
-        Uri.parse('$baseUrl/api/pricing/price-requests/$requestId/reject'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final response = await ApiClient.instance.put(
+        '/api/pricing/price-requests/$requestId/reject',
+        body: <String, dynamic>{
           'reviewedBy': widget.username,
           'reviewNotes': notesController.text,
           'clientTime': DateTime.now().toIso8601String(),
-        }),
+        },
       );
 
-      final result = jsonDecode(res.body);
+      final result = ApiClient.instance.decode(response);
       if (result['success'] == true) {
         _showSuccess('تم رفض الطلب');
         _fetchData();
@@ -284,7 +272,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
   }
 
   // =====================
-  // 🎨 UI
+  // UI
   // =====================
 
   @override
@@ -670,7 +658,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
   }
 
   // =====================
-  // 🔧 Helpers
+  // Helpers
   // =====================
 
   String _formatNumber(dynamic number) {

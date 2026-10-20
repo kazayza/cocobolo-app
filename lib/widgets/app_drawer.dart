@@ -5,13 +5,18 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/permission_service.dart';
 import '../services/notification_service.dart';
-import '../features/home/widgets/home_accent.dart';
+import '../services/app_colors.dart';
 import '../features/home/widgets/profile_avatar.dart';
 import '../screens/login_screen.dart';
 import '../services/update_service.dart';
+import '../core/auth/session_service.dart';
+import '../providers/auth_provider.dart';
 import '../screens/add_client_screen.dart';
 import '../screens/add_opportunity_screen.dart';
 import '../screens/products_screen.dart';
+import '../screens/price_list_screen.dart';
+import '../screens/quotations_screen.dart';
+import '../screens/job_orders_screen.dart';
 import '../screens/clients_screen.dart';
 import '../screens/expenses/expense_dashboard_screen.dart';
 import '../screens/expenses/expense_groups_screen.dart';
@@ -20,12 +25,25 @@ import '../screens/add_expense_screen.dart';
 import '../screens/reports/crm_dashboard_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/opportunities_screen.dart';
+import '../screens/closure_approval_requests_screen.dart'
+    show ClosureApprovalRequestsScreen;
+import '../screens/general_tasks_screen.dart';
+import '../screens/lost_recovery_screen.dart';
+import '../screens/lost_recovery_report_screen.dart';
+import '../screens/invoice/invoices_list_screen.dart';
+import '../screens/invoice/add_invoice_screen.dart';
+import '../screens/inventory/stock_transactions_screen.dart';
+import '../screens/inventory/stock_levels_screen.dart';
+import '../screens/inventory/warehouses_screen.dart';
+import '../screens/inventory/stock_transfer_screen.dart';
+import '../screens/inventory/stock_entry_screen.dart';
+import '../screens/inventory/stock_value_screen.dart';
+import '../screens/inventory/stock_count_screen.dart';
 import '../screens/pipeline_screen.dart';
 import '../screens/client_card_screen.dart';
 import '../screens/pricing_margins_screen.dart';
 import '../screens/price_requests_screen.dart';
 import '../screens/crm_settings_screen.dart';
-import '../screens/change_password_screen.dart';
 import '../screens/employees_screen.dart';
 import '../screens/attendance_screen.dart';
 import '../screens/add_employee_screen.dart';
@@ -35,18 +53,15 @@ import '../screens/my_schedule_screen.dart';
 import '../screens/exemptions_screen.dart';
 import '../screens/attendance_report_screen.dart';
 import '../screens/permissions_list_screen.dart';
-import '../screens/request_permission_screen.dart';
 import '../screens/complaints_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
 import '../screens/cashbox_transactions_screen.dart';
 import '../screens/cashbox_manual_screen.dart';
 import '../screens/cashbox/cashbox_dashboard_screen.dart';
 import '../screens/leads_screen.dart';
-import '../screens/lead_detail_screen.dart';
 import '../screens/followups_screen.dart';
 import '../screens/admin/users_admin_screen.dart';
 import '../screens/admin/broadcast_notification_screen.dart';
-import '../screens/invoice/invoices_list_screen.dart';
 import '../screens/admin/user_form_screen.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -78,6 +93,15 @@ class _AppDrawerState extends State<AppDrawer> {
   String _appVersion = '';
   String _buildNumber = '';
 
+  /// الأقسام التي تُعرض بعلامة "جديد" مرة واحدة فقط لكل مستخدم.
+  static const Set<String> _highlightedSections = <String>{
+    'قائمة الأسعار',
+  };
+  static const String _seenNewKey = 'drawer_seen_new_sections';
+
+  /// الأقسام التي لم يشاهدها المستخدم بعد (تُحمّل من التخزين المحلي).
+  final Set<String> _unseenNewSections = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +109,36 @@ class _AppDrawerState extends State<AppDrawer> {
     _cacheMenuItems();
     _searchController.addListener(_onSearchChanged);
     _loadAppVersion();
+    _loadUnseenNewSections();
+  }
+
+  /// قراءة الأقسام الجديدة غير المُشاهدة من SharedPreferences.
+  Future<void> _loadUnseenNewSections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getStringList(_seenNewKey) ?? const <String>[];
+    final unseen = _highlightedSections
+        .where((String title) => !seen.contains(title))
+        .toSet();
+    if (!mounted || unseen.isEmpty) return;
+    setState(() {
+      _unseenNewSections
+        ..clear()
+        ..addAll(unseen);
+    });
+  }
+
+  /// حفظ القسم كمُشاهد عند توسيعه.
+  Future<void> _markSectionSeen(String title) async {
+    if (!_unseenNewSections.contains(title)) return;
+    setState(() {
+      _unseenNewSections.remove(title);
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getStringList(_seenNewKey) ?? <String>[];
+    if (!seen.contains(title)) {
+      seen.add(title);
+      await prefs.setStringList(_seenNewKey, seen);
+    }
   }
 
   @override
@@ -101,7 +155,7 @@ class _AppDrawerState extends State<AppDrawer> {
     _visibleItems = MenuStructure.getItems()
         .map((item) {
           final kids = item.children
-              .where((sub) => _canViewMenu(sub.formName))
+              .where((sub) => sub.isHeader || _canViewMenu(sub.formName))
               .toList();
           return MenuItem(
             title: item.title,
@@ -140,10 +194,57 @@ class _AppDrawerState extends State<AppDrawer> {
           perms.canView(FormNames.expensesList) ||
           perms.canView(FormNames.expensesAdd);
     }
-    // الحسابات الشخصية: الادمن + مدير الحسابات فقط (حسب طلب المستخدم)
+    if (formName == FormNames.priceList) {
+      return perms.canViewPriceList;
+    }
+    if (formName == FormNames.quotationsList ||
+        formName == FormNames.newQuotation) {
+      return perms.canViewQuotations;
+    }
+    if (formName == FormNames.jobOrders) {
+      return perms.canViewJobOrders;
+    }
+
+    // الحسابات الشخصية: الادمن + مدير الحسابات فقط.
     if (formName == FormNames.personalAccounts) {
       return perms.isAdmin || perms.isAccountManager;
     }
+
+    // المخازن: نفس قواعد العرض في Blazor حتى لو لم تُضف الصلاحيات الجديدة للمستخدم بعد.
+    if (formName == FormNames.stockEntry ||
+        formName == FormNames.stockTransfer ||
+        formName == FormNames.stockTransactions ||
+        formName == FormNames.stockLevels) {
+      return perms.isAdmin ||
+          perms.isGeneralManager ||
+          perms.isAccountManager ||
+          perms.isProductionManager ||
+          perms.isFactory ||
+          perms.isWarehouse ||
+          perms.canView(formName);
+    }
+    if (formName == FormNames.warehouses) {
+      return perms.isAdmin || perms.canView(formName);
+    }
+    if (formName == FormNames.stockCount) {
+      return perms.isAdmin || perms.canView(formName);
+    }
+    if (formName == FormNames.stockValue) {
+      return perms.isAdmin || perms.isAccountManager || perms.canView(formName);
+    }
+
+    // الاسترداد والتكليفات تظهر حسب Policy الأدوار وليس Claim العرض فقط.
+    if (formName == FormNames.lostRecovery ||
+        formName == FormNames.lostRecoveryReport) {
+      return perms.canViewLostRecovery;
+    }
+    if (formName == FormNames.generalTasks) {
+      return perms.isAdmin ||
+          perms.isGeneralManager ||
+          perms.isAccountManager ||
+          perms.canView(formName);
+    }
+
     return perms.canView(formName);
   }
 
@@ -221,14 +322,14 @@ class _AppDrawerState extends State<AppDrawer> {
         left: 16,
         right: 16,
       ),
-      decoration: const BoxDecoration(
+        decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: const [
-            HomeAccent.navyDark,
-            HomeAccent.navy,
-            HomeAccent.navyLight,
+            AppColors.navyDark,
+            AppColors.navy,
+            AppColors.navyLight,
           ],
         ),
       ),
@@ -258,7 +359,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   Text(
                     'COCOBOLO',
                     style: GoogleFonts.cairo(
-                      color: const Color(0xFFE8B923),
+                      color: AppColors.gold,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
@@ -276,7 +377,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   child: Icon(
                     Icons.close_rounded,
-                    color: Colors.grey[500],
+                    color: AppColors.neutral,
                     size: 18,
                   ),
                 ),
@@ -301,12 +402,12 @@ class _AppDrawerState extends State<AppDrawer> {
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? Colors.white.withValues(alpha: 0.06)
-            : HomeAccent.navy.withValues(alpha: 0.04),
+            : AppColors.navy.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark
               ? Colors.white.withValues(alpha: 0.08)
-              : HomeAccent.navy.withValues(alpha: 0.10),
+              : AppColors.navy.withValues(alpha: 0.10),
         ),
       ),
       child: Row(
@@ -478,28 +579,23 @@ class _AppDrawerState extends State<AppDrawer> {
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildSearchField() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.white.withValues(alpha: 0.06)
-            : HomeAccent.navy.withValues(alpha: 0.04),
+        color: AppColors.inputFill(isDark),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white.withValues(alpha: 0.08)
-              : HomeAccent.navy.withValues(alpha: 0.10),
+          color: AppColors.divider(isDark).withValues(alpha: 0.4),
         ),
       ),
       child: TextField(
         controller: _searchController,
         textDirection: TextDirection.rtl,
-        style: GoogleFonts.cairo(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white
-              : const Color(0xFF0F172A),
-          fontSize: 13,
-        ),
+          style: GoogleFonts.cairo(
+            color: AppColors.text(isDark),
+            fontSize: 13,
+          ),
         decoration: InputDecoration(
           hintText: 'بحث في القائمة...',
           hintStyle: GoogleFonts.cairo(
@@ -517,10 +613,16 @@ class _AppDrawerState extends State<AppDrawer> {
                     _searchController.clear();
                     FocusScope.of(context).unfocus();
                   },
-                  child: Icon(
-                    Icons.close_rounded,
-                    color: Colors.grey[500],
-                    size: 16,
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: AppColors.neutral,
+                        size: 20,
+                      ),
+                    ),
                   ),
                 )
               : null,
@@ -598,7 +700,9 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Widget _buildSection(MenuItem item, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final visibleChildren = item.children.where((sub) {
+      if (sub.isHeader) return _searchQuery.isEmpty;
       return _canViewMenu(sub.formName) &&
           (_searchQuery.isEmpty ||
               sub.title.toLowerCase().contains(_searchQuery));
@@ -611,7 +715,7 @@ class _AppDrawerState extends State<AppDrawer> {
         (_searchQuery.isNotEmpty && visibleChildren.isNotEmpty);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isExpanded
             ? item.color.withValues(alpha: 0.08)
@@ -624,7 +728,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   context,
                 ).colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
-      ),
+        ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -637,32 +741,66 @@ class _AppDrawerState extends State<AppDrawer> {
                 _expandedSections.remove(index);
               }
             });
+            if (expanded) _markSectionSeen(item.title);
           },
           tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          leading: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: item.color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(item.icon, color: item.color, size: 18),
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: item.color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(item.icon, color: item.color, size: 18),
+              ),
+              if (_unseenNewSections.contains(item.title))
+                Positioned(
+                  top: -3,
+                  left: -3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'جديد',
+                        style: GoogleFonts.cairo(
+                          color: Colors.white,
+                          fontSize: 7.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           title: Text(
             item.title,
             style: GoogleFonts.cairo(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: isExpanded
-                  ? item.color
-                  : Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : const Color(0xFF0F172A),
+              color: isExpanded ? item.color : AppColors.text(isDark),
             ),
           ),
           subtitle: Text(
-            '${visibleChildren.length} عناصر',
-            style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey[600]),
+            '${visibleChildren.where((SubMenuItem sub) => !sub.isHeader).length} عناصر',
+            style: GoogleFonts.cairo(
+              fontSize: 10,
+              color: AppColors.textSecondary(isDark),
+            ),
           ),
           trailing: AnimatedRotation(
             turns: isExpanded ? 0.5 : 0,
@@ -693,6 +831,38 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Widget _buildSubItem(SubMenuItem sub, Color sectionColor) {
+    // عنوان تجميع: يظهر كنص فاصل وليس عنصراً قابلاً للنقر.
+    if (sub.isHeader) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 4, right: 12, left: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              height: 13,
+              decoration: BoxDecoration(
+                color: sectionColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                sub.title,
+                style: GoogleFonts.cairo(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textSecondary(isDark),
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final isActive = widget.currentRoute == sub.formName;
 
     return Container(
@@ -823,7 +993,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   'أنت على أحدث إصدار ✅',
                   style: GoogleFonts.cairo(),
                 ),
-                backgroundColor: Colors.green,
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -833,7 +1003,7 @@ class _AppDrawerState extends State<AppDrawer> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('تعذر التحقق من التحديثات', style: GoogleFonts.cairo()),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -869,23 +1039,23 @@ class _AppDrawerState extends State<AppDrawer> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.08),
+                  color: AppColors.error.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withOpacity(0.12)),
+                  border: Border.all(color: AppColors.error.withOpacity(0.12)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.logout_rounded,
-                      color: Colors.red[400],
+                      color: AppColors.error,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'تسجيل الخروج',
                       style: GoogleFonts.cairo(
-                        color: Colors.red[400],
+                        color: AppColors.error,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                       ),
@@ -973,12 +1143,12 @@ class _AppDrawerState extends State<AppDrawer> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.logout_rounded,
-                color: Colors.red,
+                color: AppColors.error,
                 size: 22,
               ),
             ),
@@ -1016,7 +1186,7 @@ class _AppDrawerState extends State<AppDrawer> {
               _logout();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -1037,10 +1207,11 @@ class _AppDrawerState extends State<AppDrawer> {
 
   Future<void> _logout() async {
     _perms.clear();
+    AuthProvider().clear();
     NotificationService().stopPolling();
+    await SessionService.instance.clear();
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_in', false);
     await prefs.remove('userId');
     await prefs.remove('username');
     await prefs.remove('fullName');
@@ -1122,6 +1293,69 @@ class _AppDrawerState extends State<AppDrawer> {
           userId: widget.userId,
           username: widget.username,
         );
+        break;
+      case 'frm_PriceList':
+      case 'products/price-list':
+      case 'sales/price-list':
+        screen = PriceListScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmQuotationsList':
+      case 'frmNewQuotation':
+      case 'quotations':
+      case 'sales/quotations':
+        screen = QuotationsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_JobOrders':
+      case 'production/job-orders':
+      case 'factory/job-orders':
+        screen = JobOrdersScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_StockLevels':
+      case 'inventory/stock-levels':
+      case 'inventory/movements':
+        screen = StockLevelsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_StockTransactions':
+      case 'inventory/transactions':
+        screen = StockTransactionsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_Warehouses':
+      case 'inventory/warehouses':
+        screen = WarehousesScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'frm_StockTransfer':
+      case 'inventory/transfer':
+      case 'inventory/warehouse-transfer':
+        screen = StockTransferScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'frm_StockEntry':
+      case 'inventory/stock-entry':
+      case 'inventory/opening-balance':
+        screen = StockEntryScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'frm_StockValue':
+      case 'inventory/stock-value':
+        screen = StockValueScreen(userId: widget.userId, username: widget.username);
+        break;
+      case 'frm_StockCount':
+      case 'inventory/count':
+      case 'inventory/stock-count':
+        screen = StockCountScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_PartiesList':
         screen = ClientsScreen(
@@ -1210,6 +1444,33 @@ class _AppDrawerState extends State<AppDrawer> {
         break;
       case 'frmManamgerSales':
         screen = OpportunitiesScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_ClosureApprovalRequests':
+        screen = ClosureApprovalRequestsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_LostRecovery':
+      case 'crm/lost-recovery':
+        screen = LostRecoveryScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_LostRecoveryReport':
+      case 'crm/lost-recovery/report':
+        screen = LostRecoveryReportScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'crm/general-tasks':
+      case 'frm_GeneralTasks':
+        screen = GeneralTasksScreen(
           userId: widget.userId,
           username: widget.username,
         );
@@ -1333,6 +1594,10 @@ class _AppDrawerState extends State<AppDrawer> {
           initialTab: 'Purchase',
         );
         break;
+      case 'frm_SalesInvoiveNew':
+      case 'sales/invoices/new':
+        screen = AddInvoiceScreen(userId: widget.userId, username: widget.username, initialType: 'Sale');
+        break;
       case 'frm_AllUsers':
         screen = UsersAdminScreen(
           userId: widget.userId,
@@ -1374,7 +1639,7 @@ class _AppDrawerState extends State<AppDrawer> {
             children: [
               const Icon(
                 Icons.construction_rounded,
-                color: Colors.amber,
+                color: AppColors.warning,
                 size: 18,
               ),
               const SizedBox(width: 8),

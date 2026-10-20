@@ -34,8 +34,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   final PermissionService _perms = PermissionService();
 
   // ── المبالغ: ادمن + مدير حسابات + محاسب فقط (مش المصنع ولا مدير الإنتاج) ──
-  bool get _canSeeAmounts =>
-      _perms.isAdmin || _perms.isAccountManager || _perms.isAccount;
+  bool get _canSeeAmounts => _perms.canSeeDeliveryAmounts;
 
   @override
   void initState() {

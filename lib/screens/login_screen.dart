@@ -6,14 +6,19 @@ import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../constants.dart';
 import '../features/home/home_screen_v2.dart';
 import '../services/permission_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../core/responsive.dart';
+import '../services/notification_service.dart';
 import '../providers/auth_provider.dart';
+import '../core/auth/session_service.dart';
+import '../core/network/api_client.dart';
+import '../core/notifications/notification_navigator.dart';
+import '../core/navigation/app_navigator.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,31 +58,29 @@ class _LoginScreenState extends State<LoginScreen> {
   // تحميل بيانات "تذكرني"
   Future<void> _loadSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedUsername = prefs.getString('saved_username');
-    final savedPassword = prefs.getString('saved_password');
+    final savedUsername =
+        prefs.getString('saved_username') ?? prefs.getString('username');
     final rememberMe = prefs.getBool('remember_me') ?? false;
 
-    if (rememberMe && savedUsername != null && savedPassword != null) {
+    if (rememberMe && savedUsername != null) {
       setState(() {
         _username.text = savedUsername;
-        _password.text = savedPassword;
         _rememberMe = true;
       });
     }
+    // لا يتم استرجاع أو تخزين كلمة المرور على الجهاز.
   }
 
-  // حفظ بيانات "تذكرني"
+  // حفظ اسم المستخدم فقط. التوكن يُحفظ لاحقًا في Secure Storage.
   Future<void> _saveCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('saved_password');
     if (_rememberMe) {
       await prefs.setString('saved_username', _username.text.trim());
-      await prefs.setString('saved_password', _password.text);
-      await prefs.setBool('remember_me', true);
     } else {
       await prefs.remove('saved_username');
-      await prefs.remove('saved_password');
-      await prefs.setBool('remember_me', false);
     }
+    await prefs.setBool('remember_me', _rememberMe);
   }
 
   Future<void> _login() async {
@@ -92,6 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
         body: jsonEncode({
           'username': _username.text.trim(),
           'password': _password.text,
+          'rememberMe': _rememberMe,
         }),
       );
 
@@ -101,47 +105,44 @@ class _LoginScreenState extends State<LoginScreen> {
         // حفظ "تذكرني"
         await _saveCredentials();
 
-        // ✅ حفظ بيانات الجلسة عشان الـ Auto Login
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('is_logged_in', true);
-        await prefs.setInt('userId', data['user']['UserID'] as int);
-        await prefs.setString('username', data['user']['Username'] as String);
-        await prefs.setString('fullName', data['user']['FullName'] as String? ?? '');
-
-        // FCM Token للموبايل فقط
-        if (!kIsWeb) {
-          try {
-            final token = await FirebaseMessaging.instance.getToken();
-            if (token != null) {
-              await http.post(
-                Uri.parse('$baseUrl/api/users/save-token'),
-                headers: {'Content-Type': 'application/json'},
-                body: jsonEncode({
-                  'userId': data['user']['UserID'],
-                  'fcmToken': token,
-                }),
-              );
-            }
-          } catch (e) {
-            print('⚠️ خطأ في FCM Token: $e');
-          }
+        final accessToken =
+            (data['accessToken'] ?? data['user']?['Token'] ?? '').toString();
+        if (accessToken.isEmpty) {
+          throw const ApiException(
+            statusCode: 500,
+            message: 'الخادم لم يُرجع جلسة صالحة',
+          );
         }
 
-        // حفظ صلاحيات المستخدم
+        await SessionService.instance.saveToken(accessToken);
+        await SessionService.instance.saveUserMetadata(
+          userId: data['user']['UserID'] as int,
+          username: data['user']['Username'] as String,
+          fullName: data['user']['FullName'] as String? ?? '',
+          rememberMe: _rememberMe,
+        );
+
         PermissionService().initialize(
           user: data['user'] as Map<String, dynamic>,
           permissions: (data['permissions'] ?? {}) as Map<String, dynamic>,
+          claims: (data['claims'] ?? []) as List<dynamic>,
         );
 
-        // ✅ تعبئة AuthProvider (Singleton) ببيانات اليوزر
         final auth = AuthProvider();
         auth.login(
           userId: data['user']['UserID'] as int,
           username: data['user']['Username'] as String,
           fullName: data['user']['FullName'] as String? ?? '',
-          token: data['user']['Token'] as String? ?? '',
+          email: data['user']['Email'] as String?,
+          employeeId: data['user']['employeeID'] as int?,
+          token: accessToken,
           role: data['user']['Role'] as String? ?? '',
         );
+
+        // تسجيل توكن الجهاز بعد نجاح الجلسة، مع إعادة المحاولة تلقائياً.
+        if (!kIsWeb) {
+          await NotificationService().registerCurrentDeviceToken();
+        }
 
         _showSuccessDialog();
 
@@ -155,6 +156,9 @@ class _LoginScreenState extends State<LoginScreen> {
             builder: (context) => const HomeScreenV2(),
           ),
         );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationNavigator.flushPending(navigatorKey);
+        });
       } else {
         _showErrorSnackBar(data['message'] ?? 'بيانات الدخول غير صحيحة');
       }
@@ -215,15 +219,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 70,
                   fit: BoxFit.contain,
                 ),
-              ),
-            )
-                .animate()
+      ),
+    )
+        .animate()
                 .scale(duration: 500.ms, curve: Curves.elasticOut)
                 .then()
                 .shimmer(duration: 1200.ms, color: AppColors.gold.withOpacity(0.3)),
-            
+
             const SizedBox(height: 24),
-            
+
             // أيقونة النجاح
             Container(
               padding: const EdgeInsets.all(10),
@@ -237,9 +241,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 size: 28,
               ),
             ).animate().fadeIn(delay: 300.ms).scale(delay: 300.ms),
-            
+
             const SizedBox(height: 16),
-            
+
             // النص
             Text(
               'تم تسجيل الدخول بنجاح!',
@@ -249,9 +253,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ).animate().fadeIn(delay: 400.ms),
-            
+
             const SizedBox(height: 6),
-            
+
             Text(
               'مرحباً ${_username.text}',
               style: GoogleFonts.cairo(
@@ -260,9 +264,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ).animate().fadeIn(delay: 500.ms),
-            
+
             const SizedBox(height: 8),
-            
+
             // Loading indicator
             SizedBox(
               width: 100,
@@ -333,7 +337,9 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.horizontalPadding(context),
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -683,7 +689,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
-      child: ElevatedButton(
+        child: Semantics(
+          label: _isLoading ? 'جاري تسجيل الدخول' : 'تسجيل الدخول',
+          child: ElevatedButton(
         onPressed: _isLoading ? null : _login,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -722,6 +730,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
       ),
     )
+)
         .animate()
         .fadeIn(delay: 700.ms, duration: 600.ms)
         .slideY(begin: 0.2, end: 0);
