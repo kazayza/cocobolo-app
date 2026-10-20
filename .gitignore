@@ -1,4 +1,46 @@
-﻿.dart_tool/
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter / Dart / Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
 build/
-#ios/
+coverage/
+
+# Local environment files and signing secrets
+.env
+.env.*
+!.env.example
+android/key.properties
+*.jks
+*.keystore
+
+# Generated local reports
+/analyze.txt
+/analyze_result.txt
+/build.txt
+/errors.txt
+/project_structure.txt
+
+# Generated Android plugin registrant
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
