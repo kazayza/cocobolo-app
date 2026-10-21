@@ -1,21 +1,23 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart' hide TextDirection;
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../constants.dart';
-import '../features/home/widgets/home_accent.dart';
-import '../services/permission_service.dart';
+import '../services/app_colors.dart';
+import '../services/delivery_service.dart';
+import '../services/theme_service.dart';
+import '../widgets/app_states.dart';
 import 'delivery_details_screen.dart';
+import 'purchase_receipts_screen.dart';
 
-/// ─────────────────────────────────────────────────────────────
-///  متابعة التسليمات — نسخة 2026
-///  - 5 كروت إحصائيات (الكل/متأخر/اليوم/قريب/مسلم)
-///  - بحث بالعميل + فلترة تاريخ (من/إلى + نوع)
-///  - المبالغ حسب الصلاحية
-///  - تفاصيل كاملة لكل فاتورة
-/// ─────────────────────────────────────────────────────────────
 class DeliveryTrackingScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -31,1079 +33,896 @@ class DeliveryTrackingScreen extends StatefulWidget {
 }
 
 class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
-  bool _isLoading = true;
-  List<Map<String, dynamic>> _deliveries = [];
-  Map<String, dynamic> _stats = {};
-  String _selectedFilter = 'overdue'; // يفتح على المتأخر أولاً
-  String _searchText = '';
-  DateTime? _fromDate;
-  DateTime? _toDate;
-  String _dateFilterType = 'due'; // due | invoice | delivered
+  final DeliveryService _service = DeliveryService();
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _rows = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
+  Map<String, dynamic> _stats = <String, dynamic>{};
+  Map<String, dynamic> _capabilities = <String, dynamic>{};
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _busy = false;
+  bool _exporting = false;
   String? _error;
+  String _status = 'overdue';
+  String _dateType = 'due';
+  String _debt = 'all';
+  DateTime? _from;
+  DateTime? _to;
+  int _page = 1;
+  bool _hasMore = false;
+  Timer? _debounce;
 
-  final PermissionService _perms = PermissionService();
-
-  // ── صلاحيات التسليم المركزية ──────────
-  bool get _canSeeAmounts => _perms.canSeeDeliveryAmounts;
-  bool get _canConfirmDelivery => _perms.canConfirmDelivery;
+  bool get _isDark => ThemeService().isDarkMode;
+  bool _can(String name) => _capabilities[name] == true;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _load();
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // تحميل البيانات
-  // ═══════════════════════════════════════════════════════════
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    try {
-      // بناء الـ query params
-      final params = <String, String>{};
-      if (_selectedFilter != 'all') params['status'] = _selectedFilter;
-      if (_searchText.trim().isNotEmpty) {
-        params['search'] = _searchText.trim();
-      }
-      if (_fromDate != null) {
-        params['dateFrom'] = DateFormat('yyyy-MM-dd').format(_fromDate!);
-      }
-      if (_toDate != null) {
-        params['dateTo'] = DateFormat('yyyy-MM-dd').format(_toDate!);
-      }
-      if (_dateFilterType != 'due') {
-        params['dateFilterType'] = _dateFilterType;
-      }
+  Map<String, dynamic> _map(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
 
-      final qs = params.isEmpty
-          ? ''
-          : '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+  int _int(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? 0;
+  }
 
-      final statsRes = await http.get(
-        Uri.parse('$baseUrl/api/delivery/stats$qs'),
-      );
-      final deliveriesRes = await http.get(
-        Uri.parse('$baseUrl/api/delivery/list$qs'),
-      );
+  double _num(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? 0;
+  }
 
-      if (statsRes.statusCode == 200 && deliveriesRes.statusCode == 200) {
-        final statsJson = jsonDecode(statsRes.body);
-        final listJson = jsonDecode(deliveriesRes.body);
-
-        setState(() {
-          _stats = statsJson is Map ? Map<String, dynamic>.from(statsJson) : {};
-          _deliveries = listJson is Map && listJson['data'] is List
-              ? List<Map<String, dynamic>>.from(
-                  (listJson['data'] as List).map(
-                    (e) => Map<String, dynamic>.from(e as Map),
-                  ),
-                )
-              : [];
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'فشل في تحميل البيانات';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+  Future<void> _load({bool append = false}) async {
+    if (append) {
+      if (!_hasMore || _loadingMore) return;
+      setState(() => _loadingMore = true);
+    } else {
       setState(() {
-        _error = 'فشل في الاتصال بالخادم';
-        _isLoading = false;
+        _loading = true;
+        _error = null;
+        _page = 1;
+      });
+    }
+    try {
+      final data = await _service.getDeliveries(
+        status: _status,
+        search: _searchController.text.trim().isEmpty
+            ? null
+            : _searchController.text.trim(),
+        dateFrom: _from,
+        dateTo: _to,
+        dateFilterType: _dateType,
+        debt: _debt,
+        page: append ? _page + 1 : 1,
+      );
+      final incoming = ((data['rows'] as List?) ?? const [])
+          .map<Map<String, dynamic>>(_map)
+          .toList();
+      final pagination = _map(data['pagination']);
+      if (!mounted) return;
+      setState(() {
+        if (append) {
+          _rows.addAll(incoming);
+          _page++;
+        } else {
+          _rows = incoming;
+          _page = _int(pagination['page']).clamp(1, 999999).toInt();
+        }
+        _stats = _map(data['stats']);
+        _capabilities = _map(data['capabilities']);
+        _hasMore = pagination['hasMore'] == true;
+        _loading = false;
+        _loadingMore = false;
+      });
+      if (_can('canEditFull') && _employees.isEmpty) {
+        try {
+          _employees = await _service.getEmployees();
+          if (mounted) setState(() {});
+        } catch (_) {}
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _error = error.toString();
       });
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // تأكيد التسليم
-  // ═══════════════════════════════════════════════════════════
-  Future<void> _confirmDelivery(Map<String, dynamic> delivery) async {
+  void _searchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), _load);
+  }
+
+  Future<void> _confirm(Map<String, dynamic> row) async {
+    final id = _int(row['TransactionID']);
+    final remaining = _num(row['RemainingAmount']);
+    final pending = row['HasPendingPermissionRequest'] == true;
+    final canOverride = _can('canOverrideRemaining');
+
+    if (remaining > 0.005 && !canOverride && pending) {
+      _message('طلب إذن التسليم معلّق لدى الإدارة', error: true);
+      return;
+    }
+    if (remaining > 0.005 && !canOverride && !pending) {
+      final request = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('مبلغ متبقٍ على الفاتورة',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+          content: Text(
+            'يوجد مبلغ متبقٍ بقيمة ${_money(remaining)}. يجب الحصول على إذن من الإدارة أو مدير الحسابات قبل التسليم.',
+            style: GoogleFonts.cairo(height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('إلغاء', style: GoogleFonts.cairo()),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.approval_rounded, size: 18),
+              label: Text('طلب إذن', style: GoogleFonts.cairo()),
+            ),
+          ],
+        ),
+      );
+      if (request == true) await _requestPermission(id);
+      return;
+    }
+
+    int? employeeId = row['DeliveryEmployeeId'] is num
+        ? (row['DeliveryEmployeeId'] as num).toInt()
+        : null;
+    final notesController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text('تأكيد التسليم',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(
+                'تأكيد تسليم ${row['ReferenceNumber'] ?? '#$id'} إلى ${row['ClientName'] ?? ''}${remaining > 0 ? ' مع وجود مبلغ متبقٍ' : ''}.',
+                style: GoogleFonts.cairo(height: 1.5),
+              ),
+              if (_can('canEditFull') && _employees.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                DropdownButtonFormField<int?>(
+                  initialValue: employeeId,
+                  decoration: InputDecoration(
+                    labelText: 'مندوب التسليم',
+                    labelStyle: GoogleFonts.cairo(),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  items: [
+                    DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('المستخدم الحالي',
+                            style: GoogleFonts.cairo())),
+                    ..._employees.map((employee) => DropdownMenuItem<int?>(
+                          value: _int(employee['EmployeeID']),
+                          child: Text('${employee['FullName'] ?? ''}',
+                              style: GoogleFonts.cairo()),
+                        )),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => employeeId = value),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                style: GoogleFonts.cairo(),
+                decoration: InputDecoration(
+                  labelText: 'ملاحظات التسليم',
+                  labelStyle: GoogleFonts.cairo(),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('إلغاء', style: GoogleFonts.cairo()),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.check_circle_rounded, size: 18),
+              label: Text('تم التسليم', style: GoogleFonts.cairo()),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(() => _service.confirmDelivery(
+          id: id,
+          deliveryEmployeeId: employeeId,
+          notes: notesController.text.trim(),
+        ));
+  }
+
+  Future<void> _requestPermission(int id) async {
+    await _run(() => _service.requestPermission(id));
+  }
+
+  Future<void> _grantPermission(Map<String, dynamic> row) async {
+    final yes = await showDialog<bool>(
+      context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('تأكيد التسليم'),
+        title: Text('منح إذن التسليم',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         content: Text(
-          'هل تريد تأكيد تسليم الفاتورة #${delivery['TransactionID']} '
-          'للعميل ${delivery['ClientName'] ?? ''}؟',
+          'السماح بتسليم ${row['ReferenceNumber'] ?? '#${row['TransactionID']}'} رغم وجود مبلغ متبقٍ؟',
+          style: GoogleFonts.cairo(height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
+            child: Text('إلغاء', style: GoogleFonts.cairo()),
           ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF43A047),
-            ),
+          FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            icon: const Icon(Icons.check_circle_rounded, size: 18),
-            label: const Text('نعم، تم التسليم'),
+            child: Text('منح الإذن', style: GoogleFonts.cairo()),
           ),
         ],
       ),
     );
+    if (yes == true) {
+      await _run(() => _service.grantPermission(_int(row['TransactionID'])));
+    }
+  }
 
-    if (confirmed != true || !mounted) return;
-
+  Future<void> _run(Future<Map<String, dynamic>> Function() action) async {
+    setState(() => _busy = true);
     try {
-      final res = await http.put(
-        Uri.parse('$baseUrl/api/delivery/${delivery['TransactionID']}/deliver'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'deliveryEmployeeName': widget.username}),
-      );
-
-      final result = jsonDecode(res.body);
-      if (result['success'] == true) {
-        _showSnackBar('✅ تم تأكيد التسليم بنجاح', Colors.green);
-        _loadData();
-      } else {
-        _showSnackBar('فشل في تحديث الحالة', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('حدث خطأ في الاتصال', Colors.red);
+      final result = await action();
+      if (!mounted) return;
+      _message('${result['message'] ?? 'تمت العملية بنجاح'}');
+      await _load();
+    } catch (error) {
+      if (mounted) _message(error.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // تواصل
-  // ═══════════════════════════════════════════════════════════
-  Future<void> _callClient(String? phone) async {
-    if (phone == null || phone.isEmpty) {
-      _showSnackBar('رقم الهاتف غير متوفر', Colors.orange);
-      return;
-    }
-    final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      _showSnackBar('لا يمكن إجراء المكالمة', Colors.red);
-    }
-  }
-
-  Future<void> _whatsappClient(String? phone) async {
-    if (phone == null || phone.isEmpty) {
-      _showSnackBar('رقم الهاتف غير متوفر', Colors.orange);
-      return;
-    }
-    String formatted = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (formatted.startsWith('0')) formatted = '2$formatted';
-    final uri = Uri.parse('https://wa.me/$formatted');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      _showSnackBar('لا يمكن فتح واتساب', Colors.red);
-    }
-  }
-
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // UI
-  // ═══════════════════════════════════════════════════════════
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('متابعة التسليمات'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadData,
-            tooltip: 'تحديث',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
-          : _error != null
-          ? _buildError(theme)
-          : _buildBody(theme, isDark),
-    );
-  }
-
-  Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 60,
-            color: theme.colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody(ThemeData theme, bool isDark) {
-    return Column(
-      children: [
-        // الإحصائيات
-        _buildStatsCards(theme),
-
-        // البحث
-        _buildSearch(theme),
-
-        // فلتر التاريخ
-        _buildDateFilter(theme),
-
-        // العنوان
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              Text(
-                '${_deliveries.length} فاتورة',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 12.5,
-                ),
-              ),
-              const Spacer(),
-              if (_selectedFilter != 'all' ||
-                  _searchText.isNotEmpty ||
-                  _fromDate != null ||
-                  _toDate != null)
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _selectedFilter = 'all';
-                      _searchText = '';
-                      _fromDate = null;
-                      _toDate = null;
-                      _dateFilterType = 'due';
-                    });
-                    _loadData();
-                  },
-                  icon: const Icon(Icons.clear_rounded, size: 15),
-                  label: const Text(
-                    'مسح الفلاتر',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        Expanded(
-          child: _deliveries.isEmpty
-              ? _buildEmptyState(theme)
-              : _buildDeliveriesList(theme, isDark),
-        ),
-      ],
-    );
-  }
-
-  // ── كروت الإحصائيات ───────────────────────────────────────
-  Widget _buildStatsCards(ThemeData theme) {
-    final cards = [
-      _StatCardData(
-        label: 'الكل',
-        count: _stats['TotalCount'] ?? 0,
-        color: HomeAccent.indigo,
-        icon: Icons.list_alt_rounded,
-        status: 'all',
-      ),
-      _StatCardData(
-        label: 'متأخر',
-        count: _stats['Overdue'] ?? 0,
-        color: const Color(0xFFE53935),
-        icon: Icons.warning_amber_rounded,
-        status: 'overdue',
-      ),
-      _StatCardData(
-        label: 'اليوم',
-        count: _stats['Today'] ?? 0,
-        color: const Color(0xFFFFA000),
-        icon: Icons.today_rounded,
-        status: 'today',
-      ),
-      _StatCardData(
-        label: 'قريب',
-        count: _stats['Soon'] ?? 0,
-        color: const Color(0xFFFFB300),
-        icon: Icons.schedule_rounded,
-        status: 'soon',
-      ),
-      _StatCardData(
-        label: 'مسلم',
-        count: _stats['Delivered'] ?? 0,
-        color: const Color(0xFF43A047),
-        icon: Icons.check_circle_rounded,
-        status: 'delivered',
-      ),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Column(
-        children: [
-          // كروت الحالات — شبكة مدمجة (3 × 2) بدل شريط أفقي
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final itemWidth = (constraints.maxWidth - 10) / 3;
-              return Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: [
-                  for (final card in cards)
-                    _CompactStatCard(
-                      card: card,
-                      width: itemWidth,
-                      selected: _selectedFilter == card.status,
-                      onTap: () {
-                        setState(() {
-                          _selectedFilter = _selectedFilter == card.status
-                              ? 'all'
-                              : card.status;
-                        });
-                        _loadData();
-                      },
-                    ),
-                ],
-              );
-            },
-          ),
-          // المبالغ (للأدمن ومدير الحسابات والمحاسب فقط)
-          if (_canSeeAmounts) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: theme.brightness == Brightness.dark
-                      ? [HomeAccent.navyDark, HomeAccent.navyLight]
-                      : [HomeAccent.navy, const Color(0xFF2C4E77)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  _AmountChip(
-                    label: 'الإجمالي',
-                    value: _fmt(_stats['TotalGrandTotal']),
-                    color: Colors.white,
-                  ),
-                  _AmountChip(
-                    label: 'المدفوع',
-                    value: _fmt(_stats['TotalPaidAmount']),
-                    color: const Color(0xFF66BB6A),
-                  ),
-                  _AmountChip(
-                    label: 'المتبقي',
-                    value: _fmt(_stats['TotalRemaining']),
-                    color: const Color(0xFFFF8A65),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── البحث ─────────────────────────────────────────────────
-  Widget _buildSearch(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: TextField(
-        onChanged: (v) {
-          setState(() => _searchText = v);
-          // Debounce بسيط
-          Future.delayed(const Duration(milliseconds: 400), () {
-            if (mounted && v == _searchText) _loadData();
-          });
-        },
-        decoration: InputDecoration(
-          hintText: 'ابحث بالعميل أو الهاتف...',
-          prefixIcon: const Icon(Icons.search_rounded),
-          suffixIcon: _searchText.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear_rounded),
-                  onPressed: () {
-                    setState(() => _searchText = '');
-                    _loadData();
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
-            alpha: 0.4,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 10,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── فلتر التاريخ ──────────────────────────────────────────
-  Widget _buildDateFilter(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          // من
-          Expanded(
-            child: _DateField(
-              label: _fromDate == null
-                  ? 'من'
-                  : DateFormat('yyyy/MM/dd').format(_fromDate!),
-              icon: Icons.calendar_today_rounded,
-              onTap: () => _pickDate(from: true),
-              onClear: _fromDate == null
-                  ? null
-                  : () {
-                      setState(() => _fromDate = null);
-                      _loadData();
-                    },
-            ),
-          ),
-          const SizedBox(width: 8),
-          // إلى
-          Expanded(
-            child: _DateField(
-              label: _toDate == null
-                  ? 'إلى'
-                  : DateFormat('yyyy/MM/dd').format(_toDate!),
-              icon: Icons.event_rounded,
-              onTap: () => _pickDate(from: false),
-              onClear: _toDate == null
-                  ? null
-                  : () {
-                      setState(() => _toDate = null);
-                      _loadData();
-                    },
-            ),
-          ),
-          const SizedBox(width: 8),
-          // نوع التاريخ
-          PopupMenuButton<String>(
-            initialValue: _dateFilterType,
-            tooltip: 'نوع التاريخ',
-            onSelected: (v) {
-              setState(() => _dateFilterType = v);
-              _loadData();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'due', child: Text('تاريخ الاستحقاق')),
-              PopupMenuItem(value: 'invoice', child: Text('تاريخ الفاتورة')),
-              PopupMenuItem(value: 'delivered', child: Text('تاريخ التسليم')),
-            ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.4,
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                Icons.filter_list_rounded,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickDate({required bool from}) async {
-    final picked = await showDatePicker(
+  Future<void> _pickDate(bool from) async {
+    final date = await showDatePicker(
       context: context,
-      initialDate: from
-          ? (_fromDate ?? DateTime.now())
-          : (_toDate ?? DateTime.now()),
+      initialDate: (from ? _from : _to) ?? DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
     );
-    if (picked == null || !mounted) return;
+    if (date == null) return;
     setState(() {
       if (from) {
-        _fromDate = picked;
+        _from = date;
       } else {
-        _toDate = picked;
+        _to = date;
       }
     });
-    _loadData();
+    await _load();
   }
 
-  // ── قائمة الفواتير ────────────────────────────────────────
-  Widget _buildDeliveriesList(ThemeData theme, bool isDark) {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: HomeAccent.accent,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount: _deliveries.length,
-        itemBuilder: (context, index) =>
-            _buildDeliveryCard(_deliveries[index], theme, isDark),
-      ),
-    );
+  Future<void> _call(String? phone) async {
+    if (phone == null || phone.trim().isEmpty) return;
+    await launchUrl(Uri.parse('tel:${phone.trim()}'));
   }
 
-  Widget _buildEmptyState(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.local_shipping_rounded,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد فواتير مطابقة',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'جرّب تغيير الفلاتر أو الفترة الزمنية',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
+  Future<void> _whatsapp(String? phone) async {
+    if (phone == null || phone.trim().isEmpty) return;
+    var value = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (value.startsWith('0')) value = '2$value';
+    await launchUrl(Uri.parse('https://wa.me/$value'),
+        mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _exportDailySheet() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final rows = await _service.getDailySheet(
+        dateFrom: _from,
+        dateTo: _to,
+        search: _searchController.text.trim(),
+      );
+      final regularData =
+          await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+      final boldData = await rootBundle.load('assets/fonts/Cairo-Bold.ttf');
+      final regular = pw.Font.ttf(regularData);
+      final bold = pw.Font.ttf(boldData);
+      final document = pw.Document();
+      document.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(24),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: regular, bold: bold),
+        header: (_) => pw.Column(children: [
+          pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('كشف التسليمات غير المسلّمة',
+                    style: pw.TextStyle(
+                        font: bold,
+                        fontSize: 18,
+                        color: const PdfColor.fromInt(0xFF13273F))),
+                pw.Text(DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now()),
+                    style: pw.TextStyle(font: regular, fontSize: 8)),
+              ]),
+          pw.Divider(color: const PdfColor.fromInt(0xFFDBBF74), thickness: 1.5),
+        ]),
+        build: (_) => [
+          pw.TableHelper.fromTextArray(
+            headers: [
+              '#',
+              'الفاتورة',
+              'العميل',
+              'الهاتف',
+              'العنوان',
+              'موعد التسليم',
+              'الحالة',
+              'المندوب'
+            ],
+            data: rows.asMap().entries.map((entry) {
+              final row = entry.value;
+              return [
+                '${entry.key + 1}',
+                '${row['ReferenceNumber'] ?? '#${row['TransactionID']}'}',
+                '${row['PartyName'] ?? ''}',
+                '${row['Phone'] ?? '—'}',
+                '${row['Address'] ?? '—'}',
+                _date(row['DueDate']),
+                _statusLabel('${row['DeliveryStatus'] ?? ''}'),
+                '${row['DeliveryEmployeeName'] ?? '—'}',
+              ];
+            }).toList(),
+            headerStyle:
+                pw.TextStyle(font: bold, fontSize: 7, color: PdfColors.white),
+            headerDecoration:
+                const pw.BoxDecoration(color: PdfColor.fromInt(0xFF13273F)),
+            cellStyle: pw.TextStyle(font: regular, fontSize: 6.5),
+            cellAlignment: pw.Alignment.centerRight,
           ),
         ],
-      ),
-    );
-  }
-
-  // ── كارت الفاتورة ─────────────────────────────────────────
-  Widget _buildDeliveryCard(
-    Map<String, dynamic> delivery,
-    ThemeData theme,
-    bool isDark,
-  ) {
-    final daysRemaining = delivery['DaysRemaining'] ?? 0;
-    final status = delivery['DeliveryStatus'] ?? 'upcoming';
-    final isDelivered = status == 'delivered';
-
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-
-    switch (status) {
-      case 'overdue':
-        statusColor = const Color(0xFFE53935);
-        statusText = 'متأخر ${daysRemaining.abs()} يوم';
-        statusIcon = Icons.warning_amber_rounded;
-        break;
-      case 'today':
-        statusColor = const Color(0xFFFFA000);
-        statusText = 'اليوم';
-        statusIcon = Icons.today_rounded;
-        break;
-      case 'soon':
-        statusColor = const Color(0xFFFFB300);
-        statusText = 'بعد $daysRemaining يوم';
-        statusIcon = Icons.schedule_rounded;
-        break;
-      case 'delivered':
-        statusColor = const Color(0xFF43A047);
-        statusText = 'تم التسليم';
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      default:
-        statusColor = HomeAccent.accent;
-        statusText = 'بعد $daysRemaining يوم';
-        statusIcon = Icons.event_rounded;
+        footer: (_) => pw.Center(
+          child: pw.Text('كشف تشغيلي بدون مبالغ مالية',
+              style: pw.TextStyle(
+                  font: regular, fontSize: 7, color: PdfColors.grey600)),
+        ),
+      ));
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File(
+          '${directory.path}/Delivery_Sheet_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf');
+      await file.writeAsBytes(await document.save(), flush: true);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/pdf')],
+        text: 'كشف التسليمات غير المسلّمة',
+      ));
+    } catch (error) {
+      if (mounted) _message('تعذر إنشاء الكشف: $error', error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
+  }
 
+  void _message(String text, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text, style: GoogleFonts.cairo()),
+      backgroundColor: error ? AppColors.error : AppColors.success,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background(_isDark),
+      appBar: AppBar(
+        title: Text('متابعة التسليمات',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+        actions: [
+          if (_can('canViewPurchaseReceipts'))
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PurchaseReceiptsScreen(
+                    userId: widget.userId,
+                    username: widget.username,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.inventory_rounded),
+              tooltip: 'استلامات الشراء',
+            ),
+          if (_can('canPrint'))
+            IconButton(
+              onPressed: _exporting ? null : _exportDailySheet,
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              tooltip: 'كشف التسليمات',
+            ),
+          IconButton(
+            onPressed: _busy ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: Stack(children: [
+        if (_loading)
+          const AppLoading(message: 'جاري تحميل التسليمات')
+        else if (_error != null)
+          AppError(message: _error!, onRetry: _load)
+        else
+          RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(slivers: [
+              SliverToBoxAdapter(child: _hero()),
+              SliverToBoxAdapter(child: _filters()),
+              if (_rows.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: AppEmpty(
+                    message: 'لا توجد تسليمات مطابقة',
+                    hint: 'غيّر الفلاتر أو حدّث البيانات',
+                    icon: Icons.local_shipping_outlined,
+                    onRefresh: _load,
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 24),
+                  sliver: SliverList.builder(
+                    itemCount: _rows.length + (_hasMore ? 1 : 0),
+                    itemBuilder: (_, index) {
+                      if (index == _rows.length) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: _loadingMore
+                                ? const CircularProgressIndicator()
+                                : OutlinedButton.icon(
+                                    onPressed: () => _load(append: true),
+                                    icon: const Icon(Icons.expand_more_rounded),
+                                    label: Text('تحميل المزيد',
+                                        style: GoogleFonts.cairo()),
+                                  ),
+                          ),
+                        );
+                      }
+                      return _card(_rows[index]);
+                    },
+                  ),
+                ),
+            ]),
+          ),
+        if (_busy || _exporting)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.28),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _hero() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: statusColor.withValues(alpha: isDelivered ? 0.2 : 0.35),
-          width: 1,
+        gradient: const LinearGradient(
+          colors: [AppColors.navyDark, AppColors.navy, AppColors.navyLight],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.32)),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // الهيدر
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.10),
+              color: AppColors.gold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(
-              children: [
-                Icon(statusIcon, color: statusColor, size: 16),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: const TextStyle(
+            child: const Icon(Icons.local_shipping_rounded,
+                color: AppColors.gold, size: 27),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('مركز التسليم',
+                  style: GoogleFonts.cairo(
                       color: Colors.white,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '#${delivery['TransactionID']}',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900)),
+              Text('المواعيد، التحصيل، الأذونات، وتأكيد التسليم',
+                  style:
+                      GoogleFonts.cairo(color: Colors.white60, fontSize: 10.5)),
+            ]),
           ),
-
-          // المحتوى
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // اسم العميل
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        delivery['ClientName'] ?? '—',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    if (_canSeeAmounts)
-                      Text(
-                        _fmt(delivery['GrandTotal']),
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 8),
-
-                // المعلومات
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  children: [
-                    _InfoChip(
-                      icon: Icons.event_rounded,
-                      text: _date(delivery['DueDate']),
-                      theme: theme,
-                    ),
-                    if (delivery['DeliveryEmployeeName'] != null)
-                      _InfoChip(
-                        icon: Icons.person_outline_rounded,
-                        text: delivery['DeliveryEmployeeName'].toString(),
-                        theme: theme,
-                      ),
-                    if (_canSeeAmounts &&
-                        (delivery['RemainingAmount'] ?? 0) > 0)
-                      _InfoChip(
-                        icon: Icons.payments_outlined,
-                        text: 'متبقي ${_fmt(delivery['RemainingAmount'])}',
-                        theme: theme,
-                        color: const Color(0xFFE53935),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // الأزرار
-          Container(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(
-              children: [
-                // التفاصيل
-                _ActionBtn(
-                  icon: Icons.open_in_full_rounded,
-                  color: theme.colorScheme.primary,
-                  tooltip: 'التفاصيل',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DeliveryDetailsScreen(
-                          transactionId:
-                              (delivery['TransactionID'] ?? 0) as int,
-                          username: widget.username,
-                        ),
-                      ),
-                    ).then((_) => _loadData());
-                  },
-                ),
-                // اتصال
-                if ((delivery['Phone'] ?? '').toString().isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  _ActionBtn(
-                    icon: Icons.call_rounded,
-                    color: Colors.green,
-                    tooltip: 'اتصال',
-                    onTap: () => _callClient(delivery['Phone']?.toString()),
-                  ),
-                  const SizedBox(width: 6),
-                  _ActionBtn(
-                    icon: Icons.chat_rounded,
-                    color: const Color(0xFF25D366),
-                    tooltip: 'واتساب',
-                    onTap: () => _whatsappClient(delivery['Phone']?.toString()),
-                  ),
-                ],
-                const Spacer(),
-                // تأكيد التسليم
-                if (_canConfirmDelivery && !isDelivered)
-                  _ActionBtn(
-                    icon: Icons.check_circle_rounded,
-                    color: const Color(0xFF43A047),
-                    tooltip: 'تأكيد التسليم',
-                    onTap: () => _confirmDelivery(delivery),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // Helpers
-  // ═══════════════════════════════════════════════════════════
-  String _fmt(dynamic v) {
-    if (v == null) return '0';
-    return NumberFormat(
-      '#,##0',
-    ).format(v is num ? v : double.tryParse(v.toString()) ?? 0);
-  }
-
-  String _date(dynamic v) {
-    if (v == null) return '—';
-    final dt = DateTime.tryParse(v.toString());
-    if (dt == null) return v.toString();
-    return DateFormat('yyyy/MM/dd').format(dt);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// Widgets مساعدة
-// ═══════════════════════════════════════════════════════════
-
-/// كارت إحصائية مدمج (شبكة)
-class _CompactStatCard extends StatelessWidget {
-  final _StatCardData card;
-  final double width;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _CompactStatCard({
-    required this.card,
-    required this.width,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? card.color.withValues(alpha: 0.18)
-              : theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected
-                ? card.color
-                : theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-            width: selected ? 2 : 1,
-          ),
+        ]),
+        const SizedBox(height: 14),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            _stat('الكل', _stats['TotalCount'], Icons.list_alt_rounded,
+                AppColors.gold, 'all'),
+            _stat('متأخر', _stats['Overdue'], Icons.warning_rounded,
+                AppColors.error, 'overdue'),
+            _stat('اليوم', _stats['Today'], Icons.today_rounded,
+                AppColors.warning, 'today'),
+            _stat('قريب', _stats['Soon'], Icons.schedule_rounded,
+                AppColors.info, 'soon'),
+            _stat('تم التسليم', _stats['Delivered'], Icons.check_circle_rounded,
+                AppColors.success, 'delivered'),
+          ]),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(card.icon, color: card.color, size: 17),
-            const SizedBox(height: 3),
-            Text(
-              '${card.count}',
-              style: TextStyle(
-                color: card.color,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              card.label,
-              style: TextStyle(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatCardData {
-  final String label;
-  final int count;
-  final Color color;
-  final IconData icon;
-  final String status;
-
-  const _StatCardData({
-    required this.label,
-    required this.count,
-    required this.color,
-    required this.icon,
-    required this.status,
-  });
-}
-
-class _AmountChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _AmountChip({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 10.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateField extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final VoidCallback? onClear;
-
-  const _DateField({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(
-            alpha: 0.4,
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        if (_can('canSeeAmounts')) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            _amount('الإجمالي', _stats['TotalGrandTotal']),
+            _amount('المدفوع', _stats['TotalPaidAmount']),
+            _amount('المتبقي', _stats['TotalRemaining']),
+          ]),
+        ] else ...[
+          const SizedBox(height: 11),
+          Row(children: [
+            const Icon(Icons.lock_outline_rounded,
+                size: 14, color: Colors.white54),
             const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
+            Text(
+              'الفواتير التي عليها مديونية: ${_int(_stats['WithRemainingCount'])}',
+              style: GoogleFonts.cairo(color: Colors.white60, fontSize: 10),
+            ),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  Widget _stat(
+      String label, dynamic value, IconData icon, Color color, String status) {
+    final active = _status == status;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: InkWell(
+        onTap: () {
+          setState(() => _status = status);
+          _load();
+        },
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: active
+                ? color.withValues(alpha: 0.22)
+                : Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: active ? color : Colors.white12),
+          ),
+          child: Column(children: [
+            Icon(icon, color: color, size: 17),
+            Text('${_int(value)}',
+                style: GoogleFonts.cairo(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14)),
+            Text(label,
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-            if (onClear != null)
-              GestureDetector(
-                onTap: onClear,
-                child: Icon(
-                  Icons.clear_rounded,
-                  size: 14,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.7,
-                  ),
-                ),
-              ),
-          ],
+                style: GoogleFonts.cairo(color: Colors.white60, fontSize: 8.5)),
+          ]),
         ),
       ),
     );
   }
-}
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final ThemeData theme;
-  final Color? color;
+  Widget _amount(String label, dynamic value) => Expanded(
+        child: Column(children: [
+          Text(_money(value),
+              style: GoogleFonts.cairo(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12)),
+          Text(label,
+              style: GoogleFonts.cairo(color: Colors.white54, fontSize: 9)),
+        ]),
+      );
 
-  const _InfoChip({
-    required this.icon,
-    required this.text,
-    required this.theme,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? theme.colorScheme.onSurfaceVariant;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: c),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 11.5,
-            color: c,
-            fontWeight: color != null ? FontWeight.w700 : FontWeight.w500,
+  Widget _filters() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.card(_isDark),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.divider(_isDark)),
+      ),
+      child: Column(children: [
+        TextField(
+          controller: _searchController,
+          onChanged: _searchChanged,
+          style: GoogleFonts.cairo(),
+          decoration: InputDecoration(
+            hintText: 'العميل، الهاتف، أو رقم الفاتورة',
+            hintStyle: GoogleFonts.cairo(fontSize: 12),
+            prefixIcon: const Icon(Icons.search_rounded),
+            filled: true,
+            fillColor: AppColors.inputFill(_isDark),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none),
           ),
         ),
-      ],
+        const SizedBox(height: 9),
+        Row(children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _dateType,
+              decoration: InputDecoration(
+                labelText: 'نوع التاريخ',
+                labelStyle: GoogleFonts.cairo(fontSize: 10),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'due', child: Text('موعد التسليم')),
+                DropdownMenuItem(
+                    value: 'invoice', child: Text('تاريخ الفاتورة')),
+                DropdownMenuItem(
+                    value: 'delivered', child: Text('تاريخ التسليم')),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _dateType = value);
+                _load();
+              },
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _debt,
+              decoration: InputDecoration(
+                labelText: 'التحصيل',
+                labelStyle: GoogleFonts.cairo(fontSize: 10),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('الكل')),
+                DropdownMenuItem(
+                    value: 'remaining', child: Text('عليها متبقي')),
+                DropdownMenuItem(value: 'settled', child: Text('مسددة')),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _debt = value);
+                _load();
+              },
+            ),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _dateButton('من', _from, () => _pickDate(true))),
+          const SizedBox(width: 8),
+          Expanded(child: _dateButton('إلى', _to, () => _pickDate(false))),
+          if (_from != null || _to != null)
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _from = null;
+                  _to = null;
+                });
+                _load();
+              },
+              icon: const Icon(Icons.filter_alt_off_rounded),
+            ),
+        ]),
+      ]),
     );
   }
-}
 
-class _ActionBtn extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback onTap;
+  Widget _dateButton(String label, DateTime? date, VoidCallback onTap) =>
+      OutlinedButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.calendar_month_rounded, size: 16),
+        label: Text(
+            date == null ? label : DateFormat('yyyy/MM/dd').format(date),
+            style: GoogleFonts.cairo(fontSize: 10)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
 
-  const _ActionBtn({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: 38,
-            height: 38,
+  Widget _card(Map<String, dynamic> row) {
+    final status = '${row['DeliveryStatus'] ?? 'upcoming'}';
+    final delivered = status == 'delivered';
+    final color = _statusColor(status);
+    final remaining = _num(row['RemainingAmount']);
+    final pending = row['HasPendingPermissionRequest'] == true;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card(_isDark),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, size: 18, color: color),
+            child: Icon(
+                delivered
+                    ? Icons.check_circle_rounded
+                    : Icons.local_shipping_rounded,
+                color: color),
           ),
-        ),
-      ),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${row['ClientName'] ?? '—'}',
+                  style: GoogleFonts.cairo(
+                      color: AppColors.text(_isDark),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14)),
+              Text('${row['ReferenceNumber'] ?? '#${row['TransactionID']}'}',
+                  style: GoogleFonts.cairo(
+                      color: AppColors.textSecondary(_isDark), fontSize: 10)),
+            ]),
+          ),
+          _badge(_statusLabel(status), color),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 7, children: [
+          _chip(Icons.event_rounded, _date(row['DueDate'])),
+          if ((row['DeliveryEmployeeName'] ?? '').toString().isNotEmpty)
+            _chip(Icons.person_rounded, '${row['DeliveryEmployeeName']}'),
+          if (_can('canSeeAmounts'))
+            _chip(Icons.payments_outlined,
+                remaining > 0 ? 'متبقي ${_money(remaining)}' : 'مسددة',
+                color: remaining > 0 ? AppColors.error : AppColors.success),
+          if (pending)
+            _chip(Icons.hourglass_top_rounded, 'إذن التسليم معلّق',
+                color: AppColors.warning),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DeliveryDetailsScreen(
+                  transactionId: _int(row['TransactionID']),
+                  username: widget.username,
+                ),
+              ),
+            ).then((_) => _load()),
+            icon: const Icon(Icons.visibility_rounded),
+            tooltip: 'التفاصيل',
+          ),
+          if ((row['Phone'] ?? '').toString().isNotEmpty) ...[
+            IconButton(
+              onPressed: () => _call('${row['Phone']}'),
+              icon: const Icon(Icons.call_rounded, color: AppColors.success),
+              tooltip: 'اتصال',
+            ),
+            IconButton(
+              onPressed: () => _whatsapp('${row['Phone']}'),
+              icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              tooltip: 'واتساب',
+            ),
+          ],
+          const Spacer(),
+          if (!delivered && pending && _can('canOverrideRemaining'))
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _grantPermission(row),
+              icon: const Icon(Icons.approval_rounded, size: 16),
+              label: Text('منح الإذن', style: GoogleFonts.cairo(fontSize: 10)),
+            ),
+          if (!delivered && _can('canConfirmDelivery')) ...[
+            const SizedBox(width: 6),
+            FilledButton.icon(
+              onPressed: _busy ? null : () => _confirm(row),
+              icon: const Icon(Icons.check_circle_rounded, size: 17),
+              label: Text('تسليم', style: GoogleFonts.cairo(fontSize: 10)),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.success,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11)),
+              ),
+            ),
+          ],
+        ]),
+      ]),
     );
+  }
+
+  Widget _badge(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20)),
+        child: Text(text,
+            style: GoogleFonts.cairo(
+                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      );
+
+  Widget _chip(IconData icon, String text, {Color? color}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: (color ?? AppColors.navy).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon,
+              size: 14, color: color ?? AppColors.textSecondary(_isDark)),
+          const SizedBox(width: 5),
+          Text(text,
+              style: GoogleFonts.cairo(
+                  color: AppColors.textSecondary(_isDark), fontSize: 9.5)),
+        ]),
+      );
+
+  Color _statusColor(String status) => switch (status) {
+        'delivered' => AppColors.success,
+        'overdue' => AppColors.error,
+        'today' => AppColors.warning,
+        'soon' => AppColors.info,
+        'returned' => Colors.purple,
+        _ => AppColors.goldDark,
+      };
+
+  String _statusLabel(String status) => switch (status) {
+        'delivered' => 'تم التسليم',
+        'overdue' => 'متأخر',
+        'today' => 'اليوم',
+        'soon' => 'خلال 3 أيام',
+        'returned' => 'مرتجع',
+        _ => 'قادم',
+      };
+
+  String _money(dynamic value) =>
+      '${NumberFormat('#,##0.00').format(_num(value))} ج.م';
+
+  String _date(dynamic value) {
+    final date = DateTime.tryParse('${value ?? ''}');
+    return date == null ? 'غير محدد' : DateFormat('yyyy/MM/dd').format(date);
   }
 }

@@ -55,6 +55,11 @@ import '../screens/attendance_report_screen.dart';
 import '../screens/permissions_list_screen.dart';
 import '../screens/complaints_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
+import '../screens/purchase_receipts_screen.dart';
+import '../screens/additional_charges_screen.dart';
+import '../screens/customer_care_screen.dart';
+import '../screens/customer_care_history_screen.dart';
+import '../screens/executive_cockpit_screen.dart';
 import '../screens/cashbox_transactions_screen.dart';
 import '../screens/cashbox_manual_screen.dart';
 import '../screens/cashbox/cashbox_dashboard_screen.dart';
@@ -75,7 +80,6 @@ class AppDrawer extends StatefulWidget {
     super.key,
     required this.userId,
     required this.username,
-
     this.fullName,
     required this.currentRoute,
   });
@@ -204,6 +208,18 @@ class _AppDrawerState extends State<AppDrawer> {
     if (formName == FormNames.jobOrders) {
       return perms.canViewJobOrders;
     }
+    if (formName == FormNames.executiveCockpit) {
+      return perms.canViewExecutiveCockpit;
+    }
+    if (formName == FormNames.invoiceDeliveryStatus) {
+      return perms.canViewDelivery;
+    }
+    if (formName == FormNames.purchaseReceiptStatus) {
+      return perms.canViewPurchaseReceipts;
+    }
+    if (formName == FormNames.additionalCharges) {
+      return perms.canViewAdditionalCharges;
+    }
 
     // الحسابات الشخصية: الادمن + مدير الحسابات فقط.
     if (formName == FormNames.personalAccounts) {
@@ -237,6 +253,10 @@ class _AppDrawerState extends State<AppDrawer> {
     if (formName == FormNames.lostRecovery ||
         formName == FormNames.lostRecoveryReport) {
       return perms.canViewLostRecovery;
+    }
+    if (formName == FormNames.customerCare ||
+        formName == FormNames.customerCareHistory) {
+      return perms.canViewCustomerCare;
     }
     if (formName == FormNames.generalTasks) {
       return perms.isAdmin ||
@@ -322,7 +342,7 @@ class _AppDrawerState extends State<AppDrawer> {
         left: 16,
         right: 16,
       ),
-        decoration: const BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -592,10 +612,10 @@ class _AppDrawerState extends State<AppDrawer> {
       child: TextField(
         controller: _searchController,
         textDirection: TextDirection.rtl,
-          style: GoogleFonts.cairo(
-            color: AppColors.text(isDark),
-            fontSize: 13,
-          ),
+        style: GoogleFonts.cairo(
+          color: AppColors.text(isDark),
+          fontSize: 13,
+        ),
         decoration: InputDecoration(
           hintText: 'بحث في القائمة...',
           hintStyle: GoogleFonts.cairo(
@@ -710,8 +730,7 @@ class _AppDrawerState extends State<AppDrawer> {
 
     if (visibleChildren.isEmpty) return const SizedBox.shrink();
 
-    final isExpanded =
-        _expandedSections.contains(index) ||
+    final isExpanded = _expandedSections.contains(index) ||
         (_searchQuery.isNotEmpty && visibleChildren.isNotEmpty);
 
     return Container(
@@ -728,7 +747,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   context,
                 ).colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
-        ),
+      ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -825,9 +844,9 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
       ),
     ).animate().fadeIn(
-      delay: Duration(milliseconds: 40 * index),
-      duration: 300.ms,
-    );
+          delay: Duration(milliseconds: 40 * index),
+          duration: 300.ms,
+        );
   }
 
   Widget _buildSubItem(SubMenuItem sub, Color sectionColor) {
@@ -904,9 +923,8 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   child: Icon(
                     sub.icon,
-                    color: isActive
-                        ? sectionColor
-                        : sectionColor.withOpacity(0.6),
+                    color:
+                        isActive ? sectionColor : sectionColor.withOpacity(0.6),
                     size: 15,
                   ),
                 ),
@@ -976,7 +994,9 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
       ),
       subtitle: Text(
-        _appVersion.isNotEmpty ? 'الإصدار الحالي: v$_appVersion' : 'تحقق من وجود نسخة أحدث',
+        _appVersion.isNotEmpty
+            ? 'الإصدار الحالي: v$_appVersion'
+            : 'تحقق من وجود نسخة أحدث',
         style: GoogleFonts.cairo(fontSize: 10),
       ),
       onTap: () async {
@@ -984,7 +1004,8 @@ class _AppDrawerState extends State<AppDrawer> {
           final info = await UpdateService.checkForUpdate();
           if (!mounted) return;
           if (info != null && info['hasUpdate'] == true) {
-            await UpdateService.showUpdateDialog(context: context, updateInfo: info);
+            await UpdateService.showUpdateDialog(
+                context: context, updateInfo: info);
           } else {
             // مفيش تحديث → رسالة مطمئنة
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1002,7 +1023,8 @@ class _AppDrawerState extends State<AppDrawer> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('تعذر التحقق من التحديثات', style: GoogleFonts.cairo()),
+              content:
+                  Text('تعذر التحقق من التحديثات', style: GoogleFonts.cairo()),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
             ),
@@ -1336,26 +1358,31 @@ class _AppDrawerState extends State<AppDrawer> {
         break;
       case 'frm_Warehouses':
       case 'inventory/warehouses':
-        screen = WarehousesScreen(userId: widget.userId, username: widget.username);
+        screen =
+            WarehousesScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_StockTransfer':
       case 'inventory/transfer':
       case 'inventory/warehouse-transfer':
-        screen = StockTransferScreen(userId: widget.userId, username: widget.username);
+        screen = StockTransferScreen(
+            userId: widget.userId, username: widget.username);
         break;
       case 'frm_StockEntry':
       case 'inventory/stock-entry':
       case 'inventory/opening-balance':
-        screen = StockEntryScreen(userId: widget.userId, username: widget.username);
+        screen =
+            StockEntryScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_StockValue':
       case 'inventory/stock-value':
-        screen = StockValueScreen(userId: widget.userId, username: widget.username);
+        screen =
+            StockValueScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_StockCount':
       case 'inventory/count':
       case 'inventory/stock-count':
-        screen = StockCountScreen(userId: widget.userId, username: widget.username);
+        screen =
+            StockCountScreen(userId: widget.userId, username: widget.username);
         break;
       case 'frm_PartiesList':
         screen = ClientsScreen(
@@ -1406,6 +1433,12 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
+      case 'frm_ExecutiveCockpit':
+        screen = ExecutiveCockpitScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frmCRM_Dashboard':
         screen = CrmDashboardScreen(
           userId: widget.userId,
@@ -1417,8 +1450,7 @@ class _AppDrawerState extends State<AppDrawer> {
         screen = FollowUpsScreen(
           userId: widget.userId,
           username: widget.username,
-          employeeId:
-              (PermissionService().isAdmin ||
+          employeeId: (PermissionService().isAdmin ||
                   PermissionService().isSalesManager ||
                   PermissionService().isGeneralManager)
               ? null
@@ -1553,8 +1585,32 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
+      case 'frm_CustomerCare':
+        screen = CustomerCareScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_CustomerCare_History':
+        screen = CustomerCareHistoryScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frmInvoiceDeliveryStatus':
         screen = DeliveryTrackingScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_PurchaseReceiptStatus':
+        screen = PurchaseReceiptsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frmInspectionCharge':
+        screen = AdditionalChargesScreen(
           userId: widget.userId,
           username: widget.username,
         );
@@ -1596,7 +1652,10 @@ class _AppDrawerState extends State<AppDrawer> {
         break;
       case 'frm_SalesInvoiveNew':
       case 'sales/invoices/new':
-        screen = AddInvoiceScreen(userId: widget.userId, username: widget.username, initialType: 'Sale');
+        screen = AddInvoiceScreen(
+            userId: widget.userId,
+            username: widget.username,
+            initialType: 'Sale');
         break;
       case 'frm_AllUsers':
         screen = UsersAdminScreen(

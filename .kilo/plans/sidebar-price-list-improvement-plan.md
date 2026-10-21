@@ -1,121 +1,192 @@
-# خطة إصلاح وتحسين شاشات عروض الأسعار (قائمة / إضافة / تفاصيل)
+# Price List Screen UX/UI Improvements and Sidebar Integration
 
-## السياق (من الكود الفعلي)
-- `lib/screens/quotations_screen.dart` (1417 سطر) — قائمة العروض
-- `lib/screens/quotation_form_screen.dart` (1658 سطر) — شاشة الإضافة/التعديل
-- `lib/screens/quotation_details_screen.dart` (2382 سطر) — شاشة التفاصيل
-- الهوية: `AppColors` (كحلي `#13273F` + ذهبي `#DBBF74`)، ثيم ليلي/نهاري، خط Cairo، دعم RTL.
-- نظام ألوان الحالات مُضاف بالفعل في `lib/services/app_colors.dart`: `success #10B981`، `error #EF4444`، `warning #F59E0B`، `info #3B82F6`، `neutral #64748B` + نسخة `Light` لكل منها.
+## Context
 
-## نطاق العمل
-**داخل النطاق:** إصلاح الشاشة الحمراء، تصغير هيدر القائمة + نقل الكروت الإحصائية، احترافية الأيقونات، توحيد الألوان.
-**خارج النطاق (بقرار صريح من المستخدم):** ملف طباعة عرض السعر (PDF) — لا تعديل ولا لمس. وطباعة `crm_pdf_generator.dart` ليست متضمنة.
+**Primary target**: `lib/screens/price_list_screen.dart` — Price list screen with 1,534 lines.
+**Integration focus**: Sidebar navigation (`lib/widgets/app_drawer.dart` — 1,680 lines).
+
+### Current structure
+- **Price list screen**: Includes hero section with stat cards, search + filters, grid/list views, product cards with prices
+- **Sidebar**: Currently price list appears as `SubMenuItem('قائمة الأسعار')` nested under Sales section (see MenuStructure.getItems() in app_drawer.dart)
+
+### Recent work completed
+- ✅ **UX improvements across application** (see 1792485898558-ux-improvement-plan.md):
+  - Unified colors under `AppColors`/`ThemeService`
+  - Created `AppTextStyles` with Cairo typography
+  - Centralized loading/error/empty states (`AppLoading`, `AppError`, `AppEmpty`)
+  - Fixed login screen contrast in light mode
+  - Added responsive design using `LayoutBuilder`
+  - Improved accessibility with semantics and WCAG AA contrast
+  
+- ✅ **Price list design analysis completed** (400+ line review):
+  **Strengths**:
+  - Utilizes `AppColors` for backgrounds and text
+  - RTL Arabic support with Cairo font
+  - Toggle between grid/list views
+  - Search + filters with tierChips
+  - Good loading state (shimmer)
+  - Export Excel functionality
+  
+  **Weaknesses**:
+  1. **Hardcoded colors** (S6, S10): `Colors.red.shade700`, `Color(0xFF6366F1)`, `0xFFB45309`, `0xFF16A34A`, etc.
+  2. **Mixed typography**: Uses `GoogleFonts.cairo` inconsistently
+  3. **Design inconsistencies**: Different card shadows, borders across screens
+  4. **No accessibility**: Missing `semanticsLabel`, small touch targets
+  5. **No shimmer**: Loading state uses basic shimmer but not consistent
+  6. **No trend indicators**: Price changes not visually tracked
+  7. **Filter overflow**: Filter row on mobile may overflow (S1)
+  8. **No saved views**: User preferences not persisted
+  9. **Sidebar**: Price list nested under Sales, not independent top-level item
+
+## Decisions (approved)
+
+| # | Decision | Justification |
+|---|----------|---------------|
+| 1 | Price list becomes **independent sidebar item** alongside Sales (top-level MenuItem) | Improves navigation hierarchy, makes price list easily accessible, aligns with common CRM patterns |
+| 2 | Apply **Premium Dark design system** to price list screen | Consistent with recent premium direction, deeper visual hierarchy |
+| 3 | Use **shared design library** (`AppColors`, `AppTextStyles`, `AppLoading` etc.) across app | Reduces code duplication, ensures consistency |
+| 4 | Add **filter grid layout** (2 cols mobile / 3 cols tablet) | Prevents overflow, better use of screen space |
+| 5 | Include **price trend indicators** and **saved filter views** | Advanced features for power users |
+
+## Affected boundaries
+
+**lib/screens/price_list_screen.dart** (1,534 lines) — Screen UI and logic
+**lib/widgets/app_drawer.dart** (1,680 lines) — Sidebar navigation structure
+**lib/services/app_colors.dart** (107 lines) — Add premiumBackground/premiumSurface for Premium Dark theme
+**lib/services/app_text_styles.dart** (100+ lines) — Ensure all needed styles exist
+**lib/widgets/premium_ui.dart** (new) — Shared Premium Dark design components
+
+## Current sidebar structure
+
+Price list already exists as both:
+1. **Independent top-level MenuItem** (lines 688-695 in app_drawer.dart)
+2. **Child of Sales section** (lines 644 in Sales children)
+
+**Integration points**:
+1. **MenuStructure.getItems()** in `app_drawer.dart`: Remove duplicate price list entry from Sales children (keep independent MenuItem)
+2. **app_drawer.dart line 197-198**: Keep existing `_canViewMenu` logic for price list (covers both contexts)
+3. **FormNames.priceList**: Already exists as `frm_PriceList`
+4. **permission_service.dart**: No changes needed
+
+## Tasks (ordered)
+
+### Phase 1 — Core Screen Improvements
+
+**1.1** Add Premium design colors to `AppColors`:
+- `premiumBackgroundDark` (#0A1524), `premiumBackgroundLight` (#F7F8FC)
+- `premiumSurfaceDark` (#16233A), `premiumSurfaceLight` (#FFFFFF)  
+- `premiumStrokeDark` (#26364F), `premiumStrokeLight` (#E8ECF4)
+- `premiumGlow` = gold.withValues(alpha: 0.10)
+
+**1.2** Create `PremiumHero` widget:
+- Gradient: navyDark → navy → navyLight
+- Gold glow effect (circle positioned)
+- Icon + subtitle, no redundant header badge
+- `expandedHeight` ≈ 132
+
+**1.3** Create `PremiumStatCard` widget:
+- Icon + value + label + optional selected state + onTap
+- `minHeight: 96`, value size 18/w900, label with ellipsis
+
+**1.4** Create `PremiumStatStrip` widget:
+- Wrap stat cards in responsive grid/row, width fixed 156×100
+- Prevents overflow with any number of cards
+
+**1.5** Create `PremiumFilterGrid` widget:
+- Uses `Responsive.of(context)` for mobile/tablet breakpoints
+- 2 cols mobile / 3 cols tablet, `Wrap` with spacing 10
+- Each field gets `constraints.maxWidth` divided by cols
+
+**1.6** Create `PremiumEntityCard` for product rows (optional for future)
+
+**1.7** Create `PremiumBadge` widget:
+- Neutral/success/warning/error states based on theme
+- Backgrounds use `AppColors` with transparency
+
+**1.8** Ensure `AppTextStyles` covers new sizes (displayLarge, titleLarge, titleMedium, bodySmall, labelSmall)
+
+### Phase 2 — Screen Implementation
+
+**2.1** Update `price_list_screen.dart`:
+- Replace `Scaffold.backgroundColor` with `AppColors.premiumBackground(_isDark)`
+- Replace `_buildHero()` with `PremiumHero` widget
+- Replace `_buildFilters()` with `PremiumFilterGrid` + `PremiumFilterField` × 3
+- Replace `_buildKpis()` with `PremiumStatStrip` with 4 cards:
+  - Cost → `AppColors.warning`
+  - Sale → `AppColors.success` 
+  - Profit → `AppColors.info`
+  - Range → `AppColors.neutral`
+- Fix inverted label/value bug for range card
+- Replace `_ValueRowCard` with 2×2 grid using `Wrap`
+- Replace hardcoded colors with `AppColors` values
+- Replace `DropdownButtonFormField(value:)` with `initialValue:`
+- Add `semanticsLabel` to key widgets for accessibility
+- Add shimmer loading state for better UX
+
+**2.2** Add price trend indicators:
+- Visual indicators for price changes (up/down arrows, % changes)
+- Show trend data in stat cards
+- Add trend toggle in filters
+
+**2.3** Add saved filter views:
+- Persist user filters in `SharedPreferences`
+- Quick access to saved filter presets
+
+### Phase 3 — Sidebar Integration
+
+**3.1** Update `MenuStructure.getItems()` in `app_drawer.dart`:
+- Move price list from Sales children to top-level MenuItem
+- Create new Sales MenuItem with remaining children (quotations, job orders, pipeline, etc.)
+
+**3.2** Update `_canViewMenu` method:
+- Modify line 197-198 to allow top-level access check
+- Remove dependency on Sales section permissions
+
+**3.3** Update `_buildSection` and `_buildSubItem` if needed:
+- Adjust visual styling for independent top-level item
+
+### Phase 4 — Testing and Validation
+
+**4.1** `flutter analyze lib/screens/price_list_screen.dart`:
+- Target: zero new errors
+
+**4.2** Manual testing on 320/360/411/768dp:
+- No overflow in filters or stat strip
+- WCAG AA contrast for all text
+- Grid layout correct on mobile/tablet
+- Sidebar navigation works, price list accessible at top-level
+
+**4.3** Functional verification:
+- Search + filters work correctly
+- Grid/list view toggle functions
+- Export Excel works
+- Price tier selection and filtering
+- Permissions respected
+
+## Risks
+
+**R1** - *Menu restructuring* (3.1): Changing price list from nested to top-level may affect permission checks or route navigation. Impact: Medium | Mitigation: Update all navigation switch cases in `_navigateToScreen`
+
+**R2** - *Premium colors consistency* (1.1): New premium colors may need updates in other screens. Impact: Low | Mitigation: Track usage in app_colors.dart
+
+**R3** - *Filter layout overflow* (2.1): Premium filter grid may still overflow on very small screens. Impact: Low | Mitigation: Use `Flexible` inside rows if needed
+
+**R4** - *Performance* (2.2): Price trend indicators may add computation. Impact: Low | Mitigation: Debounce updates
+
+## Out of scope
+
+- `lib/screens/lost_recovery_report_screen.dart` and other inventory screens: Design improvements apply only to price list per current scope
+- Changing core `AppColors` identity (navy/gold) — no modifications
+- PDF printing functionality (unrelated to this effort)
+
+## Dependencies
+
+- Implementation requires access to modify `app_drawer.dart`, `app_colors.dart`, and `app_text_styles.dart`
+- New file `premium_ui.dart` will be created for shared components
+- Widget creation and refactoring in `price_list_screen.dart`
+- This plan is implementation-ready for an agent with file modification permissions
 
 ---
 
-## القرارات المتخذة
-| # | القرار | التبرير |
-|---|--------|---------|
-| 1 | الهيدر: تصغير + إزالة تكرار العنوان + إزالة المسافة + نقل الكروت الإحصائية لصف KPI مستقل | يحقق "الأفضل والأحسن" مع "تناسق" مع بقية التطبيق (نفس نمط صف بطاقات الإحصائيات في `price_list_screen.dart`) |
-| 2 | الحفاظ على التدرّج الكحلي/الذهبي في الهيدر | المستخدم وصف التصميم العام بأنه "ممتتاز" — المشكلة في الحجم والمسافة فقط |
-| 3 | الأيقونات: استبدال المجموعة الحالية بمجموعة دلالية موحّدة | `thumb_up/thumb_down` تعني "إعجاب/عدم إعجاب" (سوشيال ميديا) ولا تعني "مقبول/مرفوض" |
-| 4 | توحيد كل الألوان على `AppColors` + ألوان الحالات | الألوان الثابتة الحالية (`Colors.green/red/blue/orange/pink`) لا تستجيب لتغيير لون التمييز |
-| 5 | إصلاح الشاشات الحمراء بإصلاح جذري في ترتيب الإنهاء (dispose) وليس تهيئة جديدة | الخلل من `dispose()` قبل إزالة الـ widgets من الشجرة |
-
----
-
-## العيوب المؤكدة في الكود
-
-### أ) الشاشة الحمراء عند اختيار العميل (`quotation_form_screen.dart`)
-| # | الموقع | الخلل | الأثر |
-|---|--------|-------|-------|
-| A1 | السطران 337-338 | `controller.dispose()` مباشرة بعد `await showModalBottomSheet(...)` — الـ bottom sheet ما زال في شجرة الـ widgets أثناء أنيميشن الإغلاق | `TextEditingController was used after being disposed` → ErrorWidget أحمر |
-| A2 | السطران 340-342 | `item.dispose()` على عناصر `_QuotationItem` **قبل** `setState` الذي يزيلها من الشجرة | نفس الخطأ عند تغيير العميل بعد إضافة أصناف |
-| A3 | السطران 1310-1332 | `DropdownButtonFormField` بـ `initialValue: _opportunityId` + مفتاح `ValueKey` | assert في Flutter (`dropdown.dart:1851-1863`): يجب أن يطابق `initialValue` عنصراً واحداً بالضبط — في وضع التعديل، إذا لم يكن `OpportunityID` المحفوظ ضمن الفرص المُحمّلة → **شاشة حمراء** |
-| A4 | السطران 194-201 | `_loadPartyData()` يُسند `_opportunities` **بدون** `setState` | القائمة المنسدلة للفرص لا تُملأ أبداً |
-
-### ب) هيدر قائمة العروض (`quotations_screen.dart`)
-| # | الموقع | الخلل |
-|---|--------|-------|
-| B1 | السطر 221 | `expandedHeight: 270` — الهيدر يشغل ~ثلث الشاشة |
-| B2 | السطر 312 | `padding: EdgeInsets.fromLTRB(16, 66, 16, 13)` — الـ 66px هي مصدر "المسافة بين العنوان" |
-| B3 | السطران 225 + 348 | العنوان "عروض الأسعار" **مكرر**: في `SliverAppBar.title` وداخل `_hero()` |
-| B4 | السطران 370-405 | الكروت الإحصائية (pills) مدفونة داخل الهيدر — تُزاحم المحتوى |
-| B5 | السطران 386, 394, 479-508, 1044-1050 | ألوان ثابتة: `Color(0xFF60A5FA)`, `Color(0xFF4ADE80)`, `Colors.green/red/blue/orange/pink`, `Color(0xFF16A34A)` |
-
----
-
-## المهام المرتبة (قابلة للتنفيذ)
-
-### المرحلة 1 — إصلاح الشاشة الحمراء (الأولوية القصوى)
-1. **A1** — في `_selectParty()`: استبدل `controller.dispose()` الفوري بـ `controller.dispose()` مؤجّل بعد الإطار:
-   ```dart
-   // بعد await showModalBottomSheet
-   WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-   ```
-   أو، وهو الأنظف: تحويل `controller` إلى حقل في الـ State و`dispose()` في `dispose()`.
-2. **A2** — في `_selectParty()`: اعكس الترتيب — أزل العناصر من الشجرة أولاً ثم تخلّص من الـ controllers:
-   ```dart
-   final old = List<_QuotationItem>.from(_items);
-   setState(() { _items.clear(); /* ... */ });
-   for (final item in old) { item.dispose(); }
-   ```
-3. **A3** — في `_partyFields()`: لا تمرّر `initialValue` غير الموجود في القائمة. الحل: تصفية `items` لتتضمن دائماً القيمة الحالية، أو استبدال `DropdownButtonFormField` بـ `DropdownButton<int?>` داخل `InputDecorator` (يتجنّب assert بالكامل).
-4. **A4** — في `_loadPartyData()`: تغليف إسناد `_opportunities` بـ `setState`، والتحقق من `mounted` قبل الإسناد.
-
-### المرحلة 2 — هيدر قائمة العروض
-5. **B1** — `expandedHeight: 270` → `170` (يتسع للهيدر المدمج فقط).
-6. **B2** — `padding` الـ hero: من `fromLTRB(16, 66, 16, 13)` → `fromLTRB(16, 8, 16, 14)` بعد التأكد أن `SliverAppBar` يوفّر المساحة العلوية؛ أو حذف البادج العلوي كلياً والاعتماد على `SafeArea`.
-7. **B3** — حذف نص "عروض الأسعار" المكرر من `_hero()`؛ يبقى العنوان في `SliverAppBar.title` فقط. استبدال السطر الفرعي في الـ hero بوصف وظيفي قصير (يظهر فقط عند `expandedHeight` الكامل).
-8. **B4** — نقل الكروت الإحصائية إلى **صف KPI مستقل** يُدرج بعد `_controls()` مباشرة، بنفس تصميم بطاقات `price_list_screen.dart` (أو `CrmDesignSystem.kpiCard`): 4 بطاقات (إجمالي القيمة / العملاء / نسبة التحويل / عدد العروض) — أفقية قابلة للتمرير على الشاشات الصغيرة.
-9. **B5** — استبدال كل الألوان الثابتة في الملف بـ `AppColors`:
-   - `Colors.green` → `AppColors.success`، `Colors.red` → `AppColors.error`، `Colors.blue` → `AppColors.info`، `Colors.orange` → `AppColors.warning`، `Colors.pink` → `AppColors.errorLight`، `Colors.blueGrey` → `AppColors.neutral`
-   - `Color(0xFF60A5FA)` → `AppColors.infoLight`، `Color(0xFF4ADE80)` → `AppColors.successLight`، `Color(0xFF16A34A)` → `AppColors.success`
-   - `Colors.red.shade400/700`، `Colors.green.shade700` → `AppColors.error`/`AppColors.success`
-
-### المرحلة 3 — احترافية الأيقونات
-10. **جدول استبدال موحّد** يُطبَّق على الشاشات الثلاث:
-    | الاستخدام | الحالي | البديل |
-    |-----------|--------|--------|
-    | هوية عرض السعر | `request_quote_rounded` | `description_rounded` |
-    | مسودة | `edit_note_rounded` | `draft_rounded` |
-    | مقبول | `thumb_up_rounded` | `check_circle_rounded` |
-    | مرفوض | `thumb_down_rounded` | `cancel_rounded` |
-    | محوّل | `swap_horiz_rounded` | `receipt_long_rounded` (للعرض) / `assignment_turned_in_rounded` (للفلتر) |
-    | منتهي | `event_busy_rounded` | `timer_off_rounded` |
-    | الكل | `apps_rounded` | `dashboard_rounded` |
-    | العملاء | `groups_rounded` | `people_alt_rounded` |
-    | إجمالي القيمة | `payments_rounded` | `account_balance_wallet_rounded` |
-    | الموظف (chip) | `badge_rounded` | `support_agent_rounded` |
-    | أيام التصنيع | `schedule_rounded` | `precision_manufacturing_rounded` |
-    | الكمية | `numbers_rounded` | `production_quantity_limits_rounded` |
-    | سعر الوحدة | `payments_rounded` | `local_offer_rounded` |
-    | بديل مصنّع | `tune_rounded` | `factory_rounded` |
-    | تعديل/حذف (اتساق) | `edit_rounded` + `delete_outline_rounded` | `edit_rounded` + `delete_rounded` |
-11. **توحيد المقاسات**: كل أيقونة داخل chip ‎= 13-15px، داخل زر = 17-18px، داخل دائرة هوية = 21-27px.
-
-### المرحلة 4 — تنسيق شاشات الإضافة والتفاصيل
-12. استبدال الألوان الثابتة في `quotation_form_screen.dart` و`quotation_details_screen.dart` بـ `AppColors` (نفس جدول B5).
-13. توحيد خط النصوص: استخدام `AppTextStyles` (`lib/services/app_text_styles.dart`) بدل `GoogleFonts.cairo` المباشر مع مقاسات متفرقة.
-14. في شاشة التفاصيل: توحيد أيقونات الأقسام (الأصناف/الملاحظات/الإجماليات) مع نظيراتها في شاشة الإضافة.
-
----
-
-## المخاطر
-- **تغيير `expandedHeight`** يؤثر على تمرير القائمة — يلزم التأكد أن `NestedScrollView` ما زال يطوي الهيدر بشكل صحيح بعد نقل الكروت.
-- **إصلاح A3** قد يغيّر سلوك حقل "فرصة البيع" — التأكد أن اختيار فرصة لا يزال يُحفظ في `_opportunityId` ويُرسل مع الحفظ.
-- **توحيد الأيقونات** تغيير بصري فقط ولا يمس المنطق.
-
-## خطوات التحقق
-1. `flutter analyze lib` — صفر أخطاء (المستوى الحالي: صفر أخطاء، 1979 تنبيه `info` سابقة).
-2. اختبار يدوي لتدفق **إضافة عرض سعر**: اختيار عميل (لا شاشة حمراء) → اختيار عميل **بعد** إضافة أصناف (لا شاشة حمراء) → فتح عرض محفوظ ومرتبط بفرصة (لا شاشة حمراء) → dropdown الفرص معبّأ فعلياً.
-3. فتح شاشة **تعديل** لعرض به `OpportunityID` محفوظ.
-4. التحقق من ارتفاع الهيدر الجديد ومساحة المحتوى أسفله.
-5. التحقق من ظهور صف الكروت الإحصائية في الوضعين الليلي والنهاري.
-6. مراجعة الأيقونات الثلاث شاشات بصرياً على الموبايل.
-
----
-
-## ملاحظات
-- الخطة لا تلمس دوال PDF في `quotation_details_screen.dart` (`_buildPdf` وماFollows) — خارج النطاق بقرار المستخدم.
-- `crm_pdf_generator.dart` لا يُعدَّل.
+**Plan created**: 2025-10-21 (today)
+**Status**: Ready for implementation

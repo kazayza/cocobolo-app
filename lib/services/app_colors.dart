@@ -71,9 +71,28 @@ class AppColors {
   static const Color neutral = Color(0xFF64748B);
   static const Color neutralLight = Color(0xFF94A3B8);
 
+  // ===================================
+  // 🌟 Premium Dark/Light Layer
+  // ===================================
+  static const Color premiumBackgroundDark = Color(0xFF0A1524);
+  static const Color premiumBackgroundLight = Color(0xFFF7F8FC);
+  static const Color premiumSurfaceDark = Color(0xFF16233A);
+  static const Color premiumSurfaceLight = Color(0xFFFFFFFF);
+  static const Color premiumStrokeDark = Color(0xFF26364F);
+  static const Color premiumStrokeLight = Color(0xFFE8ECF4);
+  static const Color premiumGlow = Color(0x1ADBBF74);
+
   static Color primary(bool isDark) => gold;
   
   static Color primaryDark(bool isDark) => isDark ? gold : navy;
+  
+  // Helper methods for premium colors
+  
+  static Color premiumBackground(bool isDark) => isDark ? premiumBackgroundDark : premiumBackgroundLight;
+  
+  static Color premiumSurface(bool isDark) => isDark ? premiumSurfaceDark : premiumSurfaceLight;
+  
+  static Color premiumStroke(bool isDark) => isDark ? premiumStrokeDark : premiumStrokeLight;
 
   // ===================================
   // 🎨 Gradient للـ Login

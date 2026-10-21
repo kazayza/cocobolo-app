@@ -77,7 +77,8 @@ class NotificationService {
       );
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
         // نسجل التوكن رغم ذلك؛ عند تفعيل الإذن لاحقاً لا يحتاج الخادم لتحديث آخر.
-        debugPrint('Notification permission is denied; token will still be registered');
+        debugPrint(
+            'Notification permission is denied; token will still be registered');
       }
 
       Object? lastError;
@@ -141,7 +142,8 @@ class NotificationService {
     _currentUsername = username;
     stopPolling();
     _checkForNewNotifications();
-    _pollingTimer = Timer.periodic(interval, (_) => _checkForNewNotifications());
+    _pollingTimer =
+        Timer.periodic(interval, (_) => _checkForNewNotifications());
   }
 
   void stopPolling() {
@@ -154,20 +156,29 @@ class NotificationService {
   Future<void> checkDeliveryNotifications() async {
     if (_currentUsername == null) return;
     try {
-      final response = await ApiClient.instance.get('/api/delivery/stats');
-      final data = ApiClient.instance.decode(response);
-      final stats = Map<String, dynamic>.from(data as Map);
-      final lateCount = (stats['lateCount'] ?? stats['LateCount'] ?? 0);
-      final count = lateCount is num
-          ? lateCount.toInt()
-          : int.tryParse('$lateCount') ?? 0;
+      final response = await ApiClient.instance.get(
+        '/api/delivery/stats',
+        forceRefresh: true,
+      );
+      final decoded = ApiClient.instance.decode(response);
+      final envelope = Map<String, dynamic>.from(decoded as Map);
+      final data = envelope['data'] is Map
+          ? Map<String, dynamic>.from(envelope['data'] as Map)
+          : envelope;
+      final stats = data['stats'] is Map
+          ? Map<String, dynamic>.from(data['stats'] as Map)
+          : data;
+      final rawCount = stats['Overdue'] ?? stats['overdue'] ?? 0;
+      final count =
+          rawCount is num ? rawCount.toInt() : int.tryParse('$rawCount') ?? 0;
       if (count <= 0) return;
 
       await showLocalNotification(
         id: 900001,
         title: 'تذكير بتوصيلات متأخرة',
         body: 'يوجد $count طلب في انتظار التسليم أو متأخر عن الموعد.',
-        payload: jsonEncode({'routeVersion': '2', 'formName': 'frm_DeliveryTracking'}),
+        payload: jsonEncode(
+            {'routeVersion': '2', 'formName': 'frm_DeliveryTracking'}),
       );
     } catch (e) {
       debugPrint('Delivery notification check error: $e');
@@ -177,7 +188,8 @@ class NotificationService {
   Future<void> _checkForNewNotifications() async {
     if (_currentUsername == null) return;
     try {
-      final response = await ApiClient.instance.get('/api/notifications/unread');
+      final response =
+          await ApiClient.instance.get('/api/notifications/unread');
       final data = ApiClient.instance.decode(response);
       final notifications = (data['notifications'] as List?) ?? const [];
 
@@ -244,7 +256,8 @@ class NotificationService {
 
   Future<int> getUnreadCount(String _username) async {
     try {
-      final response = await ApiClient.instance.get('/api/notifications/unread');
+      final response =
+          await ApiClient.instance.get('/api/notifications/unread');
       final data = ApiClient.instance.decode(response);
       return data['count'] ?? 0;
     } catch (_) {

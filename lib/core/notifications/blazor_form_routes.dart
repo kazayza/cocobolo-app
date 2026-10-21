@@ -16,6 +16,9 @@ class BlazorFormNames {
   static const crmLostRecovery = 'crm/lost-recovery';
   static const crmLostRecoveryReport = 'crm/lost-recovery/report';
   static const frmLostRecovery = 'frm_LostRecovery';
+  static const crmCustomerCare = 'crm/customer-care';
+  static const crmCustomerCareHistory = 'crm/customer-care/history';
+  static const frmCustomerCare = 'frm_CustomerCare';
   static const crmPipeline = 'crm/pipeline';
 
   // ── Inventory / Stock (مطابقة بلازور) ─────────────────
@@ -41,6 +44,7 @@ class BlazorFormNames {
   static const frmJobOrders = 'frm_JobOrders';
   static const factoryJobOrders = 'factory/job-orders';
   static const purchaseReceiptStatus = 'purchase-receipt-status';
+  static const additionalCharges = 'additional-charges';
 
   // ── Classic ERP form keys ───────────────────────────────────
   static const frmExpenses = 'frm_Expenses';
@@ -54,6 +58,8 @@ class BlazorFormNames {
   static const frmPricingMargins = 'frm_PricingMargins';
   static const frmComplaintsMain = 'frm_Complaints_Main';
   static const frmInvoiceDelivery = 'frmInvoiceDeliveryStatus';
+  static const frmPurchaseReceiptStatus = 'frm_PurchaseReceiptStatus';
+  static const frmInspectionCharge = 'frmInspectionCharge';
   static const frmEmpAttendance = 'frm_empAttendance';
   static const frmAttendance = 'frm_Attendance';
   static const frmDailyTasks = 'frmDailyTasks';
@@ -63,6 +69,8 @@ class BlazorFormNames {
   static const frmCashBoxManual = 'frm_CashBoxManual';
   static const frmCashBoxDashboard = 'frm_CashBoxDashboard';
   static const frmCashBoxTransaction = 'frm_CashBoxTransaction';
+  static const frmExecutiveCockpit = 'frm_ExecutiveCockpit';
+  static const executiveCockpit = 'executive-cockpit';
   static const frmPermissionsList = 'frm_PermissionsList';
   static const frmMySchedule = 'frm_MySchedule';
 
@@ -83,6 +91,8 @@ enum MobileNotifTarget {
   generalTasks,
   lostRecovery,
   lostRecoveryReport,
+  customerCare,
+  customerCareHistory,
   expensesAdd,
   expensesList,
   products,
@@ -98,6 +108,8 @@ enum MobileNotifTarget {
   complaintDetail,
   delivery,
   deliveryDetail,
+  purchaseReceipts,
+  additionalCharges,
   attendance,
   tasks,
   pipeline,
@@ -113,6 +125,7 @@ enum MobileNotifTarget {
   stockTransactions,
   warehouses,
   stockTransfer,
+  executiveCockpit,
   notifications,
   home,
 }
@@ -145,7 +158,7 @@ class BlazorNotificationRouter {
     final form = (formName ?? '').trim();
     final formLower = form.toLowerCase().replaceFirst(RegExp(r'^/+'), '');
     final invoicePathMatch = RegExp(
-      r'(?:sales/invoices|sales-delivery-status|factory/purchases)/(\d+)',
+      r'(?:sales/invoices|sales-delivery-status|factory/purchases|purchase-receipt-status)/(\d+)',
       caseSensitive: false,
     ).firstMatch(formLower);
     final invoiceId = id ??
@@ -230,12 +243,60 @@ class BlazorNotificationRouter {
       );
     }
 
+    if (formLower.contains('customer-care/history')) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.customerCareHistory,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+    if (formLower.contains('customer-care') ||
+        formLower == BlazorFormNames.frmCustomerCare.toLowerCase()) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.customerCare,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (formLower == BlazorFormNames.executiveCockpit ||
+        formLower == BlazorFormNames.frmExecutiveCockpit.toLowerCase()) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.executiveCockpit,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
     if (formLower.contains('sales-delivery-status')) {
       return NotifRouteDecision(
         target: invoiceId != null
             ? MobileNotifTarget.deliveryDetail
             : MobileNotifTarget.delivery,
         relatedId: invoiceId,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (formLower.contains(BlazorFormNames.purchaseReceiptStatus) ||
+        formLower == BlazorFormNames.frmPurchaseReceiptStatus.toLowerCase()) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.purchaseReceipts,
+        relatedId: invoiceId,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (formLower.contains(BlazorFormNames.additionalCharges) ||
+        formLower == BlazorFormNames.frmInspectionCharge.toLowerCase()) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.additionalCharges,
+        relatedId: id,
         relatedTable: relatedTable,
         rawFormName: formName,
       );
@@ -288,7 +349,9 @@ class BlazorNotificationRouter {
 
     if (table == 'expenses') {
       return NotifRouteDecision(
-        target: id != null ? MobileNotifTarget.expensesAdd : MobileNotifTarget.expensesList,
+        target: id != null
+            ? MobileNotifTarget.expensesAdd
+            : MobileNotifTarget.expensesList,
         relatedId: id,
         relatedTable: relatedTable,
         rawFormName: formName,
@@ -309,6 +372,24 @@ class BlazorNotificationRouter {
     if (table == 'attendance' || table == 'employeeshifts') {
       return NotifRouteDecision(
         target: MobileNotifTarget.attendance,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (table == 'additionalcharges') {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.additionalCharges,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (table == 'customerfeedbacks' || table == 'customerfeedback') {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.customerCareHistory,
         relatedId: id,
         relatedTable: relatedTable,
         rawFormName: formName,
@@ -393,7 +474,8 @@ class BlazorNotificationRouter {
     }
 
     // path style /crm/leads/123
-    final leadPath = RegExp(r'crm/leads/(\d+)', caseSensitive: false).firstMatch(form);
+    final leadPath =
+        RegExp(r'crm/leads/(\d+)', caseSensitive: false).firstMatch(form);
     if (leadPath != null) {
       return NotifRouteDecision(
         target: MobileNotifTarget.leadDetail,
@@ -422,8 +504,8 @@ class BlazorNotificationRouter {
       );
     }
 
-    final oppPath =
-        RegExp(r'crm/opportunities/(\d+)', caseSensitive: false).firstMatch(form);
+    final oppPath = RegExp(r'crm/opportunities/(\d+)', caseSensitive: false)
+        .firstMatch(form);
     if (oppPath != null) {
       return NotifRouteDecision(
         target: MobileNotifTarget.opportunityDetail,
@@ -516,12 +598,43 @@ class BlazorNotificationRouter {
     }
 
     // Delivery
-    if (_match(formLower, [BlazorFormNames.frmInvoiceDelivery, 'delivery'])) {
+    if (_match(formLower, [
+      BlazorFormNames.frmInvoiceDelivery,
+      'frm_DeliveryTracking',
+      'sales-delivery-status',
+      'delivery',
+    ])) {
       return NotifRouteDecision(
         target: id != null
             ? MobileNotifTarget.deliveryDetail
             : MobileNotifTarget.delivery,
         relatedId: id,
+        rawFormName: formName,
+      );
+    }
+
+    // Purchase receipts
+    if (_match(formLower, [
+      BlazorFormNames.purchaseReceiptStatus,
+      BlazorFormNames.frmPurchaseReceiptStatus,
+    ])) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.purchaseReceipts,
+        relatedId: id,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    // Additional charges and customer advances
+    if (_match(formLower, [
+      BlazorFormNames.additionalCharges,
+      BlazorFormNames.frmInspectionCharge,
+    ])) {
+      return NotifRouteDecision(
+        target: MobileNotifTarget.additionalCharges,
+        relatedId: id,
+        relatedTable: relatedTable,
         rawFormName: formName,
       );
     }
@@ -542,7 +655,9 @@ class BlazorNotificationRouter {
     // Client card
     if (_match(formLower, [BlazorFormNames.frmClientCard, 'clients'])) {
       return NotifRouteDecision(
-        target: id != null ? MobileNotifTarget.clientCard : MobileNotifTarget.clients,
+        target: id != null
+            ? MobileNotifTarget.clientCard
+            : MobileNotifTarget.clients,
         relatedId: id,
         rawFormName: formName,
       );
@@ -601,8 +716,9 @@ class BlazorNotificationRouter {
     }
 
     // Job order (أمر شغل فاتورة) — يفتح الفاتورة المرتبطة
-    final jobOrderPath = RegExp(r'sales/invoices/\d+/job-order', caseSensitive: false)
-        .firstMatch(form);
+    final jobOrderPath =
+        RegExp(r'sales/invoices/\d+/job-order', caseSensitive: false)
+            .firstMatch(form);
     if (jobOrderPath != null) {
       return NotifRouteDecision(
         target: id != null
@@ -615,7 +731,8 @@ class BlazorNotificationRouter {
     }
 
     // General tasks (المهام العامة — جديدة من بلازور)
-    if (_match(formLower, [BlazorFormNames.crmGeneralTasks, 'general-tasks', 'general_tasks'])) {
+    if (_match(formLower,
+        [BlazorFormNames.crmGeneralTasks, 'general-tasks', 'general_tasks'])) {
       return NotifRouteDecision(
         target: MobileNotifTarget.generalTasks,
         relatedId: id,
@@ -625,9 +742,16 @@ class BlazorNotificationRouter {
     }
 
     // Closure requests (طلبات إغلاق الفرص — جديدة من بلازور)
-    if (_match(formLower, [BlazorFormNames.crmClosureRequests, 'closure-requests', 'closureapproval', 'closure-approval', 'opportunityclosure'])) {
+    if (_match(formLower, [
+      BlazorFormNames.crmClosureRequests,
+      'closure-requests',
+      'closureapproval',
+      'closure-approval',
+      'opportunityclosure'
+    ])) {
       // لو Table هو طلبات الإغلاق → افتح شاشة طلبات الإغلاق للمدير
-      if (table == 'opportunityclosureapprovalrequests' || formLower.contains('closure-requests')) {
+      if (table == 'opportunityclosureapprovalrequests' ||
+          formLower.contains('closure-requests')) {
         return NotifRouteDecision(
           target: MobileNotifTarget.closureRequests,
           relatedId: id,
@@ -644,7 +768,13 @@ class BlazorNotificationRouter {
     }
 
     // Lost Recovery (استرداد الفرص الخاسرة — جديد من بلازور 98a5746)
-    if (_match(formLower, [BlazorFormNames.crmLostRecovery, BlazorFormNames.frmLostRecovery, 'lost-recovery', 'lostrecovery', 'recovery'])) {
+    if (_match(formLower, [
+      BlazorFormNames.crmLostRecovery,
+      BlazorFormNames.frmLostRecovery,
+      'lost-recovery',
+      'lostrecovery',
+      'recovery'
+    ])) {
       if (formLower.contains('report')) {
         return NotifRouteDecision(
           target: MobileNotifTarget.lostRecoveryReport,
@@ -653,7 +783,10 @@ class BlazorNotificationRouter {
           rawFormName: formName,
         );
       }
-      if (id != null && id > 0 && (table == 'salesopportunities' || formLower.contains('opportunities'))) {
+      if (id != null &&
+          id > 0 &&
+          (table == 'salesopportunities' ||
+              formLower.contains('opportunities'))) {
         return NotifRouteDecision(
           target: MobileNotifTarget.opportunityDetail,
           relatedId: id,
@@ -670,14 +803,40 @@ class BlazorNotificationRouter {
     }
 
     // Inventory / Stock
-    if (_match(formLower, [BlazorFormNames.inventoryTransactions, BlazorFormNames.frmStockTransactions, 'stocktransactions', 'stock-transactions'])) {
-      return NotifRouteDecision(target: MobileNotifTarget.stockTransactions, relatedId: id, relatedTable: relatedTable, rawFormName: formName);
+    if (_match(formLower, [
+      BlazorFormNames.inventoryTransactions,
+      BlazorFormNames.frmStockTransactions,
+      'stocktransactions',
+      'stock-transactions'
+    ])) {
+      return NotifRouteDecision(
+          target: MobileNotifTarget.stockTransactions,
+          relatedId: id,
+          relatedTable: relatedTable,
+          rawFormName: formName);
     }
-    if (_match(formLower, [BlazorFormNames.inventoryWarehouses, BlazorFormNames.frmWarehouses, 'warehouses'])) {
-      return NotifRouteDecision(target: MobileNotifTarget.warehouses, relatedId: id, relatedTable: relatedTable, rawFormName: formName);
+    if (_match(formLower, [
+      BlazorFormNames.inventoryWarehouses,
+      BlazorFormNames.frmWarehouses,
+      'warehouses'
+    ])) {
+      return NotifRouteDecision(
+          target: MobileNotifTarget.warehouses,
+          relatedId: id,
+          relatedTable: relatedTable,
+          rawFormName: formName);
     }
-    if (_match(formLower, [BlazorFormNames.inventoryStockTransfer, BlazorFormNames.frmStockTransfer, 'inventory/transfer', 'stock-transfer'])) {
-      return NotifRouteDecision(target: MobileNotifTarget.stockTransfer, relatedId: id, relatedTable: relatedTable, rawFormName: formName);
+    if (_match(formLower, [
+      BlazorFormNames.inventoryStockTransfer,
+      BlazorFormNames.frmStockTransfer,
+      'inventory/transfer',
+      'stock-transfer'
+    ])) {
+      return NotifRouteDecision(
+          target: MobileNotifTarget.stockTransfer,
+          relatedId: id,
+          relatedTable: relatedTable,
+          rawFormName: formName);
     }
 
     // Default

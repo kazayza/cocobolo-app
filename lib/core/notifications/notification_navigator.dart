@@ -13,6 +13,8 @@ import '../../screens/clients_screen.dart';
 import '../../screens/complaint_details_screen.dart';
 import '../../screens/complaints_screen.dart';
 import '../../screens/delivery_tracking_screen.dart';
+import '../../screens/purchase_receipts_screen.dart';
+import '../../screens/additional_charges_screen.dart';
 import '../../screens/expenses/expense_dashboard_screen.dart';
 import '../../screens/lead_detail_screen.dart';
 import '../../screens/leads_screen.dart';
@@ -41,6 +43,9 @@ import '../../screens/closure_approval_requests_screen.dart'
     show ClosureApprovalRequestsScreen;
 import '../../screens/lost_recovery_screen.dart';
 import '../../screens/lost_recovery_report_screen.dart';
+import '../../screens/customer_care_screen.dart';
+import '../../screens/customer_care_history_screen.dart';
+import '../../screens/executive_cockpit_screen.dart';
 import '../../screens/inventory/stock_transactions_screen.dart';
 import '../../screens/inventory/warehouses_screen.dart';
 import '../../screens/inventory/stock_transfer_screen.dart';
@@ -149,6 +154,11 @@ class NotificationNavigator {
       case MobileNotifTarget.lostRecovery:
       case MobileNotifTarget.lostRecoveryReport:
         return p.canViewLostRecovery;
+      case MobileNotifTarget.customerCare:
+      case MobileNotifTarget.customerCareHistory:
+        return p.canViewCustomerCare;
+      case MobileNotifTarget.executiveCockpit:
+        return p.canViewExecutiveCockpit;
       case MobileNotifTarget.priceList:
         return p.canViewPriceList;
       case MobileNotifTarget.quotationsList:
@@ -165,6 +175,10 @@ class NotificationNavigator {
       case MobileNotifTarget.delivery:
       case MobileNotifTarget.deliveryDetail:
         return p.canViewDelivery;
+      case MobileNotifTarget.purchaseReceipts:
+        return p.canViewPurchaseReceipts;
+      case MobileNotifTarget.additionalCharges:
+        return p.canViewAdditionalCharges;
       case MobileNotifTarget.complaintsList:
       case MobileNotifTarget.complaintDetail:
         return p.userId != null; // ComplaintPermissions.CanView
@@ -256,6 +270,18 @@ class NotificationNavigator {
           transactionId: d.relatedId ?? 0,
           username: username,
         );
+      case MobileNotifTarget.purchaseReceipts:
+        return PurchaseReceiptsScreen(
+          userId: userId,
+          username: username,
+          initialTransactionId: d.relatedId,
+        );
+      case MobileNotifTarget.additionalCharges:
+        return AdditionalChargesScreen(
+          userId: userId,
+          username: username,
+          initialChargeId: d.relatedId,
+        );
       case MobileNotifTarget.attendance:
         return AttendanceScreen(userId: userId, username: username);
       case MobileNotifTarget.tasks:
@@ -314,12 +340,25 @@ class NotificationNavigator {
           userId: userId,
           username: username,
         );
+      case MobileNotifTarget.customerCare:
+        return CustomerCareScreen(
+          userId: userId,
+          username: username,
+        );
+      case MobileNotifTarget.customerCareHistory:
+        return CustomerCareHistoryScreen(
+          userId: userId,
+          username: username,
+          initialFeedbackId: d.relatedId,
+        );
       case MobileNotifTarget.stockTransactions:
         return StockTransactionsScreen(userId: userId, username: username);
       case MobileNotifTarget.warehouses:
         return WarehousesScreen(userId: userId, username: username);
       case MobileNotifTarget.stockTransfer:
         return StockTransferScreen(userId: userId, username: username);
+      case MobileNotifTarget.executiveCockpit:
+        return ExecutiveCockpitScreen(userId: userId, username: username);
       case MobileNotifTarget.mySchedule:
         return MyScheduleScreen(userId: userId, username: username);
       case MobileNotifTarget.home:

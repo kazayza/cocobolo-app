@@ -7,6 +7,12 @@ import 'products_screen.dart';
 import 'price_list_screen.dart';
 import 'quotations_screen.dart';
 import 'job_orders_screen.dart';
+import 'delivery_tracking_screen.dart';
+import 'purchase_receipts_screen.dart';
+import 'additional_charges_screen.dart';
+import 'customer_care_screen.dart';
+import 'customer_care_history_screen.dart';
+import 'executive_cockpit_screen.dart';
 import 'expenses/expense_dashboard_screen.dart';
 import 'clients_screen.dart';
 import 'tasks_screen.dart';
@@ -43,6 +49,22 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
     }
     if (formName == FormNames.jobOrders) {
       return permissions.canViewJobOrders;
+    }
+    if (formName == FormNames.invoiceDeliveryStatus) {
+      return permissions.canViewDelivery;
+    }
+    if (formName == FormNames.purchaseReceiptStatus) {
+      return permissions.canViewPurchaseReceipts;
+    }
+    if (formName == FormNames.additionalCharges) {
+      return permissions.canViewAdditionalCharges;
+    }
+    if (formName == FormNames.customerCare ||
+        formName == FormNames.customerCareHistory) {
+      return permissions.canViewCustomerCare;
+    }
+    if (formName == FormNames.executiveCockpit) {
+      return permissions.canViewExecutiveCockpit;
     }
     return permissions.canView(formName) || permissions.canAdd(formName);
   }
@@ -283,6 +305,30 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
       case FormNames.jobOrders:
         screen =
             JobOrdersScreen(userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.invoiceDeliveryStatus:
+        screen = DeliveryTrackingScreen(
+            userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.purchaseReceiptStatus:
+        screen = PurchaseReceiptsScreen(
+            userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.additionalCharges:
+        screen = AdditionalChargesScreen(
+            userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.customerCare:
+        screen = CustomerCareScreen(
+            userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.customerCareHistory:
+        screen = CustomerCareHistoryScreen(
+            userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.executiveCockpit:
+        screen = ExecutiveCockpitScreen(
+            userId: widget.userId, username: widget.username);
         break;
 
       // --- حسابات ---

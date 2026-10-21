@@ -88,7 +88,8 @@ class PermissionService {
       if (permission.canDelete) _claims.add('$formName:Delete');
     });
 
-    print('✅ تم تحميل ${_permissions.length} صلاحية و${_claims.length} claim للمستخدم $username');
+    print(
+        '✅ تم تحميل ${_permissions.length} صلاحية و${_claims.length} claim للمستخدم $username');
   }
 
   // ✅ مسح البيانات عند تسجيل الخروج
@@ -202,8 +203,7 @@ class PermissionService {
   // Policies مطابقة لمراجع الصلاحيات في Blazor 913cc57
   // ═══════════════════════════════════════════════════════════
 
-  bool get canViewSalesInvoices =>
-      isAdmin || canView('frm_PartiesInvoices');
+  bool get canViewSalesInvoices => isAdmin || canView('frm_PartiesInvoices');
   bool get canViewPurchaseInvoices =>
       isAdmin ||
       isAccountManager ||
@@ -243,6 +243,32 @@ class PermissionService {
   bool get canEscalateComplaint =>
       isAdmin || isAccountManager || isGeneralManager;
 
+  bool get canViewCustomerCare =>
+      isCustomerService ||
+      isAdmin ||
+      isAccountManager ||
+      isSalesManager ||
+      isGeneralManager ||
+      isAccount ||
+      canView(FormNames.customerCare);
+  bool get canLogCustomerCare => canViewCustomerCare;
+  bool get canViewAllCustomerCare =>
+      isAdmin ||
+      isAccountManager ||
+      isSalesManager ||
+      isGeneralManager ||
+      isAccount;
+  bool get canExportCustomerCare =>
+      isAdmin ||
+      isAccountManager ||
+      isSalesManager ||
+      isGeneralManager ||
+      hasClaim('frm_CustomerCare:Export');
+
+  bool get canViewExecutiveCockpit =>
+      isAdmin || canView(FormNames.executiveCockpit);
+  bool get canExportExecutiveCockpit => canViewExecutiveCockpit;
+
   bool get canViewDelivery =>
       isAdmin ||
       isAccountManager ||
@@ -263,6 +289,55 @@ class PermissionService {
       isUserRole ||
       hasClaim('frmInvoiceDeliveryStatus:Deliver');
   bool get canOverrideDeliveryRemaining => isAdmin || isAccountManager;
+
+  bool get canViewPurchaseReceipts =>
+      isAdmin ||
+      isGeneralManager ||
+      isAccountManager ||
+      isSales ||
+      isUserRole ||
+      isFactory ||
+      isProductionManager ||
+      isFactoryManager ||
+      canView(FormNames.purchaseReceiptStatus) ||
+      canView(FormNames.supplierInvoices);
+  bool get canSeePurchaseReceiptAmounts =>
+      isAdmin ||
+      isAccountManager ||
+      isFactory ||
+      isProductionManager ||
+      isFactoryManager ||
+      canView(FormNames.supplierInvoices);
+  bool get canConfirmPurchaseReceipt =>
+      canViewPurchaseReceipts &&
+      (isAdmin ||
+          isGeneralManager ||
+          isFactory ||
+          isProductionManager ||
+          isFactoryManager ||
+          canEdit(FormNames.purchaseReceiptStatus));
+
+  bool get canViewAdditionalCharges =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      canView(FormNames.inspectionCharge);
+  bool get canCreateAdditionalCharges =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      canAdd(FormNames.inspectionCharge) ||
+      canAdd('frmInvoices');
+  bool get canEditAdditionalCharges =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      canEdit(FormNames.inspectionCharge);
+  bool get canDeleteAdditionalCharges =>
+      isAdmin ||
+      isAccountManager ||
+      canDelete(FormNames.inspectionCharge) ||
+      canDelete('frmInvoices');
 
   // =====================
   // صلاحيات خاصة بالأسعار (للمنتجات)
@@ -476,6 +551,7 @@ class FormNames {
   // 6. التقارير
   // ═══════════════════════════════════════
   static const String dashboard = 'DashBoard';
+  static const String executiveCockpit = 'frm_ExecutiveCockpit';
   static const String filterIncomeStatement = 'frmFilterIncomeStatment';
   static const String cashFlowNew = 'frm_CashFlowNew';
   static const String expensesDashboard = 'frmExpensesDashboard';
@@ -510,8 +586,12 @@ class FormNames {
   static const String stockCount = 'frm_StockCount';
   static const String stockValue = 'frm_StockValue';
   static const String complaintsMain = 'frm_Complaints_Main';
+  static const String customerCare = 'frm_CustomerCare';
+  static const String customerCareHistory = 'frm_CustomerCare_History';
   static const String crmDashboard = 'frmCRM_Dashboard';
   static const String invoiceDeliveryStatus = 'frmInvoiceDeliveryStatus';
+  static const String purchaseReceiptStatus = 'frm_PurchaseReceiptStatus';
+  static const String additionalCharges = inspectionCharge;
   static const String editOpportunity = 'frmEditOpportunity';
 
   // ═══════════════════════════════════════
@@ -620,16 +700,26 @@ class MenuStructure {
         icon: Icons.warehouse,
         color: AppColors.warning,
         children: [
-          SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2_rounded),
-          SubMenuItem('أرصدة المخزون', FormNames.stockLevels, Icons.inventory_rounded),
-          SubMenuItem('إضافة رصيد', FormNames.stockEntry, Icons.add_box_rounded),
-          SubMenuItem('حركة المخزون', FormNames.stockTransactions, Icons.history_rounded),
-          SubMenuItem('تحويل مخزني', FormNames.stockTransfer, Icons.swap_horiz_rounded),
-          SubMenuItem('جرد فعلي', FormNames.stockCount, Icons.fact_check_rounded),
-          SubMenuItem('قيمة المخزون', FormNames.stockValue, Icons.attach_money_rounded),
-          SubMenuItem('إدارة المخازن', FormNames.warehouses, Icons.warehouse_rounded),
-          SubMenuItem('حركة المخازن', FormNames.transactionProductGroup, Icons.swap_horiz),
-          SubMenuItem('الأصناف الأكثر مبيعاً', FormNames.bestSellingItems, Icons.star_rounded),
+          SubMenuItem(
+              'المنتجات', FormNames.productsList, Icons.inventory_2_rounded),
+          SubMenuItem(
+              'أرصدة المخزون', FormNames.stockLevels, Icons.inventory_rounded),
+          SubMenuItem(
+              'إضافة رصيد', FormNames.stockEntry, Icons.add_box_rounded),
+          SubMenuItem('حركة المخزون', FormNames.stockTransactions,
+              Icons.history_rounded),
+          SubMenuItem(
+              'تحويل مخزني', FormNames.stockTransfer, Icons.swap_horiz_rounded),
+          SubMenuItem(
+              'جرد فعلي', FormNames.stockCount, Icons.fact_check_rounded),
+          SubMenuItem(
+              'قيمة المخزون', FormNames.stockValue, Icons.attach_money_rounded),
+          SubMenuItem(
+              'إدارة المخازن', FormNames.warehouses, Icons.warehouse_rounded),
+          SubMenuItem('حركة المخازن', FormNames.transactionProductGroup,
+              Icons.swap_horiz),
+          SubMenuItem('الأصناف الأكثر مبيعاً', FormNames.bestSellingItems,
+              Icons.star_rounded),
         ],
       ),
       // جديد المبيعات
@@ -642,9 +732,11 @@ class MenuStructure {
           SubMenuItem.header('الأسعار والعروض'),
           SubMenuItem('المنتجات', FormNames.productsList, Icons.inventory_2),
           SubMenuItem('قائمة الأسعار', FormNames.priceList, Icons.sell_rounded),
-          SubMenuItem('طلبات تعديل الأسعار', FormNames.priceRequests, Icons.price_change),
+          SubMenuItem('طلبات تعديل الأسعار', FormNames.priceRequests,
+              Icons.price_change),
           SubMenuItem('نسب الربح', FormNames.pricingMargins, Icons.percent),
-          SubMenuItem('عروض الأسعار', FormNames.quotationsList, Icons.request_quote),
+          SubMenuItem(
+              'عروض الأسعار', FormNames.quotationsList, Icons.request_quote),
           // ── الفواتير والتحصيل ──
           SubMenuItem.header('الفواتير والتحصيل'),
           SubMenuItem(
@@ -661,6 +753,16 @@ class MenuStructure {
             'متابعة التسليم',
             FormNames.invoiceDeliveryStatus,
             Icons.local_shipping,
+          ),
+          SubMenuItem(
+            'استلامات الشراء',
+            FormNames.purchaseReceiptStatus,
+            Icons.inventory_rounded,
+          ),
+          SubMenuItem(
+            'الرسوم والدفعات المقدمة',
+            FormNames.additionalCharges,
+            Icons.account_balance_wallet_rounded,
           ),
           SubMenuItem(
             'مدفوعات الفواتير',
@@ -802,6 +904,11 @@ class MenuStructure {
         icon: Icons.analytics,
         color: AppColors.error,
         children: [
+          SubMenuItem(
+            'لوحة القيادة التنفيذية',
+            FormNames.executiveCockpit,
+            Icons.workspace_premium_rounded,
+          ),
           SubMenuItem('لوحة المعلومات', FormNames.dashboard, Icons.dashboard),
           SubMenuItem(
             'قائمة الدخل',
@@ -875,15 +982,31 @@ class MenuStructure {
             Icons.report_problem,
           ),
           SubMenuItem(
+            'خدمة العملاء',
+            FormNames.customerCare,
+            Icons.support_agent_rounded,
+          ),
+          SubMenuItem(
+            'سجل خدمة العملاء',
+            FormNames.customerCareHistory,
+            Icons.history_rounded,
+          ),
+          SubMenuItem(
             'لوحة CRM',
             FormNames.crmDashboard,
             Icons.dashboard_customize,
           ),
           SubMenuItem('My Leads', FormNames.myLeads, Icons.assignment_ind),
-          SubMenuItem('طلبات موافقة إغلاق الفرص', FormNames.closureApprovalRequests, Icons.admin_panel_settings_rounded),
-          SubMenuItem('استرداد الفرص الخاسرة', FormNames.lostRecovery, Icons.restart_alt_rounded),
-          SubMenuItem('تقرير الاسترداد', FormNames.lostRecoveryReport, Icons.assessment_rounded),
-          SubMenuItem('التكليفات العامة', FormNames.generalTasks, Icons.assignment_ind_rounded),
+          SubMenuItem(
+              'طلبات موافقة إغلاق الفرص',
+              FormNames.closureApprovalRequests,
+              Icons.admin_panel_settings_rounded),
+          SubMenuItem('استرداد الفرص الخاسرة', FormNames.lostRecovery,
+              Icons.restart_alt_rounded),
+          SubMenuItem('تقرير الاسترداد', FormNames.lostRecoveryReport,
+              Icons.assessment_rounded),
+          SubMenuItem('التكليفات العامة', FormNames.generalTasks,
+              Icons.assignment_ind_rounded),
           //SubMenuItem('تعديل الفرص', FormNames.editOpportunity, Icons.edit),
           SubMenuItem(
             'إعدادات CRM',

@@ -49,17 +49,28 @@ class ApiClient {
     return base.replace(queryParameters: clean);
   }
 
-  Future<http.Response> get(String path, {Map<String, dynamic>? query}) =>
-      _getWithCache(path, query);
+  Future<http.Response> get(
+    String path, {
+    Map<String, dynamic>? query,
+    bool forceRefresh = false,
+  }) =>
+      _getWithCache(path, query, forceRefresh: forceRefresh);
 
   Future<http.Response> _getWithCache(
-      String path, Map<String, dynamic>? query) async {
-    final cacheKey = '$path${query != null ? '?${query.entries.map((e) => '${e.key}=${e.value}').join('&')}' : ''}';
+    String path,
+    Map<String, dynamic>? query, {
+    bool forceRefresh = false,
+  }) async {
+    final cacheKey =
+        '$path${query != null ? '?${query.entries.map((e) => '${e.key}=${e.value}').join('&')}' : ''}';
 
-    // محاولة إرجاع البيانات المخزنة أولاً للوصول السريع
-    final cached = OfflineCacheService.instance.get<Map<String, dynamic>>(cacheKey);
-    if (cached != null) {
-      return _buildResponse(cached);
+    // الشاشات التشغيلية الحساسة تطلب نسخة حديثة، مع بقاء الكاش كـfallback عند انقطاع الشبكة.
+    if (!forceRefresh) {
+      final cached =
+          OfflineCacheService.instance.get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) {
+        return _buildResponse(cached);
+      }
     }
 
     try {
@@ -76,7 +87,8 @@ class ApiClient {
       return response;
     } catch (e) {
       // عند فشل الاتصال، إرجاع البيانات المخزنة إذا وجدت
-      final cached2 = OfflineCacheService.instance.get<Map<String, dynamic>>(cacheKey);
+      final cached2 =
+          OfflineCacheService.instance.get<Map<String, dynamic>>(cacheKey);
       if (cached2 != null) {
         return _buildResponse(cached2);
       }
@@ -114,7 +126,9 @@ class ApiClient {
   dynamic decode(http.Response response, {bool allowEmpty = false}) {
     dynamic data;
     if (response.body.trim().isEmpty) {
-      if (allowEmpty && response.statusCode >= 200 && response.statusCode < 300) {
+      if (allowEmpty &&
+          response.statusCode >= 200 &&
+          response.statusCode < 300) {
         return null;
       }
     } else {
