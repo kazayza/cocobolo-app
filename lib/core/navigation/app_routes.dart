@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../screens/login_screen.dart';
 import '../../screens/onboarding_screen.dart';
 
 /// مسارات التطبيق المسماة — استبدل MaterialPageRoute المتداخلة.
@@ -70,7 +71,7 @@ class AppRoutes {
 
   /// جميع المسارات للنشر في MaterialApp.
   static Map<String, WidgetBuilder> get all => {
-        login: (_) => const LoginScreenPlaceholder(),
+        login: (_) => const LoginScreen(),
         onboarding: (_) => const OnboardingScreen(),
         splash: (_) => const SplashScreenPlaceholder(),
         home: (_) => const HomeScreenPlaceholder(),

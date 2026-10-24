@@ -212,6 +212,9 @@ class PermissionService {
       isProductionManager ||
       isFactoryManager ||
       canView('frm_SupplierInvoices');
+  bool get canViewFactoryPurchases => canViewPurchaseInvoices;
+  bool get canCreateFactoryPurchase =>
+      isAdmin || isFactory || canView(FormNames.supplierInvoices);
   bool get canFullEditInvoices => isAdmin || isAccountManager;
   bool get canApproveInvoiceEdit => isAdmin || isAccountManager;
   bool get canViewInvoiceProfit => isAdmin || isAccountManager;
@@ -431,7 +434,12 @@ class PermissionService {
       isFactoryManager ||
       canEdit(FormNames.jobOrders);
   bool get canOpenJobOrderInvoices =>
-      isAdmin || canView(FormNames.partiesInvoices);
+      isAdmin ||
+      isFactory ||
+      isProductionManager ||
+      isFactoryManager ||
+      canView(FormNames.partiesInvoices) ||
+      canView(FormNames.supplierInvoices);
 
   /// هل يشوف ملف PDF؟ (الكل ماعدا Account)
   bool get canSeePDF {

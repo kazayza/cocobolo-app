@@ -37,6 +37,7 @@ class BlazorFormNames {
   static const frmSupplierInvoices = 'frm_SupplierInvoices';
   static const salesDeliveryStatus = 'sales-delivery-status';
   static const productionJobOrders = 'production/job-orders';
+  static const factoryPurchases = 'factory/purchases';
   static const quotations = 'quotations';
   static const salesQuotations = 'sales/quotations';
   static const frmQuotationsList = 'frmQuotationsList';
@@ -120,6 +121,7 @@ enum MobileNotifTarget {
   cashboxTransactions,
   permissions,
   mySchedule,
+  factoryPurchases,
   invoices,
   invoiceDetail,
   stockTransactions,
@@ -302,8 +304,18 @@ class BlazorNotificationRouter {
       );
     }
 
-    if (formLower.contains('sales/invoices') ||
-        formLower.contains('factory/purchases')) {
+    if (formLower.contains(BlazorFormNames.factoryPurchases)) {
+      return NotifRouteDecision(
+        target: invoiceId != null
+            ? MobileNotifTarget.invoiceDetail
+            : MobileNotifTarget.factoryPurchases,
+        relatedId: invoiceId,
+        relatedTable: relatedTable,
+        rawFormName: formName,
+      );
+    }
+
+    if (formLower.contains('sales/invoices')) {
       return NotifRouteDecision(
         target: invoiceId != null
             ? MobileNotifTarget.invoiceDetail

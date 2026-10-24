@@ -32,6 +32,8 @@ import '../screens/lost_recovery_screen.dart';
 import '../screens/lost_recovery_report_screen.dart';
 import '../screens/invoice/invoices_list_screen.dart';
 import '../screens/invoice/add_invoice_screen.dart';
+import '../screens/factory_purchases_screen.dart';
+import '../screens/factory_purchase_form_screen.dart';
 import '../screens/inventory/stock_transactions_screen.dart';
 import '../screens/inventory/stock_levels_screen.dart';
 import '../screens/inventory/warehouses_screen.dart';
@@ -207,6 +209,9 @@ class _AppDrawerState extends State<AppDrawer> {
     }
     if (formName == FormNames.jobOrders) {
       return perms.canViewJobOrders;
+    }
+    if (formName == FormNames.supplierInvoices) {
+      return perms.canViewFactoryPurchases;
     }
     if (formName == FormNames.executiveCockpit) {
       return perms.canViewExecutiveCockpit;
@@ -1644,10 +1649,16 @@ class _AppDrawerState extends State<AppDrawer> {
         );
         break;
       case 'frm_SupplierInvoices':
-        screen = SalesInvoicesScreen(
+      case 'factory/purchases':
+        screen = FactoryPurchasesScreen(
           userId: widget.userId,
           username: widget.username,
-          initialTab: 'Purchase',
+        );
+        break;
+      case 'factory/purchases/new':
+        screen = FactoryPurchaseFormScreen(
+          userId: widget.userId,
+          username: widget.username,
         );
         break;
       case 'frm_SalesInvoiveNew':

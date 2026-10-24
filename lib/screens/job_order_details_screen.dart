@@ -330,6 +330,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   }
 
   Widget _summary(Map<String, dynamic> order) {
+    final purchase = '${order['TransactionType']}' == 'Purchase';
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -341,9 +342,21 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
         spacing: 8,
         runSpacing: 8,
         children: <Widget>[
-          _info(Icons.person_rounded, '${order['PartyName'] ?? ''}'),
+          _info(
+            purchase ? Icons.factory_rounded : Icons.person_rounded,
+            purchase
+                ? 'المورد: ${order['PartyName'] ?? ''}'
+                : '${order['PartyName'] ?? ''}',
+          ),
           _info(Icons.phone_rounded, '${order['Phone'] ?? '—'}'),
-          _info(Icons.badge_rounded, '${order['EmpName'] ?? '—'}'),
+          if (purchase &&
+              '${order['LinkedCustomerName'] ?? ''}'.trim().isNotEmpty)
+            _info(
+              Icons.person_outline_rounded,
+              'العميل المرتبط: ${order['LinkedCustomerName']}',
+            )
+          else if (!purchase)
+            _info(Icons.badge_rounded, '${order['EmpName'] ?? '—'}'),
           _info(Icons.calendar_today_rounded, _date(order['TransactionDate'])),
           _info(Icons.event_available_rounded, _date(order['DueDate'])),
           _info(Icons.warehouse_rounded, '${order['WarehouseName'] ?? '—'}'),
@@ -628,13 +641,15 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      final purchase = '${_order?['TransactionType']}' == 'Purchase';
+      final documentName = purchase ? 'أمر توريد' : 'أمر تشغيل';
       final file = await _buildPdf();
       await SharePlus.instance.share(
         ShareParams(
           files: <XFile>[XFile(file.path, mimeType: 'application/pdf')],
-          subject: 'أمر تشغيل ${_order?['ReferenceNumber'] ?? ''}',
+          subject: '$documentName ${_order?['ReferenceNumber'] ?? ''}',
           text:
-              'أمر تشغيل ${_order?['ReferenceNumber'] ?? ''} - ${_order?['PartyName'] ?? ''}',
+              '$documentName ${_order?['ReferenceNumber'] ?? ''} - ${_order?['PartyName'] ?? ''}',
         ),
       );
     } catch (error) {
@@ -645,6 +660,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   }
 
   Future<File> _buildPdf() async {
+    final purchase = '${_order?['TransactionType']}' == 'Purchase';
     final regularData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final boldData = await rootBundle.load('assets/fonts/Cairo-Bold.ttf');
     final logoData = await rootBundle.load('assets/images/logo.png');
@@ -686,7 +702,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
                 pw.Column(
                   children: <pw.Widget>[
                     pw.Text(
-                      'أمر تشغيل الفاتورة',
+                      purchase ? 'أمر توريد المصنع' : 'أمر تشغيل الفاتورة',
                       style: pw.TextStyle(
                         font: bold,
                         fontSize: 17,
@@ -719,8 +735,12 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: <pw.Widget>[
-                pw.Text('العميل: ${_order?['PartyName'] ?? ''}'),
-                pw.Text('الموظف: ${_order?['EmpName'] ?? '—'}'),
+                pw.Text(
+                  '${purchase ? 'المورد' : 'العميل'}: ${_order?['PartyName'] ?? ''}',
+                ),
+                pw.Text(
+                  '${purchase ? 'العميل المرتبط' : 'الموظف'}: ${_order?['EmpName'] ?? '—'}',
+                ),
                 pw.Text('التسليم المتوقع: ${_date(_order?['DueDate'])}'),
               ],
             ),

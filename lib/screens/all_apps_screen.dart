@@ -7,6 +7,7 @@ import 'products_screen.dart';
 import 'price_list_screen.dart';
 import 'quotations_screen.dart';
 import 'job_orders_screen.dart';
+import 'factory_purchases_screen.dart';
 import 'delivery_tracking_screen.dart';
 import 'purchase_receipts_screen.dart';
 import 'additional_charges_screen.dart';
@@ -49,6 +50,9 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
     }
     if (formName == FormNames.jobOrders) {
       return permissions.canViewJobOrders;
+    }
+    if (formName == FormNames.supplierInvoices) {
+      return permissions.canViewFactoryPurchases;
     }
     if (formName == FormNames.invoiceDeliveryStatus) {
       return permissions.canViewDelivery;
@@ -305,6 +309,10 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
       case FormNames.jobOrders:
         screen =
             JobOrdersScreen(userId: widget.userId, username: widget.username);
+        break;
+      case FormNames.supplierInvoices:
+        screen = FactoryPurchasesScreen(
+            userId: widget.userId, username: widget.username);
         break;
       case FormNames.invoiceDeliveryStatus:
         screen = DeliveryTrackingScreen(

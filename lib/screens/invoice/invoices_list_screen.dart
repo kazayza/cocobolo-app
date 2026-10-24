@@ -8,6 +8,7 @@ import '../../services/permission_service.dart';
 import '../../services/invoice_service.dart';
 import '../../core/network/api_client.dart';
 import 'invoice_details_screen.dart';
+import 'add_invoice_screen.dart';
 
 /// ─────────────────────────────────────────────────────────────
 ///  إدارة الفواتير — نسخة مطابقة لصفحة SalesList في بلازور
@@ -263,6 +264,20 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
     }
   }
 
+  Future<void> _openAddInvoice() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddInvoiceScreen(
+          userId: widget.userId,
+          username: widget.username,
+          initialType: _activeTab == 'Sale' ? 'Sale' : 'Purchase',
+        ),
+      ),
+    );
+    if (changed == true && mounted) _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -286,6 +301,13 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
           : !_canSeeInvoices
           ? _buildNoPermission(theme)
           : _buildBody(theme, isDark),
+      floatingActionButton: _canAdd
+          ? FloatingActionButton.extended(
+              onPressed: _openAddInvoice,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('فاتورة جديدة'),
+            )
+          : null,
     );
   }
 

@@ -30,6 +30,7 @@ import '../../screens/quotations_screen.dart';
 import '../../screens/quotation_details_screen.dart';
 import '../../screens/job_orders_screen.dart';
 import '../../screens/job_order_details_screen.dart';
+import '../../screens/factory_purchases_screen.dart';
 import '../../screens/pricing_margins_screen.dart';
 import '../../screens/products_screen.dart';
 import '../../screens/product_details_screen.dart';
@@ -167,6 +168,8 @@ class NotificationNavigator {
       case MobileNotifTarget.jobOrders:
       case MobileNotifTarget.jobOrderDetail:
         return p.canViewJobOrders;
+      case MobileNotifTarget.factoryPurchases:
+        return p.canViewFactoryPurchases;
       case MobileNotifTarget.invoiceDetail:
       case MobileNotifTarget.invoices:
         final raw = (d.rawFormName ?? '').toLowerCase();
@@ -304,6 +307,8 @@ class NotificationNavigator {
         return CashboxTransactionsScreen(userId: userId, username: username);
       case MobileNotifTarget.permissions:
         return PermissionsListScreen(userId: userId);
+      case MobileNotifTarget.factoryPurchases:
+        return FactoryPurchasesScreen(userId: userId, username: username);
       case MobileNotifTarget.invoices:
         final raw = (d.rawFormName ?? '').toLowerCase();
         final purchase = raw.contains('purchase') || raw.contains('supplier');

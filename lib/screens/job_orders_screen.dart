@@ -663,7 +663,14 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                     _info(Icons.schedule_rounded,
                         '${_int(row['MaxPeriodDays'])} يوم'),
                   if ('${row['EmpName'] ?? ''}'.isNotEmpty)
-                    _info(Icons.badge_rounded, '${row['EmpName']}'),
+                    _info(
+                      purchase
+                          ? Icons.person_outline_rounded
+                          : Icons.badge_rounded,
+                      purchase
+                          ? 'العميل المرتبط: ${row['EmpName']}'
+                          : '${row['EmpName']}',
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -672,7 +679,10 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                   TextButton.icon(
                     onPressed: () => _openDetails(id),
                     icon: const Icon(Icons.factory_rounded, size: 17),
-                    label: Text('أمر التشغيل', style: GoogleFonts.cairo()),
+                    label: Text(
+                      purchase ? 'أمر التوريد' : 'أمر التشغيل',
+                      style: GoogleFonts.cairo(),
+                    ),
                   ),
                   if (_can('canEditDueDate') && !delivered)
                     TextButton.icon(
