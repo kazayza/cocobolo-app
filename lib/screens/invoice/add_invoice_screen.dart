@@ -141,23 +141,39 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
   Future<void> _loadLookups() async {
     setState(() => _loading = true);
     try {
-      final results = await Future.wait<Object>([
-        InventoryService.getBranches(),
-        InventoryService.getAllWarehouses(),
-        http.get(Uri.parse('$baseUrl/api/cashbox/active')),
-      ]);
-      if (!mounted) return;
-      final cashBoxesResponse = results[2] as http.Response;
-      setState(() {
-        _branches = results[0] as List<dynamic>;
-        _warehouses = results[1] as List<dynamic>;
-        if (cashBoxesResponse.statusCode == 200) {
-          try {
-            _cashBoxes = jsonDecode(cashBoxesResponse.body) as List;
-          } catch (_) {
-            _cashBoxes = [];
+      // حمّل الفروع والمخازن بشكل منفصل — حتى لو فشل أحدهم لا يوقف الباقي (زي بلازور)
+      List<dynamic> branches = [];
+      List<dynamic> warehouses = [];
+      List<dynamic> cashBoxes = [];
+
+      try { branches = await InventoryService.getBranches(); } catch (_) {}
+      try { warehouses = await InventoryService.getAllWarehouses(); } catch (_) {}
+
+      // الخزائن: جرّب /active أولاً (مطابق لبلازور activeOnly:true) ثم fallback لـ /cashbox
+      try {
+        http.Response res = await http.get(Uri.parse('$baseUrl/api/cashbox/active'));
+        if (res.statusCode == 200) {
+          cashBoxes = jsonDecode(res.body) as List;
+        } else {
+          // fallback: كل الخزائن ثم فلترة النشط محلياً
+          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'));
+          if (fallback.statusCode == 200) {
+            final all = jsonDecode(fallback.body) as List;
+            cashBoxes = all.where((c) => c['IsActive'] == true || c['IsActive'] == 1 || c['IsActive'] == null).toList();
           }
         }
+      } catch (_) {
+        try {
+          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'));
+          if (fallback.statusCode == 200) cashBoxes = jsonDecode(fallback.body) as List;
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _branches = branches;
+        _warehouses = warehouses;
+        _cashBoxes = cashBoxes;
         if (_warehouses.isNotEmpty && _selectedWarehouseId == null) {
           _selectedWarehouseId = _warehouses.first['WarehouseID'] ?? _warehouses.first['WarehouseId'];
         }
@@ -271,20 +287,44 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
   Future<List<dynamic>> _searchParties(String query) async {
     if (query.trim().length < 1) return [];
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/clients/search?search=${Uri.encodeComponent(query)}'));
-      if (res.statusCode == 200) return jsonDecode(res.body) as List;
+      // استخدم ApiClient الموحد (يضيف التوكن تلقائياً) وبراميتر q المطابق للبلازور والـ API
+      final api = ApiClient.instance;
+      final res = await api.get('/api/clients/search', query: {'q': query.trim()});
+      if (res.statusCode == 200) {
+        final body = api.decode(res);
+        if (body is List) return body;
+        if (body is Map && body['data'] is List) return body['data'] as List;
+        return body as List;
+      }
+      // fallback: جرّب http المباشر لو ApiClient فشل
+      final fallback = await http.get(Uri.parse('$baseUrl/api/clients/search?q=${Uri.encodeComponent(query)}'));
+      if (fallback.statusCode == 200) return jsonDecode(fallback.body) as List;
     } catch (_) {}
     return [];
   }
 
   Future<List<dynamic>> _searchProducts(String query) async {
-    if (_selectedParty == null && !isPurchase) return [];
+    // للبيع: اسمح بالبحث حتى بدون عميل (منتجات المعرض موجودة دائماً — زي بلازور SearchShowroomProducts)
+    // للمشتريات: لا يحتاج عميل أصلاً
     if (_selectedWarehouseId == null) return [];
+    if (query.trim().length < 1) return [];
     try {
+      final api = ApiClient.instance;
+      final res = await api.get('/api/products', query: {
+        'search': query.trim(),
+        'warehouseId': _selectedWarehouseId,
+      });
+      if (res.statusCode == 200) {
+        final body = api.decode(res);
+        if (body is List) return body;
+        if (body is Map && body['data'] is List) return body['data'] as List;
+        return body as List;
+      }
+      // fallback http
       String url = '$baseUrl/api/products?search=${Uri.encodeComponent(query)}';
       if (_selectedWarehouseId != null) url += '&warehouseId=$_selectedWarehouseId';
-      final res = await http.get(Uri.parse(url));
-      if (res.statusCode == 200) return jsonDecode(res.body) as List;
+      final fallback = await http.get(Uri.parse(url));
+      if (fallback.statusCode == 200) return jsonDecode(fallback.body) as List;
     } catch (_) {}
     return [];
   }

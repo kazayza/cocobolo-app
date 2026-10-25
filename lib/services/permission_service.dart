@@ -543,6 +543,12 @@ class FormNames {
   static const String rpt_empAttendance = 'rpt_empAttendance';
   static const String myPermissions = 'frm_MyPermissions';
   static const String myschedule = 'frm_MySchedule';
+  static const String payrollList = 'frm_PayrollList';
+  static const String payslip = 'frm_Payslip';
+  static const String loansPage = 'frm_LoansPage';
+  static const String hrDashboard = 'frm_HRDashboard';
+  static const String offPayroll = 'frm_OffPayroll';
+  static const String offPayrollPayment = 'frm_PayrollPayment';
 
   // ═══════════════════════════════════════
   // 5. الخزينة
@@ -877,10 +883,31 @@ class MenuStructure {
             FormNames.myPermissions,
             Icons.assignment_turned_in,
           ),
-          //SubMenuItem('الرواتب الشهرية', FormNames.payroll, Icons.attach_money),
-          //SubMenuItem('العمولات', FormNames.commissions, Icons.percent),
-          //SubMenuItem('البصمة', FormNames.importBiometric, Icons.fingerprint),
-          //SubMenuItem('تسجيل راتب جماعي', FormNames.payrollProcessor, Icons.groups),
+          SubMenuItem(
+            'سجل المرتبات',
+            FormNames.payrollList,
+            Icons.payments_rounded,
+          ),
+          SubMenuItem(
+            'قسيمة الراتب',
+            FormNames.payslip,
+            Icons.receipt_long_rounded,
+          ),
+          SubMenuItem(
+            'السلف والأقساط',
+            FormNames.loansPage,
+            Icons.account_balance_wallet_rounded,
+          ),
+          SubMenuItem(
+            'لوحة HR',
+            FormNames.hrDashboard,
+            Icons.dashboard_customize_rounded,
+          ),
+          SubMenuItem(
+            'دفعات خارج الراتب',
+            FormNames.offPayroll,
+            Icons.card_giftcard_rounded,
+          ),
           SubMenuItem(
             'شيفتات الموظفين',
             FormNames.employeeShifts,

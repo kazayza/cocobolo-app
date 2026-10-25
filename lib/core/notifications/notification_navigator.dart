@@ -18,6 +18,11 @@ import '../../screens/additional_charges_screen.dart';
 import '../../screens/expenses/expense_dashboard_screen.dart';
 import '../../screens/lead_detail_screen.dart';
 import '../../screens/leads_screen.dart';
+import '../../screens/hr/payroll_list_screen.dart';
+import '../../screens/hr/payslip_screen.dart';
+import '../../screens/hr/loans_screen.dart';
+import '../../screens/hr/off_payroll_screen.dart';
+import '../../screens/hr/hr_dashboard_screen.dart';
 import '../../screens/my_schedule_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../screens/opportunities_screen.dart';
@@ -47,6 +52,9 @@ import '../../screens/lost_recovery_report_screen.dart';
 import '../../screens/customer_care_screen.dart';
 import '../../screens/customer_care_history_screen.dart';
 import '../../screens/executive_cockpit_screen.dart';
+import '../../screens/hr/payroll_list_screen.dart';
+import '../../screens/hr/off_payroll_screen.dart';
+import '../../screens/hr/payslip_screen.dart';
 import '../../screens/inventory/stock_transactions_screen.dart';
 import '../../screens/inventory/warehouses_screen.dart';
 import '../../screens/inventory/stock_transfer_screen.dart';
@@ -182,6 +190,13 @@ class NotificationNavigator {
         return p.canViewPurchaseReceipts;
       case MobileNotifTarget.additionalCharges:
         return p.canViewAdditionalCharges;
+      case MobileNotifTarget.payroll:
+      case MobileNotifTarget.payrollList:
+      case MobileNotifTarget.payslip:
+      case MobileNotifTarget.loans:
+      case MobileNotifTarget.offPayroll:
+      case MobileNotifTarget.hrDashboard:
+        return true; // HR: الجميع يرى حسب دوره — البلازور يتحقق عبر Claim لاحقاً
       case MobileNotifTarget.complaintsList:
       case MobileNotifTarget.complaintDetail:
         return p.userId != null; // ComplaintPermissions.CanView
@@ -364,6 +379,17 @@ class NotificationNavigator {
         return StockTransferScreen(userId: userId, username: username);
       case MobileNotifTarget.executiveCockpit:
         return ExecutiveCockpitScreen(userId: userId, username: username);
+      case MobileNotifTarget.payrollList:
+      case MobileNotifTarget.payroll:
+        return PayrollListScreen(userId: userId, username: username);
+      case MobileNotifTarget.payslip:
+        return PayslipScreen(payrollId: d.relatedId ?? 0, username: username);
+      case MobileNotifTarget.loans:
+        return LoansScreen(userId: userId, username: username);
+      case MobileNotifTarget.offPayroll:
+        return OffPayrollScreen(userId: userId, username: username);
+      case MobileNotifTarget.hrDashboard:
+        return HrDashboardScreen(userId: userId, username: username);
       case MobileNotifTarget.mySchedule:
         return MyScheduleScreen(userId: userId, username: username);
       case MobileNotifTarget.home:

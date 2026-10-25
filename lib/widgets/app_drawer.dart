@@ -56,6 +56,11 @@ import '../screens/exemptions_screen.dart';
 import '../screens/attendance_report_screen.dart';
 import '../screens/permissions_list_screen.dart';
 import '../screens/complaints_screen.dart';
+import '../screens/hr/payroll_list_screen.dart';
+import '../screens/hr/payslip_screen.dart';
+import '../screens/hr/loans_screen.dart';
+import '../screens/hr/hr_dashboard_screen.dart';
+import '../screens/hr/off_payroll_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
 import '../screens/purchase_receipts_screen.dart';
 import '../screens/additional_charges_screen.dart';
@@ -176,6 +181,14 @@ class _AppDrawerState extends State<AppDrawer> {
 
   bool _canViewMenu(String formName) {
     final perms = PermissionService();
+    // HR الجديد — يظهر للأدمن ومدير HR ومدير الحسابات والمدير العام حتى لو الصلاحية غير مفعلة بعد
+    if (formName == FormNames.payrollList ||
+        formName == FormNames.payslip ||
+        formName == FormNames.loansPage ||
+        formName == FormNames.hrDashboard ||
+        formName == FormNames.offPayroll) {
+      return perms.canSeeAllHR || perms.isAdmin || perms.isAccountManager || perms.isGeneralManager;
+    }
     if (formName == 'frmCrmTasksLegacy') {
       // Legacy CRM tasks list: same audience as daily tasks / opportunities
       return perms.canView(FormNames.dailyTasks) ||
@@ -1577,6 +1590,37 @@ class _AppDrawerState extends State<AppDrawer> {
         break;
       case 'rpt_empAttendance':
         screen = AttendanceReportScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_PayrollList':
+        screen = PayrollListScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_Payslip':
+        screen = PayrollListScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_LoansPage':
+        screen = LoansScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_HRDashboard':
+        screen = HrDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_OffPayroll':
+      case 'frm_PayrollPayment':
+        screen = OffPayrollScreen(
           userId: widget.userId,
           username: widget.username,
         );

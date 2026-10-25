@@ -68,6 +68,11 @@ class AppRoutes {
   static const String lostRecovery = '/lost-recovery';
   static const String exemptions = '/exemptions';
   static const String personalAccounts = '/personal-accounts';
+  // HR الجديد
+  static const String hrPayroll = '/hr/payroll';
+  static const String hrPayslip = '/hr/payslip';
+  static const String hrLoans = '/hr/loans';
+  static const String hrDashboard = '/hr/dashboard';
 
   /// جميع المسارات للنشر في MaterialApp.
   static Map<String, WidgetBuilder> get all => {
@@ -132,6 +137,10 @@ class AppRoutes {
         lostRecovery: (_) => const LostRecoveryScreenPlaceholder(),
         exemptions: (_) => const ExemptionsScreenPlaceholder(),
         personalAccounts: (_) => const PersonalAccountsScreenPlaceholder(),
+        hrPayroll: (_) => const HrPayrollScreenPlaceholder(),
+        hrPayslip: (_) => const HrPayslipScreenPlaceholder(),
+        hrLoans: (_) => const HrLoansScreenPlaceholder(),
+        hrDashboard: (_) => const HrDashboardScreenPlaceholder(),
       };
 
   /// التنقل باسم المسار مع تمرير аргументы اختيارية.
@@ -580,4 +589,24 @@ class PersonalAccountsScreenPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => const Scaffold(
         body: Center(child: Text('الحسابات الشخصية — قيد الترحيل')),
       );
+}
+class HrPayrollScreenPlaceholder extends StatelessWidget {
+  const HrPayrollScreenPlaceholder({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('سجل المرتبات — قيد الترحيل')));
+}
+class HrPayslipScreenPlaceholder extends StatelessWidget {
+  const HrPayslipScreenPlaceholder({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('قسيمة الراتب — قيد الترحيل')));
+}
+class HrLoansScreenPlaceholder extends StatelessWidget {
+  const HrLoansScreenPlaceholder({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('السلف — قيد الترحيل')));
+}
+class HrDashboardScreenPlaceholder extends StatelessWidget {
+  const HrDashboardScreenPlaceholder({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('لوحة HR — قيد الترحيل')));
 }

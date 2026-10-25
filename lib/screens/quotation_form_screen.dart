@@ -194,16 +194,25 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
 
   Future<void> _loadPartyData() async {
     if (_partyId == null) return;
-    final lookups = await _service.getLookups(partyId: _partyId);
-    final opportunities = ((lookups['opportunities'] as List?) ??
-            const <dynamic>[])
-        .map<Map<String, dynamic>>(_map)
-        .toList();
-    if (!mounted) return;
-    setState(() {
-      _opportunities = opportunities;
-    });
-    await _loadProducts();
+    try {
+      final lookups = await _service.getLookups(partyId: _partyId);
+      if (!mounted) return;
+      final opportunities = ((lookups['opportunities'] as List?) ?? const <dynamic>[])
+          .map<Map<String, dynamic>>(_map)
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _opportunities = opportunities;
+        // لو الفرصة الحالية غير موجودة في القائمة الجديدة، أعد ضبطها لـ null لتجنب assert
+        if (_opportunityId != null &&
+            !_opportunities.any((o) => _int(o['OpportunityID']) == _opportunityId)) {
+          // احتفظ بالقيمة — سيضيفها _opportunityItems كعنصر احتياطي، لكن لو كانت null خلاص
+        }
+      });
+      await _loadProducts();
+    } catch (_) {
+      if (!mounted) return;
+    }
   }
 
   Future<void> _loadProducts({String search = ''}) async {
@@ -241,6 +250,8 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                   }
                   return;
                 }
+                if (!sheetContext.mounted) return;
+                if (!sheetContext.mounted) return;
                 setSheetState(() => searching = true);
                 try {
                   final data = await _service.getLookups(search: value.trim());
@@ -341,11 +352,15 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
       ),
     );
     debounce?.cancel();
-    // تأجيل تحرير الـ controller: الـ bottom sheet ما زال في شجرة الـ widgets
-    // أثناء أنيميشن الإغلاق، وتحريره فوراً يسبب استثناء "controller used after
-    // being disposed" الذي يظهر كشاشة حمراء.
-    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-    if (chosen == null || !mounted) return;
+    Future.delayed(const Duration(milliseconds: 350), () {
+      try { controller.dispose(); } catch (_) {}
+    });
+    if (chosen == null) {
+      await Future.delayed(const Duration(milliseconds: 80));
+      if (!mounted) return;
+      return;
+    }
+    if (!mounted) return;
 
     // إزالة الأصناف من الشجرة أولاً ثم تحرير الـ controllers الخاصة بها.
     final staleItems = List<_QuotationItem>.from(_items);
@@ -1319,14 +1334,19 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
         if (_partyId != null) ...<Widget>[
           const SizedBox(height: 11),
           DropdownButtonFormField<int?>(
-            key: ValueKey<int?>(_opportunityId),
-            initialValue: _opportunityId,
+            // بدون ValueKey — تغيير الـ key كان يسبب _dependents.isEmpty عند اختيار عميل جديد
+            initialValue: _opportunities.any((o) => _int(o['OpportunityID']) == _opportunityId)
+                ? _opportunityId
+                : null,
             isExpanded: true,
             dropdownColor: _cardColor,
             decoration: _decoration(
                 'فرصة البيع (اختياري)', Icons.track_changes_rounded),
             items: _opportunityItems(),
-            onChanged: (int? value) => setState(() => _opportunityId = value),
+            onChanged: (int? value) {
+              if (!mounted) return;
+              setState(() => _opportunityId = value);
+            },
           ),
         ],
       ],

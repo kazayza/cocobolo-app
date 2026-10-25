@@ -74,6 +74,9 @@ class BlazorFormNames {
   static const executiveCockpit = 'executive-cockpit';
   static const frmPermissionsList = 'frm_PermissionsList';
   static const frmMySchedule = 'frm_MySchedule';
+  static const frmOffPayroll = 'frm_OffPayroll';
+  static const frmPayrollPayment = 'frm_PayrollPayment';
+  static const frmPayroll = 'frm_Payroll';
 
   // ── Mobile-era aliases (accept for backward compatibility) ──
   static const aliasLeadDetail = 'lead_detail_screen';
@@ -111,6 +114,12 @@ enum MobileNotifTarget {
   deliveryDetail,
   purchaseReceipts,
   additionalCharges,
+  payroll,
+  payrollList,
+  payslip,
+  loans,
+  offPayroll,
+  hrDashboard,
   attendance,
   tasks,
   pipeline,
@@ -313,6 +322,23 @@ class BlazorNotificationRouter {
         relatedTable: relatedTable,
         rawFormName: formName,
       );
+    }
+
+    // HR — مطابق للبلازور frm_Payroll / frm_PayrollPayment / frm_OffPayroll
+    if (formName == BlazorFormNames.frmPayroll || formName == 'frm_Payroll' || formName == 'hr/payroll') {
+      return NotifRouteDecision(target: MobileNotifTarget.payrollList, relatedId: relatedId, relatedTable: relatedTable, rawFormName: formName);
+    }
+    if (formName == BlazorFormNames.frmPayrollPayment || formName == 'frm_PayrollPayment') {
+      return NotifRouteDecision(target: MobileNotifTarget.payslip, relatedId: relatedId, relatedTable: relatedTable, rawFormName: formName);
+    }
+    if (formName == BlazorFormNames.frmOffPayroll || formName == 'frm_OffPayroll') {
+      return NotifRouteDecision(target: MobileNotifTarget.offPayroll, relatedId: relatedId, relatedTable: relatedTable, rawFormName: formName);
+    }
+    if (formName == 'frm_LoansPage' || formName == 'hr/loans') {
+      return NotifRouteDecision(target: MobileNotifTarget.loans, relatedId: relatedId, relatedTable: relatedTable, rawFormName: formName);
+    }
+    if (formName == 'frm_HRDashboard' || formName == 'hr/dashboard') {
+      return NotifRouteDecision(target: MobileNotifTarget.hrDashboard, relatedId: relatedId, relatedTable: relatedTable, rawFormName: formName);
     }
 
     if (formLower.contains('sales/invoices')) {
