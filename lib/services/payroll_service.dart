@@ -6,18 +6,20 @@ import '../core/network/api_client.dart';
 class PayrollService {
   final ApiClient _api = ApiClient.instance;
 
-  Future<List<dynamic>> getByMonth(String month) async {
+  Future<List<dynamic>> getByMonth(String? month) async {
     try {
-      final res = await _api.get('/api/payroll', query: {'month': month});
+      final res = await _api.get('/api/payroll', query: month != null ? {'month': month} : null);
       if (res.statusCode == 200) {
         final data = _api.decode(res);
         if (data is List) return data;
         if (data is Map && data['data'] is List) return data['data'];
+        if (data is Map && data['items'] is List) return data['items'];
         return [];
       }
     } catch (_) {}
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/payroll?month=$month'));
+      final url = month != null ? '$baseUrl/api/payroll?month=$month' : '$baseUrl/api/payroll';
+      final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) return jsonDecode(res.body) as List;
     } catch (_) {}
     return [];

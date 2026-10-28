@@ -71,7 +71,7 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
     try {
       final results = await Future.wait([
         _service.getMonths(),
-        _service.getByMonth(_selectedMonth ?? DateFormat('yyyy-MM').format(DateTime.now())),
+        _service.getByMonth(_selectedMonth),
         _service.getStats(_selectedMonth),
       ]);
       if (!mounted) return;
@@ -552,7 +552,10 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
                 ]),
               ),
               Expanded(child: Text('${row['PayrollMonth'] ?? row['Month'] ?? ''}', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10))),
-              Expanded(child: Text('${_formatMoney(row['NetSalary'] ?? row['TotalNet'] ?? 0)} ج', style: GoogleFonts.cairo(color: const Color(0xFFD4AF37), fontSize: 10, fontWeight: FontWeight.bold))),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
+                Text('${_formatMoney(row['GrossSalary'] ?? row['BasicSalary'] ?? 0)} ج', style: GoogleFonts.cairo(color: const Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
+                Text('خصم ${_formatMoney(row['TotalDeductions'] ?? 0)}', style: GoogleFonts.cairo(color: const Color(0xFFEF4444), fontSize: 8)),
+              ])),
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

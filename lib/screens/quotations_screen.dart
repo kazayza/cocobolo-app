@@ -146,6 +146,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   void _onSearch(String value) {
+    setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 420), () {
       _search = value;
@@ -208,163 +209,141 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     _load();
   }
 
+  // ===========================================================================
+  // 🎨 الواجهة الرسومية العصرية (Executive CRM Quotations Hub)
+  // ===========================================================================
+
   @override
   Widget build(BuildContext context) {
+    final bgColor =
+        _isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9);
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: AppColors.background(_isDark),
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          title: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.request_quote_rounded,
+                  color: AppColors.gold,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'إدارة عروض الأسعار',
+                    style: GoogleFonts.cairo(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15.5,
+                    ),
+                  ),
+                  Text(
+                    _can('isCostOnlyViewer')
+                        ? 'مراجعة التكاليف الفنية للأصناف'
+                        : 'متابعة العروض والتحويل للفواتير',
+                    style: GoogleFonts.cairo(
+                      fontSize: 10,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            if (_can('canExport'))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: IconButton.filledTonal(
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.1),
+                    foregroundColor: AppColors.gold,
+                  ),
+                  tooltip: 'تصدير لتقرير Excel',
+                  onPressed: _exporting ? null : _exportExcel,
+                  icon: _exporting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.gold,
+                          ),
+                        )
+                      : const Icon(Icons.table_view_rounded, size: 20),
+                ),
+              ),
+            IconButton(
+              tooltip: 'تحديث البيانات',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.sync_rounded),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
         body: NestedScrollView(
           headerSliverBuilder:
               (BuildContext context, bool innerBoxIsScrolled) => <Widget>[
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 152,
-              backgroundColor: AppColors.navy,
-              foregroundColor: Colors.white,
-              title: Text(
-                'عروض الأسعار',
-                style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              actions: <Widget>[
-                if (_can('canExport'))
-                  IconButton(
-                    tooltip: 'تصدير Excel',
-                    onPressed: _exporting ? null : _exportExcel,
-                    icon: _exporting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.file_download_rounded),
-                  ),
-                IconButton(
-                  tooltip: 'تحديث',
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                collapseMode: CollapseMode.pin,
-                background: _hero(),
-              ),
-            ),
-            SliverToBoxAdapter(child: _controls()),
-            SliverToBoxAdapter(child: _kpiRow()),
+            SliverToBoxAdapter(child: _buildExecutiveHeaderAndKpis()),
+            SliverToBoxAdapter(child: _buildModernControls()),
           ],
           body: _body(),
         ),
         floatingActionButton: _can('canAdd')
             ? FloatingActionButton.extended(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.navy,
+                backgroundColor: AppColors.navy,
+                foregroundColor: Colors.white,
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: AppColors.gold.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
                 onPressed: _openNew,
-                icon: const Icon(Icons.add_rounded),
+                icon: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.post_add_rounded,
+                    color: AppColors.gold,
+                    size: 20,
+                  ),
+                ),
                 label: Text(
-                  'عرض جديد',
-                  style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+                  'إنشاء عرض سعر',
+                  style: GoogleFonts.cairo(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13.5,
+                  ),
                 ),
               )
                 .animate()
-                .fadeIn(delay: 250.ms)
-                .scale(begin: const Offset(0.9, 0.9))
+                .fadeIn(delay: 200.ms)
+                .scale(begin: const Offset(0.92, 0.92))
             : null,
-      ),
-    );
-  }
-
-  Widget _hero() {
-    final masked = _can('isCostOnlyViewer');
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: <Color>[
-            AppColors.navyDark,
-            AppColors.navy,
-            AppColors.navyLight,
-          ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-      ),
-      child: Stack(
-        children: <Widget>[
-          Positioned(
-            left: -35,
-            top: -45,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(alpha: 0.13),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AppColors.gold.withValues(alpha: 0.32),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.description_rounded,
-                          color: AppColors.gold,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              masked ? 'عرض التكاليف' : 'إدارة دورة العرض',
-                              style: GoogleFonts.cairo(
-                                color: AppColors.goldLight,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            Text(
-                              masked
-                                  ? 'العروض الجارية وتكلفة أصنافها'
-                                  : 'من المسودة حتى التحويل إلى فاتورة',
-                              style: GoogleFonts.cairo(
-                                color: Colors.white70,
-                                fontSize: 10.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -376,42 +355,42 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     return '${NumberFormat('#,##0').format(amount)} ج';
   }
 
-  /// صف بطاقات إحصائية مستقل أسفل الهيدر — متناسق مع بقية شاشات التطبيق.
-  Widget _kpiRow() {
+  // 1️⃣ لوحة المؤشرات التنفيذية المدمجة (Executive Bento KPI Banner)
+  Widget _buildExecutiveHeaderAndKpis() {
     final masked = _can('isCostOnlyViewer');
     final cards = masked
         ? <_KpiSpec>[
             const _KpiSpec(
-              icon: Icons.inventory_2_rounded,
+              icon: Icons.all_inbox_rounded,
               label: 'العروض الجارية',
               color: AppColors.gold,
             ),
             const _KpiSpec(
-              icon: Icons.insert_drive_file_rounded,
-              label: 'مسودة',
-              color: AppColors.neutral,
+              icon: Icons.edit_note_rounded,
+              label: 'قيد المسودة',
+              color: Colors.amberAccent,
             ),
           ]
         : <_KpiSpec>[
             const _KpiSpec(
-              icon: Icons.account_balance_wallet_rounded,
+              icon: Icons.payments_rounded,
               label: 'إجمالي القيمة',
               color: AppColors.gold,
             ),
             const _KpiSpec(
-              icon: Icons.people_alt_rounded,
+              icon: Icons.groups_2_rounded,
               label: 'العملاء',
-              color: AppColors.info,
+              color: Color(0xFF38BDF8),
             ),
             const _KpiSpec(
-              icon: Icons.trending_up_rounded,
-              label: 'نسبة التحويل',
-              color: AppColors.success,
+              icon: Icons.auto_graph_rounded,
+              label: 'معدل التحويل',
+              color: Color(0xFF4ADE80),
             ),
             const _KpiSpec(
-              icon: Icons.description_rounded,
+              icon: Icons.layers_rounded,
               label: 'إجمالي العروض',
-              color: AppColors.neutral,
+              color: Color(0xFFC084FC),
             ),
           ];
 
@@ -427,33 +406,45 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             '${_int(_stats['TotalCount'])}',
           ];
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[
+            AppColors.navy,
+            Color(0xFF1E293B),
+          ],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.navy.withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Row(
         children: <Widget>[
           for (var i = 0; i < cards.length; i++) ...<Widget>[
             if (i > 0) const SizedBox(width: 8),
-            Expanded(child: _kpiCard(cards[i], values[i])),
+            Expanded(child: _buildGlassKpiTile(cards[i], values[i])),
           ],
         ],
       ),
     );
   }
 
-  Widget _kpiCard(_KpiSpec spec, String value) {
+  Widget _buildGlassKpiTile(_KpiSpec spec, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider(_isDark)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +454,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: spec.color.withValues(alpha: 0.13),
+              color: spec.color.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(spec.icon, size: 16, color: spec.color),
@@ -475,9 +466,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             child: Text(
               value,
               style: GoogleFonts.cairo(
-                color: _textColor,
+                color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
+                height: 1.1,
               ),
             ),
           ),
@@ -487,8 +479,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.cairo(
-              color: _secondaryTextColor,
-              fontSize: 9,
+              color: Colors.white70,
+              fontSize: 9.5,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -497,62 +489,66 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     );
   }
 
-  Widget _controls() {
+  // 2️⃣ شريط البحث والفلاتر الذكية (Modern Search & Pill Filters)
+  Widget _buildModernControls() {
     final quicks = <(String, String, int, IconData, Color)>[
       (
         'all',
         'الكل',
         _int(_stats['TotalCount']),
-        Icons.dashboard_rounded,
-        AppColors.neutral
+        Icons.grid_view_rounded,
+        AppColors.navy
       ),
       (
         'accepted',
         'مقبول',
         _int(_stats['AcceptedCount']),
-        Icons.check_circle_rounded,
+        Icons.verified_rounded,
         AppColors.success
+      ),
+      (
+        'converted',
+        'محوّل لفاتورة',
+        _int(_stats['ConvertedCount']),
+        Icons.price_check_rounded,
+        Colors.teal
+      ),
+      (
+        'pending',
+        'قيد الانتظار',
+        _int(_stats['DraftCount']) + _int(_stats['SentCount']),
+        Icons.pending_actions_rounded,
+        AppColors.warning
       ),
       (
         'rejected',
         'مرفوض',
         _int(_stats['RejectedCount']),
-        Icons.cancel_rounded,
+        Icons.do_not_disturb_on_rounded,
         AppColors.error
       ),
       (
-        'converted',
-        'محوّل',
-        _int(_stats['ConvertedCount']),
-        Icons.assignment_turned_in_rounded,
-        AppColors.info
-      ),
-      (
-        'pending',
-        'انتظار',
-        _int(_stats['DraftCount']) + _int(_stats['SentCount']),
-        Icons.hourglass_bottom_rounded,
-        AppColors.warning
-      ),
-      (
         'expired',
-        'منتهي',
+        'منتهي الصلاحية',
         _int(_stats['ExpiredCount']),
-        Icons.timer_off_rounded,
-        AppColors.errorLight
+        Icons.history_toggle_off_rounded,
+        Colors.deepOrange
       ),
     ];
+
+    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.divider(_isDark)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.04),
-            blurRadius: 14,
+            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.03),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -565,15 +561,22 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 child: TextField(
                   controller: _searchController,
                   onChanged: _onSearch,
-                  style: GoogleFonts.cairo(color: _textColor, fontSize: 13),
+                  style: GoogleFonts.cairo(
+                    color: _textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
-                    hintText: 'بحث بالعميل أو الهاتف أو رقم العرض',
+                    hintText: 'ابحث باسم العميل، الهاتف، أو رقم العرض...',
                     hintStyle: GoogleFonts.cairo(
                       color: AppColors.textHint(_isDark),
-                      fontSize: 10.5,
+                      fontSize: 11,
                     ),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        color: AppColors.goldDark),
+                    prefixIcon: const Icon(
+                      Icons.manage_search_rounded,
+                      color: AppColors.goldDark,
+                      size: 22,
+                    ),
                     suffixIcon: _searchController.text.isEmpty
                         ? null
                         : IconButton(
@@ -582,43 +585,78 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                               _search = '';
                               _load();
                             },
-                            icon: const Icon(Icons.close_rounded, size: 18),
+                            icon: const Icon(Icons.cancel_rounded, size: 18),
                           ),
                     filled: true,
-                    fillColor: AppColors.inputFill(_isDark),
+                    fillColor: _isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(color: AppColors.divider(_isDark)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(13),
-                      borderSide: const BorderSide(color: AppColors.gold),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(color: AppColors.gold, width: 1.4),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filledTonal(
-                tooltip: 'فلاتر التاريخ والحالة',
-                onPressed: _openFilters,
-                icon: const Icon(Icons.tune_rounded),
+              InkWell(
+                onTap: _openFilters,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  height: 46,
+                  width: 46,
+                  decoration: BoxDecoration(
+                    color: _hasFilters
+                        ? AppColors.gold.withValues(alpha: 0.18)
+                        : AppColors.navy.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _hasFilters
+                          ? AppColors.gold
+                          : AppColors.divider(_isDark),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.filter_list_rounded,
+                    color: _hasFilters ? AppColors.goldDark : _textColor,
+                    size: 21,
+                  ),
+                ),
               ),
               if (_hasFilters) ...<Widget>[
-                const SizedBox(width: 4),
-                IconButton(
-                  tooltip: 'مسح الفلاتر',
-                  onPressed: _resetFilters,
-                  icon: const Icon(Icons.filter_alt_off_rounded,
-                      color: AppColors.error),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: _resetFilters,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    height: 46,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.filter_alt_off_rounded,
+                      color: AppColors.error,
+                      size: 19,
+                    ),
+                  ),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -631,7 +669,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                     icon: item.$4,
                     color: item.$5,
                   ),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 8),
                 ];
               }).toList(),
             ),
@@ -659,34 +697,62 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     required Color color,
   }) {
     final active = _quickActive(keyName);
+    final effectiveColor =
+        (keyName == 'all' && _isDark) ? AppColors.gold : color;
+
     return InkWell(
       onTap: () => _applyQuick(keyName),
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
           color: active
-              ? color.withValues(alpha: 0.12)
-              : AppColors.inputFill(_isDark),
+              ? effectiveColor.withValues(alpha: 0.14)
+              : (_isDark
+                  ? Colors.white.withValues(alpha: 0.03)
+                  : const Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: active
-                ? color.withValues(alpha: 0.45)
+                ? effectiveColor.withValues(alpha: 0.5)
                 : AppColors.divider(_isDark),
+            width: active ? 1.3 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, color: color, size: 15),
-            const SizedBox(width: 5),
+            Icon(
+              icon,
+              color: active ? effectiveColor : _secondaryTextColor,
+              size: 15,
+            ),
+            const SizedBox(width: 6),
             Text(
-              '$label $count',
+              label,
               style: GoogleFonts.cairo(
-                color: active ? color : _secondaryTextColor,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
+                color: active ? _textColor : _secondaryTextColor,
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: active
+                    ? effectiveColor
+                    : Colors.grey.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$count',
+                style: GoogleFonts.cairo(
+                  color: active ? Colors.white : _secondaryTextColor,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ],
@@ -707,7 +773,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       onRefresh: _load,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 92),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
         itemCount: _rows.length + (_hasMore ? 1 : 0),
         itemBuilder: (BuildContext context, int index) {
           if (index == _rows.length) return _loadMoreButton();
@@ -724,7 +790,15 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(Icons.cloud_off_rounded, size: 50, color: AppColors.error),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cloud_off_rounded,
+                  size: 46, color: AppColors.error),
+            ),
             const SizedBox(height: 12),
             Text(
               'تعذر تحميل عروض الأسعار',
@@ -743,6 +817,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.navy,
+                foregroundColor: Colors.white,
+              ),
               onPressed: _load,
               icon: const Icon(Icons.refresh_rounded),
               label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
@@ -758,26 +836,39 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(30),
       children: <Widget>[
-        const SizedBox(height: 80),
-        const Icon(Icons.description_outlined,
-            size: 70, color: AppColors.goldDark),
-        const SizedBox(height: 14),
+        const SizedBox(height: 60),
+        Center(
+          child: Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.request_quote_outlined,
+              size: 44,
+              color: AppColors.goldDark,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Text(
           'لا توجد عروض أسعار مطابقة',
           textAlign: TextAlign.center,
           style: GoogleFonts.cairo(
             color: _textColor,
             fontSize: 17,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 7),
+        const SizedBox(height: 6),
         Text(
           _hasFilters
-              ? 'جرّب مسح أو تعديل الفلاتر.'
-              : 'ابدأ بإنشاء أول عرض سعر.',
+              ? 'جرّب مسح الفلاتر الحالية أو البحث بكلمات أخرى.'
+              : 'ابدأ الآن بإنشاء أول عرض سعر لعملائك.',
           textAlign: TextAlign.center,
-          style: GoogleFonts.cairo(color: _secondaryTextColor),
+          style: GoogleFonts.cairo(color: _secondaryTextColor, fontSize: 12),
         ),
       ],
     );
@@ -786,8 +877,14 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   Widget _loadMoreButton() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.goldDark,
+            side: const BorderSide(color: AppColors.gold),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
           onPressed: _loadingMore ? null : () => _load(append: true),
           icon: _loadingMore
               ? const SizedBox(
@@ -795,222 +892,347 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                   height: 17,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.expand_more_rounded),
+              : const Icon(Icons.keyboard_double_arrow_down_rounded),
           label: Text(
-            _loadingMore ? 'جاري التحميل...' : 'تحميل المزيد',
-            style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+            _loadingMore ? 'جاري التحميل...' : 'عرض المزيد من السجلات',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
           ),
         ),
       ),
     );
   }
 
+  // 3️⃣ بطاقة عرض السعر التنفيذية (Executive Quotation Card)
   Widget _quotationCard(Map<String, dynamic> row, int index) {
     final id = _int(row['QuotationID']);
     final status = '${row['Status'] ?? 'Draft'}';
     final converted = row['InvoiceID'] != null;
     final expired = _isExpired(row);
     final masked = _bool(row['PricesMasked']);
-    final statusColor = _statusColor(converted ? 'Converted' : status);
+    final effectiveStatus = converted ? 'Converted' : status;
+    final statusColor = _statusColor(effectiveStatus);
     final date = DateTime.tryParse('${row['QuotationDate'] ?? ''}');
+    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: converted
+              ? Colors.teal.withValues(alpha: 0.35)
+              : AppColors.divider(_isDark),
+        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: _isDark ? 0.15 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(17),
-          onTap: () => _openDetails(id),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.11),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        _statusIcon(converted ? 'Converted' : status),
-                        color: statusColor,
-                        size: 21,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openDetails(id),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  // الشريط الجانبي الملون المعبر عن حالة العرض
+                  Container(
+                    width: 5,
+                    color: statusColor,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
+                          // السطر العلوي: أيقونة فخمة + رقم المرجع والتاريخ + شارة الحالة
                           Row(
                             children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  '${row['ReferenceNumber'] ?? 'QT-${date?.year ?? ''}-$id'}',
-                                  style: AppTextStyles.titleMedium(_isDark)
-                                      .copyWith(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w900,
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: statusColor.withValues(alpha: 0.25),
                                   ),
                                 ),
+                                child: Icon(
+                                  _statusIcon(effectiveStatus),
+                                  color: statusColor,
+                                  size: 21,
+                                ),
                               ),
-                              _statusBadge(converted ? 'Converted' : status),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      '${row['ReferenceNumber'] ?? 'QT-${date?.year ?? ''}-$id'}',
+                                      style: GoogleFonts.cairo(
+                                        color: _textColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: <Widget>[
+                                        Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 11,
+                                          color: _secondaryTextColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          date == null
+                                              ? ''
+                                              : DateFormat('yyyy/MM/dd')
+                                                  .format(date.toLocal()),
+                                          style: GoogleFonts.cairo(
+                                            color: _secondaryTextColor,
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _statusBadge(effectiveStatus),
                               if (expired) ...<Widget>[
                                 const SizedBox(width: 5),
                                 _statusBadge('Expired'),
                               ],
                             ],
                           ),
-                          Text(
-                            date == null
-                                ? ''
-                                : DateFormat('yyyy/MM/dd')
-                                    .format(date.toLocal()),
-                            style: GoogleFonts.cairo(
-                              color: _secondaryTextColor,
-                              fontSize: 9.5,
+                          const SizedBox(height: 12),
+                          // الكبسولة الوسطى: بيانات العميل + الإجمالي المالي
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _isDark
+                                  ? Colors.white.withValues(alpha: 0.03)
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border:
+                                  Border.all(color: AppColors.divider(_isDark)),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.navy,
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                  child: Text(
+                                    _initial('${row['PartyName'] ?? ''}'),
+                                    style: GoogleFonts.cairo(
+                                      color: AppColors.gold,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        '${row['PartyName'] ?? 'عميل غير محدد'}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.cairo(
+                                          color: _textColor,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      if ('${row['PartyPhone'] ?? ''}'
+                                          .trim()
+                                          .isNotEmpty)
+                                        Text(
+                                          '📞 ${row['PartyPhone']}',
+                                          style: GoogleFonts.cairo(
+                                            color: _secondaryTextColor,
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (!masked)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: <Widget>[
+                                      Text(
+                                        '${_money(row['GrandTotal'])} ج.م',
+                                        style: GoogleFonts.cairo(
+                                          color: _isDark
+                                              ? AppColors.gold
+                                              : AppColors.navy,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      if (_can('canViewCost') &&
+                                          row['TotalCost'] != null)
+                                        Text(
+                                          'التكلفة: ${_money(row['TotalCost'])} ج',
+                                          style: GoogleFonts.cairo(
+                                            color: _secondaryTextColor,
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                    ],
+                                  )
+                                else if (row['TotalCost'] != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'التكلفة: ${_money(row['TotalCost'])} ج',
+                                      style: GoogleFonts.cairo(
+                                        color: AppColors.warning,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 11),
-                Row(
-                  children: <Widget>[
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppColors.gold.withValues(alpha: 0.14),
-                      child: Text(
-                        _initial('${row['PartyName'] ?? ''}'),
-                        style: GoogleFonts.cairo(
-                          color: AppColors.goldDark,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            '${row['PartyName'] ?? 'عميل غير محدد'}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.titleMedium(_isDark)
-                                .copyWith(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            '${row['PartyPhone'] ?? ''}',
-                            style: GoogleFonts.cairo(
-                              color: _secondaryTextColor,
-                              fontSize: 9.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!masked)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: <Widget>[
-                          Text(
-                            '${_money(row['GrandTotal'])} ج.م',
-                            style: GoogleFonts.cairo(
-                              color: AppColors.goldDark,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          if (_can('canViewCost') && row['TotalCost'] != null)
-                            Text(
-                              'تكلفة ${_money(row['TotalCost'])}',
-                              style: GoogleFonts.cairo(
-                                color: _secondaryTextColor,
-                                fontSize: 8.5,
+                          const SizedBox(height: 10),
+                          // شارات المعلومات السريعة (Metadata Chips)
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 6,
+                            children: <Widget>[
+                              _infoChip(
+                                Icons.layers_outlined,
+                                '${_int(row['ItemsCount'])} أصناف',
                               ),
-                            ),
+                              _infoChip(
+                                Icons.workspace_premium_rounded,
+                                _tierLabel('${row['PricingType'] ?? 'Premium'}'),
+                              ),
+                              if (_int(row['MaxManufacturingDays']) > 0)
+                                _infoChip(
+                                  Icons.precision_manufacturing_rounded,
+                                  '${_int(row['MaxManufacturingDays'])} يوم تصنيع',
+                                ),
+                              if ('${row['EmpName'] ?? ''}'.isNotEmpty)
+                                _infoChip(
+                                  Icons.badge_outlined,
+                                  '${row['EmpName']}',
+                                ),
+                              if (converted &&
+                                  '${row['InvoiceReference'] ?? ''}'.isNotEmpty)
+                                _infoChip(
+                                  Icons.receipt_long_rounded,
+                                  'فاتورة ${row['InvoiceReference']}',
+                                  highlightColor: Colors.teal,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          const Divider(height: 1),
+                          const SizedBox(height: 8),
+                          // شريط الإجراءات السفلية للكارت
+                          Row(
+                            children: <Widget>[
+                              InkWell(
+                                onTap: () => _openDetails(id),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  child: Row(
+                                    children: <Widget>[
+                                      const Icon(
+                                        Icons.visibility_outlined,
+                                        size: 16,
+                                        color: AppColors.info,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        'استعراض التفاصيل',
+                                        style: GoogleFonts.cairo(
+                                          color: AppColors.info,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (_can('canEdit') && !converted) ...<Widget>[
+                                const SizedBox(width: 12),
+                                InkWell(
+                                  onTap: () => _openEdit(id),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    child: Row(
+                                      children: <Widget>[
+                                        const Icon(
+                                          Icons.edit_note_rounded,
+                                          size: 18,
+                                          color: AppColors.goldDark,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'تعديل',
+                                          style: GoogleFonts.cairo(
+                                            color: AppColors.goldDark,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: 13,
+                                color: _secondaryTextColor,
+                              ),
+                            ],
+                          ),
                         ],
-                      )
-                    else if (row['TotalCost'] != null)
-                      Text(
-                        'تكلفة ${_money(row['TotalCost'])} ج',
-                        style: GoogleFonts.cairo(
-                          color: AppColors.warning,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    _infoChip(
-                      Icons.inventory_2_rounded,
-                      '${_int(row['ItemsCount'])} صنف',
                     ),
-                    _infoChip(
-                      Icons.workspace_premium_rounded,
-                      _tierLabel('${row['PricingType'] ?? 'Premium'}'),
-                    ),
-                    if (_int(row['MaxManufacturingDays']) > 0)
-                      _infoChip(
-                        Icons.precision_manufacturing_rounded,
-                        '${_int(row['MaxManufacturingDays'])} يوم تصنيع',
-                      ),
-                    if ('${row['EmpName'] ?? ''}'.isNotEmpty)
-                      _infoChip(
-                          Icons.support_agent_rounded, '${row['EmpName']}'),
-                    if (converted &&
-                        '${row['InvoiceReference'] ?? ''}'.isNotEmpty)
-                      _infoChip(
-                        Icons.receipt_long_rounded,
-                        '${row['InvoiceReference']}',
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 9),
-                Row(
-                  children: <Widget>[
-                    TextButton.icon(
-                      onPressed: () => _openDetails(id),
-                      icon: const Icon(Icons.visibility_rounded, size: 17),
-                      label: Text('عرض', style: GoogleFonts.cairo()),
-                    ),
-                    if (_can('canEdit') && !converted)
-                      TextButton.icon(
-                        onPressed: () => _openEdit(id),
-                        icon: const Icon(Icons.edit_rounded, size: 17),
-                        label: Text('تعديل', style: GoogleFonts.cairo()),
-                      ),
-                    const Spacer(),
-                    const Icon(Icons.chevron_left_rounded, color: AppColors.neutral),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1024,29 +1246,36 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         .slideY(begin: 0.04, end: 0);
   }
 
-  Widget _infoChip(IconData icon, String label) {
+  Widget _infoChip(IconData icon, String label, {Color? highlightColor}) {
+    final c = highlightColor ?? AppColors.goldDark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.inputFill(_isDark),
+        color: highlightColor != null
+            ? highlightColor.withValues(alpha: 0.1)
+            : AppColors.inputFill(_isDark),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.divider(_isDark)),
+        border: Border.all(
+          color: highlightColor != null
+              ? highlightColor.withValues(alpha: 0.3)
+              : AppColors.divider(_isDark),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, color: AppColors.goldDark, size: 13),
+          Icon(icon, color: c, size: 13),
           const SizedBox(width: 4),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 130),
+            constraints: const BoxConstraints(maxWidth: 135),
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.cairo(
-                color: _secondaryTextColor,
-                fontSize: 8.8,
-                fontWeight: FontWeight.w600,
+                color: highlightColor ?? _secondaryTextColor,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -1058,19 +1287,30 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   Widget _statusBadge(String status) {
     final color = _statusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Text(
-        _statusLabel(status),
-        style: GoogleFonts.cairo(
-          color: color,
-          fontSize: 8.5,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            _statusLabel(status),
+            style: GoogleFonts.cairo(
+              color: color,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1080,20 +1320,20 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       'Sent' => AppColors.info,
       'Accepted' => AppColors.success,
       'Rejected' => AppColors.error,
-      'Converted' => AppColors.successLight,
-      'Expired' => AppColors.errorLight,
-      _ => AppColors.neutral,
+      'Converted' => Colors.teal,
+      'Expired' => Colors.deepOrange,
+      _ => AppColors.goldDark,
     };
   }
 
   IconData _statusIcon(String status) {
     return switch (status) {
-      'Sent' => Icons.send_rounded,
-      'Accepted' => Icons.check_circle_rounded,
-      'Rejected' => Icons.cancel_rounded,
-      'Converted' => Icons.receipt_long_rounded,
-      'Expired' => Icons.timer_off_rounded,
-      _ => Icons.insert_drive_file_rounded,
+      'Sent' => Icons.forward_to_inbox_rounded,
+      'Accepted' => Icons.verified_rounded,
+      'Rejected' => Icons.do_not_disturb_on_rounded,
+      'Converted' => Icons.price_check_rounded,
+      'Expired' => Icons.history_toggle_off_rounded,
+      _ => Icons.edit_document,
     };
   }
 
@@ -1128,7 +1368,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
 
   String _initial(String value) {
     final clean = value.trim();
-    return clean.isEmpty ? 'ع' : clean.characters.first;
+    return clean.isEmpty ? 'ع' : clean.substring(0, 1);
   }
 
   String _money(dynamic value) {
@@ -1150,37 +1390,50 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             return SafeArea(
               top: false,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 decoration: BoxDecoration(
                   color: _cardColor,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
+                      const BorderRadius.vertical(top: Radius.circular(26)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Container(
-                      width: 42,
-                      height: 4,
+                      width: 44,
+                      height: 5,
                       decoration: BoxDecoration(
                         color: AppColors.divider(_isDark),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      'فلترة عروض الأسعار',
-                      style: GoogleFonts.cairo(
-                        color: _textColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: <Widget>[
+                        const Icon(Icons.filter_alt_rounded,
+                            color: AppColors.gold, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'تصفية متقدمة لعروض الأسعار',
+                            style: GoogleFonts.cairo(
+                              color: _textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: status,
                       decoration:
-                          _fieldDecoration('الحالة', Icons.flag_rounded),
+                          _fieldDecoration('حالة العرض', Icons.flag_rounded),
                       dropdownColor: _cardColor,
                       items: <String>[
                         'Draft',
@@ -1199,7 +1452,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                     ),
                     const SizedBox(height: 12),
                     _dateTile(
-                      label: 'من تاريخ',
+                      label: 'من تاريخ إصدار',
                       value: from,
                       onTap: () async {
                         final picked = await _pickDate(from);
@@ -1209,9 +1462,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                           ? null
                           : () => setSheetState(() => from = null),
                     ),
-                    const SizedBox(height: 9),
+                    const SizedBox(height: 10),
                     _dateTile(
-                      label: 'إلى تاريخ',
+                      label: 'إلى تاريخ إصدار',
                       value: to,
                       onTap: () async {
                         final picked = await _pickDate(to);
@@ -1221,17 +1474,22 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                           ? null
                           : () => setSheetState(() => to = null),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 18),
                     Row(
                       children: <Widget>[
                         Expanded(
                           child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
                             onPressed: () => setSheetState(() {
                               from = null;
                               to = null;
                               status = null;
                             }),
-                            icon: const Icon(Icons.filter_alt_off_rounded),
+                            icon: const Icon(Icons.restart_alt_rounded),
                             label:
                                 Text('إعادة ضبط', style: GoogleFonts.cairo()),
                           ),
@@ -1240,12 +1498,20 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                         Expanded(
                           flex: 2,
                           child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.navy,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
                             onPressed: () => Navigator.pop(sheetContext, true),
-                            icon: const Icon(Icons.check_rounded),
+                            icon: const Icon(Icons.check_circle_rounded,
+                                color: AppColors.gold),
                             label: Text(
-                              'تطبيق',
+                              'تطبيق الفلاتر',
                               style: GoogleFonts.cairo(
-                                  fontWeight: FontWeight.w800),
+                                  fontWeight: FontWeight.w900),
                             ),
                           ),
                         ),
@@ -1279,11 +1545,11 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       filled: true,
       fillColor: AppColors.inputFill(_isDark),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
     );
@@ -1297,24 +1563,26 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.inputFill(_isDark),
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.divider(_isDark)),
         ),
         child: Row(
           children: <Widget>[
-            const Icon(Icons.calendar_month_rounded, color: AppColors.goldDark),
-            const SizedBox(width: 9),
+            const Icon(Icons.date_range_rounded, color: AppColors.goldDark),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 value == null ? label : DateFormat('yyyy/MM/dd').format(value),
                 style: GoogleFonts.cairo(
                   color: value == null ? _secondaryTextColor : _textColor,
-                  fontSize: 12,
+                  fontSize: 12.5,
+                  fontWeight:
+                      value == null ? FontWeight.normal : FontWeight.w800,
                 ),
               ),
             ),

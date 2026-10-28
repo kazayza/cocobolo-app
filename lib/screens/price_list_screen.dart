@@ -51,9 +51,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
   List<String> _groups = <String>[];
 
   bool _loading = true;
-  bool _isGridView = true;
+  int _viewMode = 0; // 0: Grid, 1: List, 2: Compact Table
   bool _websiteOnly = false;
   bool _exporting = false;
+  bool _filtersExpanded = false;
   String? _error;
   String _search = '';
   String? _group;
@@ -385,7 +386,6 @@ class _PriceListScreenState extends State<PriceListScreen> {
   Widget _buildControls() {
     return Column(
       children: <Widget>[
-        // Search Field
         Container(
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           decoration: BoxDecoration(
@@ -432,185 +432,256 @@ class _PriceListScreenState extends State<PriceListScreen> {
                 borderRadius: BorderRadius.circular(13),
                 borderSide: const BorderSide(color: AppColors.gold),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             ),
           ),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.04, end: 0),
 
-        // Stat Strip + Filters + Tier Chips
-        PremiumStatStrip(
-          cards: <PremiumStatCard>[
-            PremiumStatCard(
-              value: '${_coreFiltered.length}',
-              label: 'الإجمالي',
-              icon: Icons.inventory_2_rounded,
-              color: AppColors.gold,
-              selected: _priceFilter == 'all' && !_websiteOnly,
-              onTap: () => setState(() {
-                _priceFilter = 'all';
-                _websiteOnly = false;
-              }),
-            ),
-            if (_canSeeSalePrices)
-              PremiumStatCard(
-                value: '$_pricedCount',
-                label: 'بأسعار',
-                icon: Icons.check_circle_rounded,
-                color: AppColors.success,
-                selected: _priceFilter == 'priced',
-                onTap: () => setState(() {
-                  _priceFilter = _priceFilter == 'priced' ? 'all' : 'priced';
-                }),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: _safeKpiCard(
+                  value: '${_coreFiltered.length}',
+                  label: 'الإجمالي',
+                  icon: Icons.inventory_2_rounded,
+                  color: AppColors.gold,
+                  selected: _priceFilter == 'all' && !_websiteOnly,
+                  onTap: () => setState(() {
+                    _priceFilter = 'all';
+                    _websiteOnly = false;
+                  }),
+                ),
               ),
-            if (_canSeeSalePrices)
-              PremiumStatCard(
-                value: '$_missingCount',
-                label: 'بدون سعر',
-                icon: Icons.price_change_rounded,
-                color: AppColors.warning,
-                selected: _priceFilter == 'missing',
-                onTap: () => setState(() {
-                  _priceFilter = _priceFilter == 'missing' ? 'all' : 'missing';
-                }),
-              ),
-            PremiumStatCard(
-              value: '$_websiteCount',
-              label: 'الموقع',
-              icon: Icons.public_rounded,
-              color: AppColors.info,
-              selected: _websiteOnly,
-              onTap: () => setState(() => _websiteOnly = !_websiteOnly),
-            ),
-          ],
-        ),
-        PremiumFilterGrid(
-          fields: <Widget>[
-            _filterDropdown<String>(
-              label: 'المجموعة',
-              icon: Icons.category_rounded,
-              value: _group,
-              items: _groups
-                  .map<DropdownMenuItem<String>>(
-                    (String group) => DropdownMenuItem<String>(
-                      value: group,
-                      child: Text(group),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) =>
-                  setState(() => _group = value),
-            ),
-            _filterDropdown<int>(
-              label: 'الفرع',
-              icon: Icons.store_rounded,
-              value: _branchId,
-              items: _branches
-                  .map<DropdownMenuItem<int>>(
-                    (Map<String, dynamic> branch) =>
-                        DropdownMenuItem<int>(
-                      value: _intValue(
-                        branch['BranchId'] ?? branch['BranchID'],
-                      ),
-                      child: Text('${branch['BranchName'] ?? ''}'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (int? value) => _selectBranch(value),
-            ),
-            if (_canSeeSalePrices)
-              _filterDropdown<String>(
-                label: 'حالة السعر',
-                icon: Icons.price_check_rounded,
-                value: _priceFilter,
-                includeAll: false,
-                items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem<String>(
-                      value: 'all', child: Text('الكل')),
-                  DropdownMenuItem<String>(
-                      value: 'priced', child: Text('بأسعار')),
-                  DropdownMenuItem<String>(
-                      value: 'missing', child: Text('بدون سعر')),
-                ],
-                onChanged: (String? value) {
-                  if (value != null) {
-                    setState(() => _priceFilter = value);
-                  }
-                },
-              ),
-          ],
-          bottomAction: Row(
-            children: [
-              if (_hasFilters)
+              if (_canSeeSalePrices) ...[
+                const SizedBox(width: 6),
                 Expanded(
-                  child: ActionChip(
-                    avatar: const Icon(
-                      Icons.filter_alt_off_rounded,
-                      color: AppColors.error,
-                      size: 17,
-                    ),
-                    label: Text(
-                      'مسح كل الفلاتر',
-                      style: AppTextStyles.bodySmall(_isDark).copyWith(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    onPressed: _clearFilters,
-                    backgroundColor: AppColors.error.withValues(alpha: 0.06),
-                    side: BorderSide(color: AppColors.error.withValues(alpha: 0.20)),
+                  child: _safeKpiCard(
+                    value: '$_pricedCount',
+                    label: 'بأسعار',
+                    icon: Icons.check_circle_rounded,
+                    color: AppColors.success,
+                    selected: _priceFilter == 'priced',
+                    onTap: () => setState(() {
+                      _priceFilter =
+                          _priceFilter == 'priced' ? 'all' : 'priced';
+                    }),
                   ),
                 ),
-              if (_hasFilters) const SizedBox(width: 10),
-              _viewButton(
-                icon: _isGridView
-                    ? Icons.view_module_rounded
-                    : Icons.view_list_rounded,
-                selected: _isGridView,
-                onTap: () => setState(() => _isGridView = !_isGridView),
-              ),
-              const SizedBox(width: 10),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _safeKpiCard(
+                    value: '$_missingCount',
+                    label: 'بدون سعر',
+                    icon: Icons.price_change_rounded,
+                    color: AppColors.warning,
+                    selected: _priceFilter == 'missing',
+                    onTap: () => setState(() {
+                      _priceFilter =
+                          _priceFilter == 'missing' ? 'all' : 'missing';
+                    }),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 6),
               Expanded(
-                child: _squareControl(
-                  tooltip: 'الفلاتر',
-                  icon: Icons.tune_rounded,
-                  active: _hasFilters,
-                  onTap: _openFilters,
+                child: _safeKpiCard(
+                  value: '$_websiteCount',
+                  label: 'الموقع',
+                  icon: Icons.public_rounded,
+                  color: AppColors.info,
+                  selected: _websiteOnly,
+                  onTap: () => setState(() => _websiteOnly = !_websiteOnly),
                 ),
               ),
             ],
           ),
         ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill(_isDark),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider(_isDark)),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    _viewButton(
+                      icon: Icons.view_module_rounded,
+                      selected: _viewMode == 0,
+                      onTap: () => setState(() => _viewMode = 0),
+                    ),
+                    _viewButton(
+                      icon: Icons.view_list_rounded,
+                      selected: _viewMode == 1,
+                      onTap: () => setState(() => _viewMode = 1),
+                    ),
+                    _viewButton(
+                      icon: Icons.table_rows_rounded,
+                      selected: _viewMode == 2,
+                      onTap: () => setState(() => _viewMode = 2),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              if (_hasFilters)
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: _clearFilters,
+                  icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
+                  label: Text('مسح الفلاتر',
+                      style: GoogleFonts.cairo(fontSize: 11)),
+                ),
+              const SizedBox(width: 4),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _filtersExpanded
+                      ? AppColors.gold.withValues(alpha: 0.2)
+                      : AppColors.inputFill(_isDark),
+                  foregroundColor:
+                      _filtersExpanded ? AppColors.goldDark : _textColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: _filtersExpanded
+                          ? AppColors.gold
+                          : AppColors.divider(_isDark),
+                    ),
+                  ),
+                ),
+                onPressed: () =>
+                    setState(() => _filtersExpanded = !_filtersExpanded),
+                icon: Icon(
+                  _filtersExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.tune_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  _filtersExpanded ? 'إخفاء الفلاتر' : 'تصفية المجموعات',
+                  style: GoogleFonts.cairo(
+                      fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Container(
+            margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.premiumSurface(_isDark),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.premiumStroke(_isDark)),
+            ),
+            child: Column(
+              children: <Widget>[
+                _filterDropdown<String>(
+                  label: 'المجموعة',
+                  icon: Icons.category_rounded,
+                  value: _group,
+                  items: _groups
+                      .map<DropdownMenuItem<String>>(
+                        (String group) => DropdownMenuItem<String>(
+                          value: group,
+                          child: Text(group),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (String? value) =>
+                      setState(() => _group = value),
+                ),
+                _filterDropdown<int>(
+                  label: 'الفرع',
+                  icon: Icons.store_rounded,
+                  value: _branchId,
+                  items: _branches
+                      .map<DropdownMenuItem<int>>(
+                        (Map<String, dynamic> branch) =>
+                            DropdownMenuItem<int>(
+                          value: _intValue(
+                            branch['BranchId'] ?? branch['BranchID'],
+                          ),
+                          child: Text('${branch['BranchName'] ?? ''}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (int? value) => _selectBranch(value),
+                ),
+                if (_canSeeSalePrices)
+                  _filterDropdown<String>(
+                    label: 'حالة السعر',
+                    icon: Icons.price_check_rounded,
+                    value: _priceFilter,
+                    includeAll: false,
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem<String>(
+                          value: 'all', child: Text('الكل')),
+                      DropdownMenuItem<String>(
+                          value: 'priced', child: Text('بأسعار')),
+                      DropdownMenuItem<String>(
+                          value: 'missing', child: Text('بدون سعر')),
+                    ],
+                    onChanged: (String? value) {
+                      if (value != null) {
+                        setState(() => _priceFilter = value);
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ),
+          crossFadeState: _filtersExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
+        ),
+
         const SizedBox(height: 10),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.premiumSurface(_isDark),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.premiumStroke(_isDark)),
           ),
           child: Row(
-            children: [
+            children: <Widget>[
               Icon(
                 _branchId == null ? Icons.public_rounded : Icons.store_rounded,
                 color: AppColors.goldDark,
-                size: 16,
+                size: 15,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   _branchId == null
-                      ? 'الرصيد المعروض عبر جميع المخازن'
-                      : 'يعرض فقط المنتجات المتاحة في ${_selectedBranchName()}',
+                      ? 'الكتالوج العام — جميع المخازن'
+                      : 'فرع: ${_selectedBranchName()}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodySmall(_isDark).copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.navy.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
@@ -619,27 +690,28 @@ class _PriceListScreenState extends State<PriceListScreen> {
                   '${_filtered.length} صنف',
                   style: AppTextStyles.labelSmall(_isDark).copyWith(
                     color: _isDark ? AppColors.goldLight : AppColors.navy,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
         ),
+
         if (_canSeeSalePrices) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             child: SizedBox(
-              height: 48,
+              height: 44,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 itemCount: _tiers.length + 1,
-                itemBuilder: (context, index) {
+                itemBuilder: (BuildContext context, int index) {
                   final tier = index == 0 ? 'all' : _tiers[index - 1];
                   return Padding(
-                    padding: EdgeInsets.only(right: index == 0 ? 0 : 8),
+                    padding: EdgeInsets.only(right: index == 0 ? 0 : 6),
                     child: _tierChip(tier),
                   );
                 },
@@ -651,35 +723,58 @@ class _PriceListScreenState extends State<PriceListScreen> {
     );
   }
 
-  Widget _squareControl({
-    required String tooltip,
+  Widget _safeKpiCard({
+    required String value,
+    required String label,
     required IconData icon,
-    required bool active,
+    required Color color,
+    required bool selected,
     required VoidCallback onTap,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
-        child: Container(
-          width: 45,
-          height: 48,
-          decoration: BoxDecoration(
-            color: active
-                ? AppColors.gold.withValues(alpha: 0.12)
-                : AppColors.inputFill(_isDark),
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: active
-                  ? AppColors.gold.withValues(alpha: 0.55)
-                  : AppColors.divider(_isDark),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.15)
+              : AppColors.inputFill(_isDark),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? color : AppColors.divider(_isDark),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 15, color: color),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: GoogleFonts.cairo(
+                  color: _textColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
-          ),
-          child: Icon(
-            icon,
-            color: active ? AppColors.goldDark : _secondaryTextColor,
-          ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.cairo(
+                color: _secondaryTextColor,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -695,15 +790,15 @@ class _PriceListScreenState extends State<PriceListScreen> {
       borderRadius: BorderRadius.circular(9),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        width: 34,
-        height: 38,
+        width: 32,
+        height: 34,
         decoration: BoxDecoration(
           color: selected ? AppColors.navy : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
         ),
         child: Icon(
           icon,
-          size: 17,
+          size: 16,
           color: selected ? Colors.white : _secondaryTextColor,
         ),
       ),
@@ -721,7 +816,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
           color: selected
               ? color.withValues(alpha: 0.13)
@@ -738,8 +833,8 @@ class _PriceListScreenState extends State<PriceListScreen> {
           children: <Widget>[
             if (tier != 'all') ...<Widget>[
               Container(
-                width: 8,
-                height: 8,
+                width: 7,
+                height: 7,
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 5),
@@ -749,7 +844,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
               style: GoogleFonts.cairo(
                 color: selected ? color : _secondaryTextColor,
                 fontSize: 10,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
               ),
             ),
           ],
@@ -762,20 +857,22 @@ class _PriceListScreenState extends State<PriceListScreen> {
     if (_loading) return _buildLoading();
     if (_error != null) return _buildError();
     if (_filtered.isEmpty) return _buildEmpty();
-    return _isGridView ? _buildGrid() : _buildList();
+
+    if (_viewMode == 0) return _buildGrid();
+    if (_viewMode == 1) return _buildList();
+    return _buildCompactTable();
   }
 
   Widget _buildLoading() => AppLoading(showSkeleton: true);
-
   Widget _buildError() => AppError(message: _error!, onRetry: _loadData);
-
   Widget _buildEmpty() => AppEmpty(
         message: 'لا توجد منتجات مطابقة',
-        hint: 'عدّل الفلاتر أو البحث لعocation أخرى.',
+        hint: 'عدّل الفلاتر أو البحث لعرض نتائج أخرى.',
         icon: Icons.inventory_2_outlined,
         onRefresh: _loadData,
       );
 
+  // 🌟 طريقة العرض 0: شبكة الكروت المحسنة (زيادة طول الصورة وضبط المساحات لعدم وجود فراغ)
   Widget _buildGrid() {
     return RefreshIndicator(
       color: AppColors.gold,
@@ -792,7 +889,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 92),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              mainAxisExtent: _canSeeCosts ? 405 : 374,
+              mainAxisExtent: _canSeeCosts ? 425 : 390, // 👈 ضبط الارتفاع المثالي للكارت
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
             ),
@@ -808,45 +905,145 @@ class _PriceListScreenState extends State<PriceListScreen> {
     );
   }
 
-  Widget _loadMoreCard() {
-    return InkWell(
-      onTap: () => setState(() => _visibleCount += 60),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.gold.withValues(alpha: 0.35),
-            style: BorderStyle.solid,
+  Widget _buildList() {
+    return RefreshIndicator(
+      color: AppColors.gold,
+      onRefresh: () => _loadData(showLoader: false),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 92),
+        itemCount: _visibleRows.length +
+            (_visibleRows.length < _filtered.length ? 1 : 0),
+        itemBuilder: (BuildContext context, int index) {
+          if (index >= _visibleRows.length) return _loadMoreCard();
+          return _priceListCard(_visibleRows[index], index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompactTable() {
+    return RefreshIndicator(
+      color: AppColors.gold,
+      onRefresh: () => _loadData(showLoader: false),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 92),
+        itemCount: _visibleRows.length +
+            (_visibleRows.length < _filtered.length ? 1 : 0),
+        itemBuilder: (BuildContext context, int index) {
+          if (index >= _visibleRows.length) return _loadMoreCard();
+          final row = _visibleRows[index];
+          final id = _productId(row);
+          final stock = _number(row['StockQuantity']);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.divider(_isDark)),
+            ),
+            child: InkWell(
+              onTap: () => _openProduct(row),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '${row['ProductName'] ?? ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            color: _textColor,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          '#$id · ${row['GroupName'] ?? ''} · رصيد ${_formatMoney(stock)}',
+                          style: GoogleFonts.cairo(
+                            color: _secondaryTextColor,
+                            fontSize: 9.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_canSeeSalePrices) ...<Widget>[
+                    const SizedBox(width: 8),
+                    _tablePriceCell('ستاندرد', _price(row, 'CClass'),
+                        const Color(0xFF64748B)),
+                    const SizedBox(width: 5),
+                    _tablePriceCell('بريميوم', _price(row, 'Premium'),
+                        const Color(0xFF6366F1)),
+                    const SizedBox(width: 5),
+                    _tablePriceCell('إيليت', _price(row, 'Elite'),
+                        AppColors.goldDark),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _tablePriceCell(String label, double price, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: <Widget>[
+          Text(
+            label,
+            style: GoogleFonts.cairo(
+                color: color, fontSize: 8, fontWeight: FontWeight.bold),
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Icon(Icons.expand_more_rounded,
-                color: AppColors.goldDark, size: 34),
-            const SizedBox(height: 7),
-            Text(
-              'تحميل المزيد',
-              style: GoogleFonts.cairo(
-                color: _textColor,
-                fontWeight: FontWeight.w800,
-              ),
+          Text(
+            price > 0 ? '${_formatMoney(price)}' : '—',
+            style: GoogleFonts.cairo(
+              color: _textColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
-            Text(
-              '${_filtered.length - _visibleRows.length} صنف متبقٍ',
-              style: GoogleFonts.cairo(
-                color: _secondaryTextColor,
-                fontSize: 10,
-              ),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _loadMoreCard() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.goldDark,
+            side: const BorderSide(color: AppColors.gold),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: () => setState(() => _visibleCount += 60),
+          icon: const Icon(Icons.expand_more_rounded),
+          label: Text(
+            'تحميل المزيد (${_filtered.length - _visibleRows.length} صنف متبقٍ)',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+          ),
         ),
       ),
     );
   }
 
+  // كارت الشبكة المحسن (تم تمديد ارتفاع الصورة إلى 146 وتصغير الحواشي لعدم ترك مساحة فارغة)
   Widget _priceGridCard(Map<String, dynamic> row, int index) {
     final id = _productId(row);
     final selected = _compareIds.contains(id);
@@ -884,13 +1081,13 @@ class _PriceListScreenState extends State<PriceListScreen> {
               Stack(
                 children: <Widget>[
                   Container(
-                    height: 118,
+                    height: 146, // 👈 زيادة مساحة الصورة بالطول لملء التناسق البصري تماماً
                     color: AppColors.inputFill(_isDark),
                     child: mainImageId > 0
                         ? Image.network(
                             '$baseUrl/api/product-image-by-id/$mainImageId',
                             width: double.infinity,
-                            height: 118,
+                            height: 146,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => _imagePlaceholder(),
                           )
@@ -949,7 +1146,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(9),
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -963,9 +1160,9 @@ class _PriceListScreenState extends State<PriceListScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.cairo(
                                 color: _textColor,
-                                fontSize: 11.8,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
-                                height: 1.3,
+                                height: 1.2,
                               ),
                             ),
                           ),
@@ -975,27 +1172,27 @@ class _PriceListScreenState extends State<PriceListScreen> {
                               child: Icon(
                                 Icons.public_rounded,
                                 color: Color(0xFF0891B2),
-                                size: 16,
+                                size: 15,
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         '#$id · ${row['GroupName'] ?? ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.cairo(
                           color: _secondaryTextColor,
-                          fontSize: 9,
+                          fontSize: 8.5,
                         ),
                       ),
                       if (_intValue(row['SaleDiscountPercent']) >
                           0) ...<Widget>[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         _discountChip(row),
                       ],
-                      const SizedBox(height: 7),
+                      const SizedBox(height: 4),
                       if (_canSeeSalePrices)
                         _priceRows(row, compact: true)
                       else
@@ -1025,7 +1222,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.90),
         borderRadius: BorderRadius.circular(20),
@@ -1033,13 +1230,13 @@ class _PriceListScreenState extends State<PriceListScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, color: Colors.white, size: 11),
-          const SizedBox(width: 4),
+          Icon(icon, color: Colors.white, size: 10),
+          const SizedBox(width: 3),
           Text(
             label,
             style: GoogleFonts.cairo(
               color: Colors.white,
-              fontSize: 8.3,
+              fontSize: 8,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1050,22 +1247,22 @@ class _PriceListScreenState extends State<PriceListScreen> {
 
   Widget _discountChip(Map<String, dynamic> row) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: Colors.red.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: Colors.red.withValues(alpha: 0.20)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(Icons.local_offer_rounded, color: Colors.red.shade600, size: 12),
-          const SizedBox(width: 4),
+          Icon(Icons.local_offer_rounded, color: Colors.red.shade600, size: 11),
+          const SizedBox(width: 3),
           Text(
             'تخفيض ${_intValue(row['SaleDiscountPercent'])}%',
             style: GoogleFonts.cairo(
               color: Colors.red.shade600,
-              fontSize: 8.5,
+              fontSize: 8,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1085,42 +1282,42 @@ class _PriceListScreenState extends State<PriceListScreen> {
             _intValue(row['SaleDiscountPercent']) > 0 &&
             _number(row['PreviousPremiumPrice']) > 0;
         return Container(
-          margin: const EdgeInsets.only(bottom: 4),
+          margin: const EdgeInsets.only(bottom: 2),
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 7 : 10,
-            vertical: compact ? 5 : 7,
+            horizontal: compact ? 5 : 10,
+            vertical: compact ? 3 : 6,
           ),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: color.withValues(alpha: 0.20)),
           ),
           child: Row(
             children: <Widget>[
               Container(
-                width: 7,
-                height: 7,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   _tierLabel(tier),
                   style: GoogleFonts.cairo(
                     color: color,
-                    fontSize: compact ? 8.5 : 10,
+                    fontSize: compact ? 8 : 10,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
               if (premiumDiscount)
                 Padding(
-                  padding: const EdgeInsets.only(left: 5),
+                  padding: const EdgeInsets.only(left: 4),
                   child: Text(
                     _formatMoney(row['PreviousPremiumPrice']),
                     style: GoogleFonts.cairo(
                       color: _secondaryTextColor,
-                      fontSize: 8,
+                      fontSize: 7.5,
                       decoration: TextDecoration.lineThrough,
                     ),
                   ),
@@ -1129,25 +1326,25 @@ class _PriceListScreenState extends State<PriceListScreen> {
                 value > 0 ? '${_formatMoney(value)} ج' : '—',
                 style: GoogleFonts.cairo(
                   color: _textColor,
-                  fontSize: compact ? 10 : 12,
+                  fontSize: compact ? 9.5 : 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               if (_canSeeCosts && cost > 0) ...<Widget>[
-                const SizedBox(width: 5),
+                const SizedBox(width: 4),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
                     color:
                         Colors.black.withValues(alpha: _isDark ? 0.16 : 0.04),
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     'ت ${_formatMoney(cost)}',
                     style: GoogleFonts.cairo(
                       color: _secondaryTextColor,
-                      fontSize: 7.5,
+                      fontSize: 7,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1162,23 +1359,23 @@ class _PriceListScreenState extends State<PriceListScreen> {
 
   Widget _hiddenPricesNotice() {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: AppColors.inputFill(_isDark),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(color: AppColors.divider(_isDark)),
       ),
       child: Row(
         children: <Widget>[
           Icon(Icons.visibility_off_rounded,
-              color: _secondaryTextColor, size: 16),
-          const SizedBox(width: 6),
+              color: _secondaryTextColor, size: 15),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
-              'أسعار البيع غير متاحة لهذا الدور',
+              'أسعار البيع غير متاحة',
               style: GoogleFonts.cairo(
                 color: _secondaryTextColor,
-                fontSize: 9.5,
+                fontSize: 9,
               ),
             ),
           ),
@@ -1200,7 +1397,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
               _intValue(row['ImageCount']) > 0 ? () => _openGallery(row) : null,
         ),
         if (_canViewHistory) ...<Widget>[
-          const SizedBox(width: 5),
+          const SizedBox(width: 4),
           _miniAction(
             tooltip: 'سجل الأسعار',
             icon: Icons.history_rounded,
@@ -1210,10 +1407,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
         const Spacer(),
         if (canChange)
           SizedBox(
-            height: 32,
+            height: 28,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 9),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 backgroundColor: _canRequestPriceChange
                     ? AppColors.goldDark
                     : AppColors.navy,
@@ -1227,12 +1424,12 @@ class _PriceListScreenState extends State<PriceListScreen> {
                 _canRequestPriceChange
                     ? Icons.outlined_flag_rounded
                     : Icons.edit_rounded,
-                size: 14,
+                size: 13,
               ),
               label: Text(
                 _canRequestPriceChange ? 'طلب' : 'تعديل',
                 style: GoogleFonts.cairo(
-                  fontSize: 9,
+                  fontSize: 8.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1253,8 +1450,8 @@ class _PriceListScreenState extends State<PriceListScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          width: 31,
-          height: 31,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: AppColors.inputFill(_isDark),
             borderRadius: BorderRadius.circular(8),
@@ -1262,7 +1459,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
           ),
           child: Icon(
             icon,
-            size: 15,
+            size: 14,
             color: onTap == null
                 ? Colors.grey.withValues(alpha: 0.35)
                 : AppColors.goldDark,
@@ -1279,35 +1476,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
       child: Icon(
         Icons.inventory_2_outlined,
         color: _secondaryTextColor,
-        size: 34,
-      ),
-    );
-  }
-
-  Widget _buildList() {
-    return RefreshIndicator(
-      color: AppColors.gold,
-      onRefresh: () => _loadData(showLoader: false),
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 92),
-        itemCount: _visibleRows.length +
-            (_visibleRows.length < _filtered.length ? 1 : 0),
-        itemBuilder: (BuildContext context, int index) {
-          if (index >= _visibleRows.length) {
-            return Center(
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() => _visibleCount += 60),
-                icon: const Icon(Icons.expand_more_rounded),
-                label: Text(
-                  'تحميل المزيد (${_filtered.length - _visibleRows.length})',
-                  style: GoogleFonts.cairo(),
-                ),
-              ),
-            );
-          }
-          return _priceListCard(_visibleRows[index], index);
-        },
+        size: 32,
       ),
     );
   }
@@ -1434,190 +1603,6 @@ class _PriceListScreenState extends State<PriceListScreen> {
           duration: 280.ms,
         )
         .slideY(begin: 0.03, end: 0);
-  }
-
-  Future<void> _openFilters() async {
-    String? tempGroup = _group;
-    int? tempBranch = _branchId;
-    String tempPriceFilter = _priceFilter;
-    bool tempWebsite = _websiteOnly;
-
-    final apply = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: StatefulBuilder(
-          builder: (BuildContext context, StateSetter sheetSetState) {
-            return SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.divider(_isDark),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: <Widget>[
-                        const Icon(Icons.tune_rounded,
-                            color: AppColors.goldDark),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'تصفية قائمة الأسعار',
-                            style: GoogleFonts.cairo(
-                              color: _textColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(sheetContext),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _filterDropdown<String>(
-                      label: 'المجموعة',
-                      icon: Icons.category_rounded,
-                      value: tempGroup,
-                      items: _groups
-                          .map<DropdownMenuItem<String>>(
-                            (String group) => DropdownMenuItem<String>(
-                              value: group,
-                              child: Text(group),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (String? value) =>
-                          sheetSetState(() => tempGroup = value),
-                    ),
-                    _filterDropdown<int>(
-                      label: 'الفرع',
-                      icon: Icons.store_rounded,
-                      value: tempBranch,
-                      items: _branches
-                          .map<DropdownMenuItem<int>>(
-                            (Map<String, dynamic> branch) =>
-                                DropdownMenuItem<int>(
-                              value: _intValue(
-                                branch['BranchId'] ?? branch['BranchID'],
-                              ),
-                              child: Text('${branch['BranchName'] ?? ''}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (int? value) =>
-                          sheetSetState(() => tempBranch = value),
-                    ),
-                    if (_canSeeSalePrices)
-                      _filterDropdown<String>(
-                        label: 'حالة السعر',
-                        icon: Icons.price_check_rounded,
-                        value: tempPriceFilter,
-                        includeAll: false,
-                        items: const <DropdownMenuItem<String>>[
-                          DropdownMenuItem<String>(
-                              value: 'all', child: Text('الكل')),
-                          DropdownMenuItem<String>(
-                              value: 'priced', child: Text('بأسعار')),
-                          DropdownMenuItem<String>(
-                              value: 'missing', child: Text('بدون سعر')),
-                        ],
-                        onChanged: (String? value) {
-                          if (value != null) {
-                            sheetSetState(() => tempPriceFilter = value);
-                          }
-                        },
-                      ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: tempWebsite,
-                      activeThumbColor: AppColors.goldDark,
-                      title: Text(
-                        'منتجات الموقع فقط',
-                        style: GoogleFonts.cairo(
-                          color: _textColor,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      secondary: const Icon(
-                        Icons.public_rounded,
-                        color: Color(0xFF0891B2),
-                      ),
-                      onChanged: (bool value) =>
-                          sheetSetState(() => tempWebsite = value),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => sheetSetState(() {
-                              tempGroup = null;
-                              tempBranch = null;
-                              tempPriceFilter = 'all';
-                              tempWebsite = false;
-                            }),
-                            icon: const Icon(Icons.filter_alt_off_rounded),
-                            label:
-                                Text('إعادة ضبط', style: GoogleFonts.cairo()),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.navy,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () => Navigator.pop(sheetContext, true),
-                            icon: const Icon(Icons.check_rounded),
-                            label: Text(
-                              'تطبيق الفلاتر',
-                              style: GoogleFonts.cairo(
-                                  fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-
-    if (apply != true || !mounted) return;
-    setState(() {
-      _group = tempGroup;
-      _priceFilter = tempPriceFilter;
-      _websiteOnly = tempWebsite;
-      _visibleCount = 60;
-    });
-    await _selectBranch(tempBranch);
   }
 
   Widget _filterDropdown<T>({
@@ -2697,4 +2682,17 @@ class _PriceListScreenState extends State<PriceListScreen> {
         ),
       );
   }
+}
+
+/// وصف بطاقة إحصائية في صف الـ KPI.
+class _KpiSpec {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _KpiSpec({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 }
