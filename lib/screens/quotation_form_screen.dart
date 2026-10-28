@@ -1711,7 +1711,7 @@ class _QuotationPartySearchSheetState
           });
         }
       } catch (_) {
-        if (mounted) setState(() => _searching = false);
+         if (mounted) setState(() => _searching = false);
       }
     });
   }
