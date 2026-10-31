@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../constants.dart';
+import '../../../core/network/api_client.dart';
 import '../models/home_dashboard_model.dart';
 import '../../../services/cashbox_service.dart';
 import '../../../services/expense_service.dart';
 import '../../../services/followups_service.dart';
 import '../../../services/permission_service.dart';
+import '../../../core/auth/session_service.dart';
 
 class HomeService {
   final PermissionService permissions;
@@ -31,7 +33,7 @@ class HomeService {
       },
     );
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    final response = await http.get(uri, headers: SessionService.instance.authHeaders).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
       throw HomeServiceException(
@@ -92,7 +94,7 @@ class HomeService {
     ).replace(queryParameters: {'assignedTo': employeeId.toString()});
 
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final response = await http.get(uri, headers: SessionService.instance.authHeaders).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         return const [];
@@ -163,7 +165,10 @@ class HomeService {
   Future<Map<String, dynamic>> loadClientCount() async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/api/clients/summary'))
+          .get(
+            Uri.parse('$baseUrl/api/clients/summary'),
+            headers: SessionService.instance.authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
@@ -222,6 +227,33 @@ class HomeService {
       };
     } catch (_) {
       return const {};
+    }
+  }
+
+  /// عدد الإشعارات غير المقروءة — من نفس نقطة نهاية الإشعارات.
+  /// forceRefresh: true إجباري: كاش ApiClient صلاحيته ٢٤ ساعة،
+  /// وبدونه يقرأ العدّاد نفس النسخة القديمة ولا يتحدث أبدًا.
+  /// يعيد null عند أي فشل حتى يحتفظ المستدعي بالقيمة الحالية.
+  Future<int?> fetchUnreadCount() async {
+    try {
+      final response = await ApiClient.instance.get(
+        '/api/notifications/unread',
+        forceRefresh: true,
+      );
+      final data = ApiClient.instance.decode(response);
+      if (data is! Map) return null;
+
+      final count = data['count'];
+      if (count is num) return count.toInt();
+      final parsed = int.tryParse('${data['count'] ?? ''}');
+      if (parsed != null) return parsed;
+
+      final list = data['notifications'];
+      if (list is List) return list.length;
+
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 }

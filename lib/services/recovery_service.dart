@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 /// خدمة استرداد الفرص الخاسرة - مطابقة 100% لبلازور RecoveryService.cs
 /// تتعامل مع الفرص اللي وصلت مرحلة خسارة (4) / غير مهتم (5) وتسندها لخدمة العملاء
 class RecoveryService {
   static Future<Map<String, dynamic>> getStats() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/stats'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/stats'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -56,7 +57,7 @@ class RecoveryService {
       if (username != null) params['username'] = username;
 
       final uri = Uri.parse('$baseUrl/api/recovery/queue').replace(queryParameters: params);
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic>) return data;
@@ -75,7 +76,7 @@ class RecoveryService {
 
   static Future<int> getLateCount() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/late-count'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/late-count'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return data['count'] is int ? data['count'] : int.tryParse('${data['count']}') ?? 0;
@@ -86,7 +87,7 @@ class RecoveryService {
 
   static Future<int> getUnprocessedCount() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/unprocessed-count'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/unprocessed-count'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return data['count'] is int ? data['count'] : int.tryParse('${data['count']}') ?? 0;
@@ -97,7 +98,7 @@ class RecoveryService {
 
   static Future<Map<String, dynamic>> runMaintenance() async {
     try {
-      final res = await http.post(Uri.parse('$baseUrl/api/recovery/maintenance'));
+      final res = await http.post(Uri.parse('$baseUrl/api/recovery/maintenance'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) return jsonDecode(res.body);
     } catch (_) {}
     return {'success': false};
@@ -115,7 +116,7 @@ class RecoveryService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/recovery/contact'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'OpportunityId': opportunityId,
           'PartyId': partyId,
@@ -134,7 +135,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getHistory(int opportunityId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/history/$opportunityId'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/history/$opportunityId'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -156,7 +157,7 @@ class RecoveryService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/recovery/revive'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'OpportunityId': opportunityId,
           'SameOpportunity': sameOpportunity,
@@ -176,7 +177,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getStages() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/stages'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/stages'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -187,7 +188,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getCsEmployees() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/cs-employees'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/cs-employees'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -198,7 +199,7 @@ class RecoveryService {
 
   static Future<int> getCurrentEmployeeId(String username) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/employee/$username'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/employee/$username'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return data['employeeId'] is int ? data['employeeId'] : int.tryParse('${data['employeeId']}') ?? 0;
@@ -229,7 +230,7 @@ class RecoveryService {
       if (search != null && search.trim().isNotEmpty) params['q'] = search.trim();
 
       final uri = Uri.parse('$baseUrl/api/recovery/report').replace(queryParameters: params);
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         return jsonDecode(res.body) as Map<String, dynamic>;
       }
@@ -253,7 +254,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getTrend({int months = 12}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/trend?months=$months'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/trend?months=$months'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -264,7 +265,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getStaffPerformance() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/staff-performance'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/staff-performance'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -275,7 +276,7 @@ class RecoveryService {
 
   static Future<List<dynamic>> getReasonsAnalysis() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/recovery/reasons-analysis'));
+      final res = await http.get(Uri.parse('$baseUrl/api/recovery/reasons-analysis'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;

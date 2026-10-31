@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
-
-import '../../constants.dart';
-import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../services/expense_service.dart';
 import '../../services/permission_service.dart';
+import '../../services/theme_service.dart';
+import '../../core/network/api_client.dart';
+import '../../widgets/design_kit.dart';
 import '../expenses_screen.dart';
 import '../add_expense_screen.dart';
 import 'expense_groups_screen.dart';
+import '../../widgets/app_drawer.dart';
 
-/// مُنسّق أرقام مشترك (مشترك بين كل الكروت — أسرع)
 final NumberFormat _fmtShared = NumberFormat('#,##0');
 
-/// ─────────────────────────────────────────────────────────────
-///  💰 داشبورد المصروفات — نسخة فخمة 2026
-///  - كروت: إجمالي الشهر + اليوم + مقارنة بالشهر السابق
-///  - رسم آخر 30 يوم (خط متدرج)
-///  - توزيع المجموعات + أعلى 5 مصروفات + آخر المصروفات
-///  - Theme-aware (ليلي/نهاري) + ألوان مخصصة
-/// ─────────────────────────────────────────────────────────────
+/// داشبورد المصروفات — يستهلك تعريفات GetDashboardDataAsync العشرة من
+/// الخادم كما هي (نمو شهري، متوسط يومي، مقدمات نشطة، توزيع السنة،
+/// أعلى 5 فردية، اتجاه 12 شهرًا، اتجاه يومي، تباين، باريتو) على
+/// المصروفات المعترف بها فقط. كل النصوص واعية بالوضع عبر AppColors.
 class ExpenseDashboardScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -44,6 +42,9 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
   final PermissionService _perms = PermissionService();
 
   bool get _canAdd => _perms.canAdd(FormNames.expensesAdd) || _perms.isAdmin;
+  bool get _canViewGroups =>
+      _perms.canView(FormNames.expensesGroup) || _perms.isAdmin;
+  bool get _isDark => ThemeService().isDarkMode;
 
   @override
   void initState() {
@@ -57,36 +58,37 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
       _error = null;
     });
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/api/expenses/dashboard'),
-      ).timeout(const Duration(seconds: 15));
-
-      if (res.statusCode == 200) {
-        final json = jsonDecode(res.body);
+      final data = await ExpenseService.getDashboard();
+      if (mounted) {
         setState(() {
-          _data = json is Map ? Map<String, dynamic>.from(json) : null;
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'فشل تحميل البيانات (${res.statusCode})';
+          _data = data;
           _loading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'فشل الاتصال بالخادم';
-        _loading = false;
-      });
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'فشل الاتصال بالخادم';
+          _loading = false;
+        });
+      }
     }
   }
 
   String _fmt(dynamic v) {
     if (v == null) return '0';
-    return _fmtShared.format(
-      v is num ? v : double.tryParse(v.toString()) ?? 0,
-    );
+    return _fmtShared.format(v is num ? v : double.tryParse(v.toString()) ?? 0);
   }
+
+  double _num(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
 
   String _date(dynamic v) {
     if (v == null) return '—';
@@ -97,11 +99,15 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
+    final isDark = _isDark;
     return Scaffold(
+      backgroundColor: AppColors.background(isDark),
+      drawer: buildAppDrawer(currentRoute: 'frm_ExpensesList'),
       appBar: AppBar(
+        leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: const Text('المصروفات'),
         actions: [
           IconButton(
@@ -112,80 +118,45 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
-              ? _buildError(theme)
-              : _buildBody(theme, isDark),
+              ? AppError(message: _error!, onRetry: _load)
+              : _buildBody(isDark),
     );
   }
 
-  Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody(ThemeData theme, bool isDark) {
-    final summary = (_data?['summary'] ?? {}) is Map
-        ? Map<String, dynamic>.from(_data!['summary'])
-        : {};
-    final last30 = (_data?['last30Days'] as List?) ?? [];
-    final breakdown = (_data?['breakdown'] as List?) ?? [];
-    final recent = (_data?['recent'] as List?) ?? [];
-    final top = (_data?['topExpenses'] as List?) ?? [];
-
-    final month = summary['monthAmount'] ?? 0;
-    final prevMonth = summary['prevMonthAmount'] ?? 0;
-    final today = summary['todayAmount'] ?? 0;
-
-    // نسبة التغير
-    double? changePct;
-    final prev = prevMonth is num ? prevMonth.toDouble() : 0;
-    final cur = month is num ? month.toDouble() : 0;
-    if (prev > 0) {
-      changePct = ((cur - prev) / prev) * 100;
-    }
+  Widget _buildBody(bool isDark) {
+    final d = _data ?? {};
+    final distribution = (d['GroupDistribution'] as List?) ?? [];
+    final top = (d['TopExpenses'] as List?) ?? [];
+    final trends = (d['MonthlyTrends'] as List?) ?? [];
+    final daily = (d['DailyTrend'] as List?) ?? [];
+    final variance = (d['VarianceAnalysis'] as List?) ?? [];
+    final pareto = (d['ParetoAnalysis'] as List?) ?? [];
+    final growth = _num(d['MonthOverMonthGrowth']);
 
     return RefreshIndicator(
       onRefresh: _load,
-      color: HomeAccent.accent,
+      color: AppColors.gold,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          // ── البطاقة الرئيسية ──────────────────────────
           _HeroCard(
-            month: month,
-            today: today,
-            changePct: changePct,
-            count: summary['totalCount'],
-            isDark: isDark,
+            month: d['CurrentMonthAmount'],
+            prevMonth: d['PreviousMonthAmount'],
+            dailyAverage: d['DailyAverage'],
+            growth: growth,
+            fmt: _fmt,
           ),
-
           const SizedBox(height: 14),
-
-          // ── أزرار سريعة ───────────────────────────────
           Row(
             children: [
               Expanded(
                 child: _QuickBtn(
                   icon: Icons.list_alt_rounded,
                   label: 'كل المصروفات',
-                  color: HomeAccent.indigo,
+                  color: isDark ? AppColors.infoLight : AppColors.info,
+                  isDark: isDark,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -203,11 +174,31 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                   child: _QuickBtn(
                     icon: Icons.add_card_rounded,
                     label: 'إضافة مصروف',
-                    color: HomeAccent.teal,
+                    color: isDark ? AppColors.successLight : AppColors.success,
+                    isDark: isDark,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => AddExpenseScreen(
+                        builder: (_) =>
+                            AddExpenseScreen(username: widget.username),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              if (_canViewGroups) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _QuickBtn(
+                    icon: Icons.category_rounded,
+                    label: 'المجموعات',
+                    color: AppColors.gold,
+                    isDark: isDark,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ExpenseGroupsScreen(
+                          userId: widget.userId,
                           username: widget.username,
                         ),
                       ),
@@ -215,82 +206,109 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                   ),
                 ),
               ],
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickBtn(
-                  icon: Icons.category_rounded,
-                  label: 'المجموعات',
-                  color: HomeAccent.amber,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ExpenseGroupsScreen(
-                        userId: widget.userId,
-                        username: widget.username,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
-
-          // ── رسم آخر 30 يوم ────────────────────────────
-          if (last30.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          // المقدمات النشطة: عدد الرؤوس + مجموع أقساطها المتبقية التعريف
+          AppStatCard(
+            label:
+                'مقدمات نشطة — ${_fmt(d['ActiveAdvanceExpensesAmount'])} ج.م',
+            value: '${d['ActiveAdvanceExpensesCount'] ?? 0}',
+            color: AppColors.gold,
+            icon: Icons.schedule_rounded,
+          ),
+          if (daily.isNotEmpty) ...[
             const SizedBox(height: 20),
-            _SectionTitle(
+            const AppSectionHeader(
+              title: 'الاتجاه اليومي — الشهر الحالي',
               icon: Icons.show_chart_rounded,
-              title: 'آخر 30 يوم',
-              color: HomeAccent.red,
+              accent: AppColors.gold,
             ),
             const SizedBox(height: 10),
-            _ExpenseChart(data: last30, isDark: isDark),
+            _DailyChart(data: daily, isDark: isDark),
           ],
-
-          // ── توزيع المجموعات ───────────────────────────
-          if (breakdown.isNotEmpty) ...[
+          if (trends.isNotEmpty) ...[
             const SizedBox(height: 20),
-            _SectionTitle(
-              icon: Icons.pie_chart_rounded,
-              title: 'توزيع المجموعات (الشهر)',
-              color: HomeAccent.teal,
+            const AppSectionHeader(
+              title: 'اتجاه 12 شهرًا',
+              icon: Icons.bar_chart_rounded,
+              accent: AppColors.gold,
             ),
             const SizedBox(height: 10),
-            _BreakdownCard(items: breakdown, fmt: _fmt),
+            _MonthlyChart(data: trends, isDark: isDark, fmt: _fmt),
           ],
-
-          // ── أعلى 5 مصروفات ────────────────────────────
+          if (distribution.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const AppSectionHeader(
+              title: 'توزيع مجموعات السنة (أعلى 10)',
+              icon: Icons.pie_chart_rounded,
+              accent: AppColors.gold,
+            ),
+            const SizedBox(height: 10),
+            _BreakdownCard(items: distribution, fmt: _fmt, isDark: isDark),
+          ],
           if (top.isNotEmpty) ...[
             const SizedBox(height: 20),
-            _SectionTitle(
+            const AppSectionHeader(
+              title: 'أعلى 5 مصروفات فردية (الشهر)',
               icon: Icons.trending_up_rounded,
-              title: 'أعلى المصروفات (الشهر)',
-              color: HomeAccent.orange,
+              accent: AppColors.gold,
             ),
             const SizedBox(height: 10),
             for (var i = 0; i < top.length; i++)
               _TopRow(
                 rank: i + 1,
-                item: Map<String, dynamic>.from(top[i]),
-                fmt: _fmt,
-              ),
-          ],
-
-          // ── آخر المصروفات ─────────────────────────────
-          if (recent.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _SectionTitle(
-              icon: Icons.history_rounded,
-              title: 'آخر المصروفات',
-              color: HomeAccent.purple,
-            ),
-            const SizedBox(height: 10),
-            for (final item in recent)
-              _RecentRow(
-                item: Map<String, dynamic>.from(item),
+                item: Map<String, dynamic>.from(top[i] as Map),
                 fmt: _fmt,
                 date: _date,
+                isDark: isDark,
               ),
+          ],
+          if (variance.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const AppSectionHeader(
+              title: 'التباين — الشهر مقابل متوسط 3 أشهر سابقة',
+              icon: Icons.compare_arrows_rounded,
+              accent: AppColors.gold,
+            ),
+            const SizedBox(height: 10),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              radius: AppRadius.md,
+              child: Column(
+                children: [
+                  for (final v in variance)
+                    _VarianceRow(
+                      item: Map<String, dynamic>.from(v as Map),
+                      fmt: _fmt,
+                      isDark: isDark,
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (pareto.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const AppSectionHeader(
+              title: 'تحليل باريتو — منذ بداية السنة',
+              icon: Icons.stacked_bar_chart_rounded,
+              accent: AppColors.gold,
+            ),
+            const SizedBox(height: 10),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              radius: AppRadius.md,
+              child: Column(
+                children: [
+                  for (final p in pareto)
+                    _ParetoRow(
+                      item: Map<String, dynamic>.from(p as Map),
+                      fmt: _fmt,
+                      isDark: isDark,
+                    ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -298,55 +316,34 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// Widgets
-// ═══════════════════════════════════════════════════════════
-
+// ── البطاقة المرجعية: كحلية الهوية في الوضعين ──────────────────
 class _HeroCard extends StatelessWidget {
   final dynamic month;
-  final dynamic today;
-  final double? changePct;
-  final dynamic count;
-  final bool isDark;
+  final dynamic prevMonth;
+  final dynamic dailyAverage;
+  final double growth;
+  final String Function(dynamic) fmt;
 
   const _HeroCard({
     required this.month,
-    required this.today,
-    required this.changePct,
-    required this.count,
-    required this.isDark,
+    required this.prevMonth,
+    required this.dailyAverage,
+    required this.growth,
+    required this.fmt,
   });
-
-  String _fmt(dynamic v) {
-    if (v == null) return '0';
-    return _fmtShared.format(
-      v is num ? v : double.tryParse(v.toString()) ?? 0,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final isUp = (changePct ?? 0) >= 0;
-
+    final isUp = growth >= 0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
-          colors: const [
-            Color(0xFF7A1F1F),
-            Color(0xFFB23B3B),
-          ],
+          colors: AppGradients.identityHeader,
         ),
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFB23B3B).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,54 +372,48 @@ class _HeroCard extends StatelessWidget {
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
+                    AmountText(
+                      value: '${fmt(month)} ج.م',
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: (isUp ? AppColors.error : AppColors.success)
+                      .withValues(alpha: 0.30),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isUp
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
+                      size: 14,
+                      color: isUp
+                          ? AppColors.errorLight
+                          : AppColors.successLight,
+                    ),
+                    const SizedBox(width: 3),
                     Text(
-                      '${_fmt(month)} ج.م',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
+                      '${isUp ? '+' : ''}${growth.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: isUp
+                            ? AppColors.errorLight
+                            : AppColors.successLight,
                       ),
                     ),
                   ],
                 ),
               ),
-              // نسبة التغير
-              if (changePct != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: (isUp ? Colors.red : Colors.green).withValues(
-                      alpha: 0.3,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isUp
-                            ? Icons.arrow_upward_rounded
-                            : Icons.arrow_downward_rounded,
-                        size: 14,
-                        color: isUp
-                            ? const Color(0xFFFFCDD2)
-                            : const Color(0xFFC8E6C9),
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${isUp ? '+' : ''}${changePct!.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: isUp
-                              ? const Color(0xFFFFCDD2)
-                              : const Color(0xFFC8E6C9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -430,9 +421,9 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _mini('اليوم', today),
-              _mini('عدد المصروفات', count),
-              _mini('الشهر السابق', changePct != null ? month : null),
+              _mini('الشهر السابق', fmt(prevMonth)),
+              _mini('المتوسط اليومي', fmt(dailyAverage)),
+              _mini('النمو الشهري', '${growth.toStringAsFixed(1)}%'),
             ],
           ),
         ],
@@ -440,18 +431,11 @@ class _HeroCard extends StatelessWidget {
     );
   }
 
-  Widget _mini(String label, dynamic value) {
+  Widget _mini(String label, String value) {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            _fmt(value),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          AmountText(value: value, color: Colors.white, size: 15),
           const SizedBox(height: 2),
           Text(
             label,
@@ -467,19 +451,19 @@ class _QuickBtn extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final bool isDark;
   final VoidCallback onTap;
 
   const _QuickBtn({
     required this.icon,
     required this.label,
     required this.color,
+    required this.isDark,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -498,7 +482,7 @@ class _QuickBtn extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
+                color: AppColors.text(isDark),
               ),
             ),
           ],
@@ -508,151 +492,168 @@ class _QuickBtn extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final Color color;
+class _DailyChart extends StatelessWidget {
+  final List<dynamic> data;
+  final bool isDark;
 
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-    required this.color,
+  const _DailyChart({required this.data, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = <FlSpot>[];
+    for (final d in data) {
+      final m = Map<String, dynamic>.from(d as Map);
+      spots.add(FlSpot(
+        ((m['Day'] as num?)?.toDouble() ?? 0),
+        (m['Amount'] as num?)?.toDouble() ?? 0,
+      ));
+    }
+    var maxY = spots.isEmpty
+        ? 1.0
+        : spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    if (maxY <= 0) maxY = 1;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(10, 16, 16, 10),
+      radius: AppRadius.lg,
+      child: SizedBox(
+        height: 150,
+        child: LineChart(
+          LineChartData(
+            minY: 0,
+            maxY: maxY * 1.15,
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              getDrawingHorizontalLine: (v) => FlLine(
+                color: AppColors.text(isDark).withValues(alpha: 0.05),
+                strokeWidth: 1,
+              ),
+            ),
+            titlesData: const FlTitlesData(
+              leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+              rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+              topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+            ),
+            borderData: FlBorderData(show: false),
+            lineBarsData: [
+              LineChartBarData(
+                spots: spots,
+                isCurved: true,
+                curveSmoothness: 0.3,
+                color: isDark ? AppColors.errorLight : AppColors.error,
+                barWidth: 2.5,
+                isStrokeCapRound: true,
+                dotData: const FlDotData(show: false),
+                belowBarData: BarAreaData(
+                  show: true,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      (isDark ? AppColors.errorLight : AppColors.error)
+                          .withValues(alpha: 0.3),
+                      (isDark ? AppColors.errorLight : AppColors.error)
+                          .withValues(alpha: 0.02),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(milliseconds: 500),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthlyChart extends StatelessWidget {
+  final List<dynamic> data;
+  final bool isDark;
+  final String Function(dynamic) fmt;
+
+  const _MonthlyChart({
+    required this.data,
+    required this.isDark,
+    required this.fmt,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 18,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(icon, size: 17, color: color),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExpenseChart extends StatelessWidget {
-  final List<dynamic> data;
-  final bool isDark;
-
-  const _ExpenseChart({required this.data, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // آخر 7 أيام بس (أسرع)
-    final limited = data.length > 7 ? data.sublist(data.length - 7) : data;
-
-    final spots = <FlSpot>[];
-    for (var i = 0; i < limited.length; i++) {
-      final v = (limited[i]['Total'] ?? 0) is num
-          ? (limited[i]['Total'] as num).toDouble()
-          : double.tryParse((limited[i]['Total'] ?? 0).toString()) ?? 0;
-      spots.add(FlSpot(i.toDouble(), v));
-    }
-
-    if (spots.isEmpty) {
-      return Container(
-        height: 140,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          'لا توجد بيانات',
-          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-        ),
-      );
-    }
-
-    var minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
-    var maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-    // لو كل القيم متساوية → نوسّع المدى عشان الرسم يشتغل
-    if ((maxY - minY).abs() < 1) {
-      final pad = minY.abs() < 1 ? 1 : minY.abs() * 0.1;
-      minY -= pad;
-      maxY += pad;
-    } else {
-      final spread = (maxY - minY) * 0.1;
-      minY -= spread;
-      maxY += spread;
-    }
-
-    return Container(
-      height: 160,
+    final values = data.map((d) {
+      final m = Map<String, dynamic>.from(d as Map);
+      return (m['TotalAmount'] as num?)?.toDouble() ?? 0;
+    }).toList();
+    var maxY = values.isEmpty
+        ? 1.0
+        : values.reduce((a, b) => a > b ? a : b);
+    if (maxY <= 0) maxY = 1;
+    return AppCard(
       padding: const EdgeInsets.fromLTRB(10, 16, 16, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      child: LineChart(
-        LineChartData(
-          minY: minY,
-          maxY: maxY,
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (v) => FlLine(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
-              strokeWidth: 1,
-            ),
-          ),
-          titlesData: const FlTitlesData(
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            topTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-          ),
-          borderData: FlBorderData(show: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              curveSmoothness: 0.3,
-              color: const Color(0xFFEF5350),
-              barWidth: 2.5,
-              isStrokeCapRound: true,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFFEF5350).withValues(alpha: 0.3),
-                    const Color(0xFFEF5350).withValues(alpha: 0.02),
-                  ],
+      radius: AppRadius.lg,
+      child: SizedBox(
+        height: 160,
+        child: BarChart(
+          BarChartData(
+            maxY: maxY * 1.15,
+            gridData: const FlGridData(show: false),
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              leftTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 22,
+                  getTitlesWidget: (value, meta) {
+                    final i = value.toInt();
+                    if (i < 0 || i >= data.length) {
+                      return const SizedBox.shrink();
+                    }
+                    final m = Map<String, dynamic>.from(data[i] as Map);
+                    final dt =
+                        DateTime.tryParse(m['MonthDate']?.toString() ?? '');
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        dt != null ? '${dt.month}' : '',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: AppColors.textSecondary(isDark),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
-          ],
+            barGroups: [
+              for (var i = 0; i < values.length; i++)
+                BarChartGroupData(x: i, barRods: [
+                  BarChartRodData(
+                    toY: values[i],
+                    width: 12,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(4)),
+                    color: i == values.length - 1
+                        ? AppColors.gold
+                        : (isDark
+                            ? AppColors.neutralLight
+                            : AppColors.navyLight.withValues(alpha: 0.55)),
+                  ),
+                ]),
+            ],
+          ),
         ),
-        duration: const Duration(milliseconds: 500),
       ),
     );
   }
@@ -661,33 +662,32 @@ class _ExpenseChart extends StatelessWidget {
 class _BreakdownCard extends StatelessWidget {
   final List<dynamic> items;
   final String Function(dynamic) fmt;
+  final bool isDark;
 
-  const _BreakdownCard({required this.items, required this.fmt});
+  const _BreakdownCard({
+    required this.items,
+    required this.fmt,
+    required this.isDark,
+  });
 
   static const List<Color> _colors = [
-    Color(0xFFEF5350),
-    Color(0xFFFF9800),
-    Color(0xFF42A5F5),
-    Color(0xFF66BB6A),
-    Color(0xFFAB47BC),
-    Color(0xFF26A69A),
-    Color(0xFFFFA726),
-    Color(0xFF78909C),
+    AppColors.errorLight,
+    AppColors.warning,
+    AppColors.infoLight,
+    AppColors.successLight,
+    AppStatus.editPending,
+    AppColors.success,
+    AppColors.warningLight,
+    AppColors.neutralLight,
+    AppColors.gold,
+    AppColors.info,
   ];
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
       child: Column(
         children: [
           for (var i = 0; i < items.length; i++)
@@ -709,26 +709,20 @@ class _BreakdownCard extends StatelessWidget {
                       (items[i]['GroupName'] ?? '—').toString(),
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: theme.colorScheme.onSurface,
+                        color: AppColors.text(isDark),
                       ),
                     ),
                   ),
                   Text(
-                    '${items[i]['Count'] ?? 0}',
+                    '${items[i]['Percentage'] ?? 0}%',
                     style: TextStyle(
                       fontSize: 11,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary(isDark),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    fmt(items[i]['Total']),
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
+                  AmountText(value: fmt(items[i]['Total']), size: 12.5),
                 ],
               ),
             ),
@@ -742,29 +736,33 @@ class _TopRow extends StatelessWidget {
   final int rank;
   final Map<String, dynamic> item;
   final String Function(dynamic) fmt;
+  final String Function(dynamic) date;
+  final bool isDark;
 
   const _TopRow({
     required this.rank,
     required this.item,
     required this.fmt,
+    required this.date,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = [
-      const Color(0xFFFFD700),
-      const Color(0xFFC0C0C0),
-      const Color(0xFFCD7F32),
+      AppColors.gold,
+      AppColors.neutralLight,
+      AppColors.warning,
     ];
-    final color = rank <= 3 ? colors[rank - 1] : theme.colorScheme.onSurfaceVariant;
-
+    final color =
+        rank <= 3 ? colors[rank - 1] : AppColors.textSecondary(isDark);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: AppColors.surface(isDark),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.divider(isDark)),
       ),
       child: Row(
         children: [
@@ -788,65 +786,6 @@ class _TopRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              (item['ExpenseName'] ?? '—').toString(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-          Text(
-            fmt(item['Total']),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFFEF5350),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentRow extends StatelessWidget {
-  final Map<String, dynamic> item;
-  final String Function(dynamic) fmt;
-  final String Function(dynamic) date;
-
-  const _RecentRow({
-    required this.item,
-    required this.fmt,
-    required this.date,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEF5350),
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -857,25 +796,137 @@ class _RecentRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
+                    color: AppColors.text(isDark),
                   ),
                 ),
                 Text(
                   '${item['ExpenseGroupName'] ?? ''} • ${date(item['ExpenseDate'])}',
                   style: TextStyle(
                     fontSize: 10.5,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppColors.textSecondary(isDark),
                   ),
                 ),
               ],
             ),
           ),
-          Text(
-            '- ${fmt(item['Amount'])}',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFFEF5350),
+          AmountText(
+            value: fmt(item['Amount']),
+            size: 13,
+            color: isDark ? AppColors.errorLight : AppColors.error,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VarianceRow extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final String Function(dynamic) fmt;
+  final bool isDark;
+
+  const _VarianceRow({
+    required this.item,
+    required this.fmt,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final variance =
+        (item['VariancePercentage'] as num?)?.toDouble() ?? 0;
+    final isOver = variance > 10;
+    final badgeColor = isOver
+        ? (isDark ? AppColors.errorLight : AppColors.error)
+        : (isDark ? AppColors.successLight : AppColors.success);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (item['GroupName'] ?? '—').toString(),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text(isDark),
+                  ),
+                ),
+                Text(
+                  'الحالي ${fmt(item['CurrentMonth'])} — متوسط سابق ${fmt(item['PreviousMonthsAverage'])}',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.textSecondary(isDark),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          StatusBadge(
+            label: '${variance >= 0 ? '+' : ''}${variance.toStringAsFixed(1)}%',
+            color: badgeColor,
+            small: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParetoRow extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final String Function(dynamic) fmt;
+  final bool isDark;
+
+  const _ParetoRow({
+    required this.item,
+    required this.fmt,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = ((item['Percentage'] as num?)?.toDouble() ?? 0) / 100;
+    final cumulative = (item['CumulativePercentage'] as num?)?.toDouble() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (item['ItemName'] ?? '—').toString(),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text(isDark),
+                  ),
+                ),
+              ),
+              AmountText(value: fmt(item['Amount']), size: 12.5),
+              const SizedBox(width: 8),
+              Text(
+                'تراكمي ${cumulative.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: AppColors.textSecondary(isDark),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct.clamp(0, 1),
+              minHeight: 6,
+              backgroundColor: AppColors.divider(isDark),
+              color: AppColors.gold,
             ),
           ),
         ],

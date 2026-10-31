@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
@@ -25,7 +26,12 @@ import 'closure_approval_requests_screen.dart'
     show ClosureApprovalRequestsScreen;
 import 'lost_recovery_screen.dart';
 import 'general_tasks_screen.dart';
+import '../core/auth/session_service.dart';
 
+
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 class OpportunitiesScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -122,7 +128,7 @@ Future<List<dynamic>> _fetchAllDataForReport() async {
     if (dateFrom != null) url += '&dateFrom=${_formatDateForApi(dateFrom!)}';
     if (dateTo != null) url += '&dateTo=${_formatDateForApi(dateTo!)}';
 
-    final res = await http.get(Uri.parse(url));
+    final res = await http.get(Uri.parse(url), headers: SessionService.instance.authHeaders);
 
     if (res.statusCode == 200) {
       final responseData = jsonDecode(res.body);
@@ -491,7 +497,7 @@ void dispose() {
 
   Future<void> _fetchStages() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/stages'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/stages'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         setState(() => stages = jsonDecode(res.body));
       }
@@ -502,7 +508,7 @@ void dispose() {
 
   Future<void> _fetchSources() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/sources'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/sources'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         setState(() => sources = jsonDecode(res.body));
       }
@@ -513,7 +519,7 @@ void dispose() {
 
   Future<void> _fetchAdTypes() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/ad-types'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/ad-types'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         setState(() => adTypes = jsonDecode(res.body));
       }
@@ -524,7 +530,7 @@ void dispose() {
 
   Future<void> _fetchEmployees() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/employees'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/employees'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         setState(() => employees = jsonDecode(res.body));
       }
@@ -545,7 +551,7 @@ void dispose() {
 
     debugPrint('📊 Summary URL: $url'); // ✅ للتأكد
 
-    final res = await http.get(Uri.parse(url));
+    final res = await http.get(Uri.parse(url), headers: SessionService.instance.authHeaders);
     if (res.statusCode == 200) {
       setState(() => summary = jsonDecode(res.body));
     }
@@ -573,7 +579,7 @@ Future<void> _fetchOpportunities({bool reset = true}) async {
     if (dateFrom != null) url += '&dateFrom=${_formatDateForApi(dateFrom!)}';
     if (dateTo != null) url += '&dateTo=${_formatDateForApi(dateTo!)}';
 
-    final res = await http.get(Uri.parse(url));
+    final res = await http.get(Uri.parse(url), headers: SessionService.instance.authHeaders);
 
     if (res.statusCode == 200) {
       final responseData = jsonDecode(res.body);
@@ -669,26 +675,26 @@ Future<void> _loadMoreOpportunities() async {
 }
 
   Color _getStageColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) return Colors.grey;
+    if (colorHex == null || colorHex.isEmpty) return AppColors.neutral;
     try {
       return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
     } catch (e) {
-      return Colors.grey;
+      return AppColors.neutral;
     }
   }
 
   Color _getFollowUpStatusColor(String? status) {
     switch (status) {
       case 'Overdue':
-        return Colors.red;
+        return AppColors.error;
       case 'Today':
-        return Colors.orange;
+        return AppColors.warning;
       case 'Tomorrow':
-        return Colors.blue;
+        return AppColors.info;
       case 'Upcoming':
-        return Colors.green;
+        return AppColors.success;
       default:
-        return Colors.grey;
+        return AppColors.neutral;
     }
   }
 
@@ -713,9 +719,9 @@ Future<void> _loadMoreOpportunities() async {
     final name = sourceName?.toLowerCase() ?? '';
 
     if (name.contains('whatsapp') || name.contains('واتساب')) {
-      return FaFaIcon(FontAwesomeIcons.whatsapp, size: size, color: const Color(0xFF25D366));
+      return FaFaIcon(FontAwesomeIcons.whatsapp, size: size, color: AppColors.whatsapp);
     } else if (name.contains('facebook') || name.contains('فيسبوك')) {
-      return FaFaIcon(FontAwesomeIcons.facebook, size: size, color: const Color(0xFF1877F2));
+      return FaFaIcon(FontAwesomeIcons.facebook, size: size, color: AppColors.info);
     } else if (name.contains('instagram') || name.contains('انستجرام')) {
       return FaFaIcon(FontAwesomeIcons.instagram, size: size, color: const Color(0xFFE4405F));
     } else if (name.contains('tiktok') || name.contains('تيك توك')) {
@@ -728,15 +734,15 @@ Future<void> _loadMoreOpportunities() async {
         child: FaFaIcon(FontAwesomeIcons.tiktok, size: size - 6, color: Colors.black),
       );
     } else if (name.contains('phone') || name.contains('مكالمة') || name.contains('تليفون')) {
-      return FaFaIcon(FontAwesomeIcons.phoneVolume, size: size, color: const Color(0xFF4CAF50));
+      return FaFaIcon(FontAwesomeIcons.phoneVolume, size: size, color: AppColors.success);
     } else if (name.contains('showroom') || name.contains('معرض') || name.contains('زيارة')) {
-      return FaFaIcon(FontAwesomeIcons.store, size: size, color: const Color(0xFF9C27B0));
+      return FaFaIcon(FontAwesomeIcons.store, size: size, color: AppStatus.editPending);
     } else if (name.contains('referral') || name.contains('توصية')) {
-      return FaFaIcon(FontAwesomeIcons.userGroup, size: size, color: const Color(0xFF2196F3));
+      return FaFaIcon(FontAwesomeIcons.userGroup, size: size, color: AppColors.info);
     } else if (name.contains('google') || name.contains('جوجل')) {
-      return FaFaIcon(FontAwesomeIcons.google, size: size, color: const Color(0xFF4285F4));
+      return FaFaIcon(FontAwesomeIcons.google, size: size, color: AppColors.info);
     } else {
-      return FaFaIcon(FontAwesomeIcons.globe, size: size, color: Colors.grey);
+      return FaFaIcon(FontAwesomeIcons.globe, size: size, color: AppColors.neutral);
     }
   }
 
@@ -817,7 +823,7 @@ Future<void> _loadMoreOpportunities() async {
         content: Text(message, style: GoogleFonts.cairo()),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.sm)),
       ),
     );
   }
@@ -926,17 +932,14 @@ Future<void> _selectDate(BuildContext context, bool isFromDate, StateSetter setM
     lastDate: DateTime.now().add(const Duration(days: 365)),
     builder: (context, child) {
       return Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFFFD700),
-            onPrimary: Colors.black,
-            surface: Color(0xFF1A1A1A),
-            onSurface: Colors.white,
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: AppColors.gold,
+            onPrimary: AppColors.navy,
           ),
-          dialogBackgroundColor: const Color(0xFF1A1A1A),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFFFD700),
+              foregroundColor: AppColors.gold,
             ),
           ),
         ),
@@ -965,13 +968,14 @@ Future<void> _selectDate(BuildContext context, bool isFromDate, StateSetter setM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      drawer: buildAppDrawer(currentRoute: 'frmManamgerSales'),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: loading
-          ? _buildShimmerLoading()
+          ? const AppLoading(message: 'جاري تحميل الفرص...')
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: const Color(0xFFFFD700),
+              color: AppColors.gold,
               child: CustomScrollView(
                 controller: _scrollController, 
                 physics: const BouncingScrollPhysics(),
@@ -996,7 +1000,7 @@ if (loadingMore)
     child: Padding(
       padding: EdgeInsets.all(20),
       child: Center(
-        child: CircularProgressIndicator(color: Color(0xFFFFD700)),
+        child: CircularProgressIndicator(color: AppColors.gold),
       ),
     ),
   ),
@@ -1011,7 +1015,7 @@ if (loadingMore)
   // ✅ شريط الفلاتر النشطة
   Widget _buildActiveFiltersBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -1020,7 +1024,7 @@ if (loadingMore)
               _buildActiveFilterChip(
                 '${dateFrom != null ? _formatDate(dateFrom!) : '...'} - ${dateTo != null ? _formatDate(dateTo!) : '...'}',
                 FontAwesomeIcons.calendar,
-                Colors.cyan,
+                AppColors.info,
                 () {
                   setState(() {
                     dateFrom = null;
@@ -1034,7 +1038,7 @@ if (loadingMore)
               _buildActiveFilterChip(
                 employees.firstWhere((e) => e['EmployeeID'] == selectedEmployeeId, orElse: () => {'FullName': ''})['FullName'] ?? '',
                 FontAwesomeIcons.userTie,
-                Colors.amber,
+                AppColors.warning,
                 () {
                   setState(() => selectedEmployeeId = null);
                   _fetchOpportunities();
@@ -1045,7 +1049,7 @@ if (loadingMore)
               _buildActiveFilterChip(
                 adTypes.firstWhere((a) => a['AdTypeID'] == selectedAdTypeId, orElse: () => {'AdTypeName': ''})['AdTypeName'] ?? '',
                 FontAwesomeIcons.bullhorn,
-                Colors.purple,
+                AppStatus.editPending,
                 () {
                   setState(() => selectedAdTypeId = null);
                   _fetchOpportunities();
@@ -1066,7 +1070,7 @@ if (loadingMore)
               _buildActiveFilterChip(
                 sources.firstWhere((s) => s['SourceID'] == selectedSourceId, orElse: () => {'SourceNameAr': ''})['SourceNameAr'] ?? '',
                 FontAwesomeIcons.shareNodes,
-                Colors.teal,
+                AppColors.success,
                 () {
                   setState(() => selectedSourceId = null);
                   _fetchOpportunities();
@@ -1081,12 +1085,12 @@ if (loadingMore)
 
   Widget _buildActiveFilterChip(String label, dynamic icon, Color color, VoidCallback onRemove) {
     return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.only(right: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: AppRadius.all(AppRadius.pill),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1103,7 +1107,7 @@ if (loadingMore)
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.close, size: 12, color: color),
@@ -1115,62 +1119,7 @@ if (loadingMore)
   }
 
   Widget _buildShimmerLoading() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _buildShimmerBox(40, 40, radius: 8),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildShimmerBox(double.infinity, 16),
-                        const SizedBox(height: 8),
-                        _buildShimmerBox(100, 12),
-                      ],
-                    ),
-                  ),
-                  _buildShimmerBox(60, 24, radius: 12),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _buildShimmerBox(120, 30, radius: 8),
-                  const Spacer(),
-                  _buildShimmerBox(100, 30, radius: 8),
-                ],
-              ),
-            ],
-          ),
-        ).animate(onPlay: (controller) => controller.repeat())
-            .shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.1));
-      },
-    );
-  }
-
-  Widget _buildShimmerBox(double width, double height, {double radius = 4}) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(radius),
-      ),
-    );
+    return const AppLoading(message: 'جاري تحميل الفرص...');
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -1183,26 +1132,46 @@ if (loadingMore)
       perms.isAccountManager ||
       perms.canView(FormNames.generalTasks);
   return AppBar(
-    backgroundColor: const Color(0xFF1A1A1A),
+    backgroundColor: AppColors.navy,
+    foregroundColor: Colors.white,
+    elevation: 0,
     title: Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        const FaFaIcon(FontAwesomeIcons.lightbulb, color: Color(0xFFFFD700), size: 20),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.lightbulb_rounded, color: AppColors.gold, size: 20),
+        ),
         const SizedBox(width: 10),
-        Text(
-          'فرص البيع',
-          style: GoogleFonts.cairo(
-            color: const Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'فرص البيع',
+                style: GoogleFonts.cairo(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              Text(
+                _getFormattedDate(),
+                style: GoogleFonts.cairo(
+                  fontSize: 10,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     ),
-    centerTitle: true,
-    leading: IconButton(
-      icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-      onPressed: () => Navigator.pop(context),
-    ),
+    centerTitle: false,
+    leading: const AppDrawerMenuButton(),
     actions: [
       if (canViewGeneralTasks)
         IconButton(
@@ -1227,7 +1196,7 @@ if (loadingMore)
       if (canViewRecovery)
         IconButton(
           tooltip: 'استرداد الفرص الخاسرة',
-          icon: const Icon(Icons.restart_alt_rounded, color: Color(0xFF4F46E5)),
+          icon: const Icon(Icons.restart_alt_rounded, color: AppColors.info),
           onPressed: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => LostRecoveryScreen(userId: widget.userId, username: widget.username)));
           },
@@ -1237,8 +1206,8 @@ if (loadingMore)
         IconButton(
           tooltip: 'طلبات موافقة الإغلاق',
           icon: Stack(children: [
-            const Icon(Icons.admin_panel_settings_rounded, color: Colors.orange),
-            Positioned(top: 0, right: 0, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))),
+            const Icon(Icons.admin_panel_settings_rounded, color: AppColors.warning),
+            Positioned(top: 0, right: 0, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle))),
           ]),
           onPressed: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => ClosureApprovalRequestsScreen(userId: widget.userId, username: widget.username)));
@@ -1247,7 +1216,7 @@ if (loadingMore)
       // ✅ زر التقرير الجديد
       PopupMenuButton<String>(
         icon: const FaFaIcon(FontAwesomeIcons.fileExport, color: Colors.white, size: 18),
-        color: const Color(0xFF1A1A1A),
+        color: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onSelected: (value) {
           switch (value) {
@@ -1267,9 +1236,9 @@ if (loadingMore)
             value: 'excel',
             child: Row(
               children: [
-                FaFaIcon(FontAwesomeIcons.fileExcel, color: Colors.green, size: 16),
+                FaFaIcon(FontAwesomeIcons.fileExcel, color: AppColors.success, size: 16),
                 const SizedBox(width: 10),
-                Text('تصدير Excel', style: GoogleFonts.cairo(color: Colors.white)),
+                Text('تصدير Excel', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
           ),
@@ -1277,9 +1246,9 @@ if (loadingMore)
             value: 'pdf',
             child: Row(
               children: [
-                FaFaIcon(FontAwesomeIcons.filePdf, color: Colors.red, size: 16),
+                FaFaIcon(FontAwesomeIcons.filePdf, color: AppColors.error, size: 16),
                 const SizedBox(width: 10),
-                Text('تصدير PDF', style: GoogleFonts.cairo(color: Colors.white)),
+                Text('تصدير PDF', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
           ),
@@ -1287,9 +1256,9 @@ if (loadingMore)
             value: 'print',
             child: Row(
               children: [
-                FaFaIcon(FontAwesomeIcons.print, color: Colors.blue, size: 16),
+                FaFaIcon(FontAwesomeIcons.print, color: AppColors.info, size: 16),
                 const SizedBox(width: 10),
-                Text('طباعة', style: GoogleFonts.cairo(color: Colors.white)),
+                Text('طباعة', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
           ),
@@ -1311,13 +1280,13 @@ if (loadingMore)
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
+                  color: AppColors.gold,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   '$_activeFiltersCount',
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: AppColors.navy,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1355,14 +1324,14 @@ Widget _buildSummaryCards() {
             _buildArtisticCard(
               title: 'نظرة عامة',
               icon: FontAwesomeIcons.chartPie,
-              gradientColors: [const Color(0xFF1A1A1A), const Color(0xFF4A4A4A)],
-              accentColor: const Color(0xFFFFD700),
+              gradientColors: AppGradients.identityHeader,
+              accentColor: AppColors.gold,
               content: Column(
                 children: [
                   _buildRow('الكل', '${stats['totalOpportunities'] ?? 0}'),
                   _buildRow('جدد هذا الشهر', '${stats['newThisMonth'] ?? 0}'),
                   const Divider(color: Colors.white24),
-                  _buildRow('القيمة المتوقعة', _formatCurrency(stats['totalExpectedValue']), isValueBold: true, valueColor: const Color(0xFFFFD700)),
+                  _buildRow('القيمة المتوقعة', _formatCurrency(stats['totalExpectedValue']), isValueBold: true, valueColor: AppColors.gold),
                 ],
               ),
             ),
@@ -1371,16 +1340,16 @@ Widget _buildSummaryCards() {
 _buildArtisticCard(
   title: 'المتابعة والاهتمام',
   icon: FontAwesomeIcons.listCheck,
-  gradientColors: [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)],
-  accentColor: Colors.cyanAccent,
+  gradientColors: [AppColors.navyDark, AppColors.navyLight],
+  accentColor: AppColors.info,
   content: Column(
     children: [
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildMiniStat('محتمل (Lead)', '${stats['leadCount'] ?? 0}', Colors.white), // ✅ أضفنا ده
-          _buildMiniStat('مهتم', '${stats['potentialCount'] ?? 0}', Colors.amber),
-          _buildMiniStat('عالي الاهتمام', '${stats['highInterestCount'] ?? 0}', Colors.orangeAccent),
+          _buildMiniStat('مهتم', '${stats['potentialCount'] ?? 0}', AppColors.warning),
+          _buildMiniStat('عالي الاهتمام', '${stats['highInterestCount'] ?? 0}', AppStatus.overdue),
         ],
       ),
       const SizedBox(height: 12),
@@ -1388,8 +1357,8 @@ _buildArtisticCard(
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildMiniStat('اليوم', '${stats['todayCount'] ?? 0}', Colors.greenAccent),
-          _buildMiniStat('متأخرة', '${stats['overdueCount'] ?? 0}', Colors.redAccent),
+          _buildMiniStat('اليوم', '${stats['todayCount'] ?? 0}', AppColors.success),
+          _buildMiniStat('متأخرة', '${stats['overdueCount'] ?? 0}', AppColors.error),
         ],
       ),
     ],
@@ -1400,7 +1369,7 @@ _buildArtisticCard(
             _buildArtisticCard(
               title: 'أهم المصادر',
               icon: FontAwesomeIcons.shareNodes,
-              gradientColors: [const Color(0xFF2C3E50), const Color(0xFF4CA1AF)],
+              gradientColors: [AppColors.navy, AppColors.info],
               accentColor: Colors.white,
               content: Column(
                 children: [
@@ -1427,8 +1396,8 @@ _buildArtisticCard(
             _buildArtisticCard(
               title: 'الأداء والتحويل',
               icon: FontAwesomeIcons.trophy,
-              gradientColors: [const Color(0xFF134E5E), const Color(0xFF71B280)],
-              accentColor: Colors.lightGreenAccent,
+              gradientColors: [AppColors.navyDark, AppColors.success],
+              accentColor: AppColors.success,
               content: Column(
                 children: [
                   Row(
@@ -1447,7 +1416,7 @@ _buildArtisticCard(
 _buildArtisticCard(
   title: 'أهم الحملات',
   icon: FontAwesomeIcons.bullhorn,
-  gradientColors: [const Color(0xFF4568DC), const Color(0xFFB06AB3)],
+  gradientColors: [AppColors.info, AppStatus.editPending],
   accentColor: Colors.white,
   content: Column(
     children: [
@@ -1476,7 +1445,7 @@ _buildArtisticCard(
       // المؤشر (Dots)
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(5, (index) => AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4), height: 6, width: _currentSummaryPage == index ? 24 : 6, decoration: BoxDecoration(color: _currentSummaryPage == index ? const Color(0xFFFFD700) : Colors.grey[800], borderRadius: BorderRadius.circular(3)))),
+        children: List.generate(5, (index) => AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4), height: 6, width: _currentSummaryPage == index ? 24 : 6, decoration: BoxDecoration(color: _currentSummaryPage == index ? AppColors.gold : Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(3)))),
       ),
       const SizedBox(height: 20),
     ],
@@ -1493,13 +1462,13 @@ Widget _buildArtisticCard({
   required Widget content,
 }) {
   return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 8),
-    padding: const EdgeInsets.all(16),
+    margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    padding: const EdgeInsets.all(AppSpacing.lg),
     decoration: BoxDecoration(
       gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))],
-      border: Border.all(color: Colors.white.withOpacity(0.1)),
+      borderRadius: BorderRadius.circular(AppRadius.xxl),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 6))],
+      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1508,7 +1477,7 @@ Widget _buildArtisticCard({
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: AppRadius.all(AppRadius.sm)),
               child: compatIcon(icon, size: 14, color: accentColor),
             ),
             const SizedBox(width: 10),
@@ -1530,7 +1499,10 @@ Widget _buildRow(String label, String value, {bool isValueBold = false, Color va
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 13)),
-        Text(value, style: GoogleFonts.cairo(color: valueColor, fontSize: 15, fontWeight: isValueBold ? FontWeight.bold : FontWeight.normal)),
+        if (isValueBold)
+          AmountText(value: value, size: 15, color: valueColor)
+        else
+          Text(value, style: GoogleFonts.cairo(color: valueColor, fontSize: 15, fontWeight: FontWeight.normal)),
       ],
     ),
   );
@@ -1555,13 +1527,13 @@ Widget _buildSummaryCard({
   required List<Widget> children,
 }) {
   return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 8),
-    padding: const EdgeInsets.all(16),
+    margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    padding: const EdgeInsets.all(AppSpacing.lg),
     decoration: BoxDecoration(
       gradient: gradient,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: borderColor.withOpacity(0.3), width: 1),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+      borderRadius: BorderRadius.circular(AppRadius.xxl),
+      border: Border.all(color: borderColor.withValues(alpha: 0.3), width: 1),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1570,11 +1542,11 @@ Widget _buildSummaryCard({
           children: [
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: borderColor.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: borderColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
               child: compatIcon(icon, size: 14, color: borderColor),
             ),
             const SizedBox(width: 10),
-            Text(title, style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(title, style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 16),
@@ -1591,7 +1563,7 @@ Widget _buildSummaryRow(String label, String value, dynamic icon, Color color, {
       children: [
         compatIcon(icon, color: color, size: 16),
         const SizedBox(width: 10),
-        Text(label, style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 13)),
+        Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 13)),
         const Spacer(),
         Text(value, style: GoogleFonts.cairo(color: isBold ? color : Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
       ],
@@ -1617,15 +1589,15 @@ Widget _buildWinRateBar(int won, int total) {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('نسبة النجاح', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)),
-          Text('${(rate * 100).toStringAsFixed(1)}%', style: GoogleFonts.cairo(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
+          Text('نسبة النجاح', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 12)),
+          Text('${(rate * 100).toStringAsFixed(1)}%', style: GoogleFonts.cairo(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
       const SizedBox(height: 8),
       Stack(
         children: [
-          Container(height: 8, decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(4))),
-          FractionallySizedBox(widthFactor: rate, child: Container(height: 8, decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(4)))),
+          Container(height: 8, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4))),
+          FractionallySizedBox(widthFactor: rate, child: Container(height: 8, decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(4)))),
         ],
       ),
     ],
@@ -1648,9 +1620,9 @@ FaIconData _getSourceIconData(String? sourceName) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -1667,7 +1639,7 @@ FaIconData _getSourceIconData(String? sourceName) {
           Text(
             label,
             style: GoogleFonts.cairo(
-              color: Colors.grey[400],
+              color: Colors.white70,
               fontSize: 9,
             ),
           ),
@@ -1678,20 +1650,20 @@ FaIconData _getSourceIconData(String? sourceName) {
 
   Widget _buildSearchAndSort() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _searchController,
-              style: GoogleFonts.cairo(color: Colors.white),
+              style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'بحث بالاسم أو الهاتف...',
-                hintStyle: GoogleFonts.cairo(color: Colors.grey),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                prefixIcon: const Icon(Icons.search, color: AppColors.neutral),
                 suffixIcon: searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        icon: const Icon(Icons.clear, color: AppColors.neutral),
                         onPressed: () {
                           _searchController.clear();
                           setState(() => searchQuery = '');
@@ -1700,12 +1672,12 @@ FaIconData _getSourceIconData(String? sourceName) {
                       )
                     : null,
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.1),
+                fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
               ),
               onChanged: (value) {
                 setState(() => searchQuery = value);
@@ -1720,17 +1692,17 @@ FaIconData _getSourceIconData(String? sourceName) {
           Container(
             decoration: BoxDecoration(
               color: sortBy != null
-                  ? const Color(0xFFFFD700).withOpacity(0.2)
-                  : Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+                  ? AppColors.gold.withValues(alpha: 0.15)
+                  : Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: AppRadius.all(AppRadius.sm),
               border: sortBy != null
-                  ? Border.all(color: const Color(0xFFFFD700).withOpacity(0.5))
-                  : null,
+                  ? Border.all(color: AppColors.gold.withValues(alpha: 0.5))
+                  : Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.4)),
             ),
             child: IconButton(
               icon: FaIcon(
                 FontAwesomeIcons.arrowDownWideShort,
-                color: sortBy != null ? const Color(0xFFFFD700) : Colors.grey,
+                color: sortBy != null ? AppColors.gold : AppColors.neutral,
                 size: 18,
               ),
               onPressed: _showSortBottomSheet,
@@ -1743,13 +1715,13 @@ FaIconData _getSourceIconData(String? sourceName) {
 
   Widget _buildStageFilter() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
-            _buildStageChip(null, 'الكل', const Color(0xFFFFD700), null),
+            _buildStageChip(null, 'الكل', AppColors.gold, null),
             ...stages.map((stage) => _buildStageChip(
                   stage['StageID'],
                   stage['StageNameAr'] ?? stage['StageName'],
@@ -1768,12 +1740,12 @@ FaIconData _getSourceIconData(String? sourceName) {
       padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
         avatar: stageIdForIcon != null
-            ? _getStageIconWidget(stageIdForIcon, isSelected ? Colors.black : color, size: 12)
+            ? _getStageIconWidget(stageIdForIcon, isSelected ? AppColors.navy : color, size: 12)
             : null,
         label: Text(
           label,
           style: GoogleFonts.cairo(
-            color: isSelected ? Colors.black : Colors.white,
+            color: isSelected ? AppColors.navy : Theme.of(context).colorScheme.onSurface,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: 12,
           ),
@@ -1783,25 +1755,27 @@ FaIconData _getSourceIconData(String? sourceName) {
           setState(() => selectedStageId = selected ? stageId : null);
           _fetchOpportunities();
         },
-        backgroundColor: color.withOpacity(0.2),
+        backgroundColor: color.withValues(alpha: 0.12),
         selectedColor: color,
-        checkmarkColor: Colors.black,
-        side: BorderSide(color: color.withOpacity(0.5)),
+        checkmarkColor: AppColors.navy,
+        side: BorderSide(color: color.withValues(alpha: 0.5)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
     );
   }
 
   Widget _buildOpportunityCard(dynamic opportunity, int index) {
+    final theme = Theme.of(context);
     final stageColor = _getStageColor(opportunity['StageColor']);
     final followUpStatus = opportunity['FollowUpStatus'];
     final followUpColor = _getFollowUpStatusColor(followUpStatus);
     final stageId = opportunity['StageID'];
+    final hasValue = opportunity['ExpectedValue'] != null && opportunity['ExpectedValue'] > 0;
 
     return Dismissible(
       key: Key(opportunity['OpportunityID'].toString()),
-      background: _buildSwipeBackground(Colors.green, FontAwesomeIcons.phone, 'اتصال', Alignment.centerRight),
-      secondaryBackground: _buildSwipeBackground(const Color(0xFF25D366), FontAwesomeIcons.whatsapp, 'واتساب', Alignment.centerLeft),
+      background: _buildSwipeBackground(AppColors.info, Icons.call_rounded, 'اتصال', Alignment.centerRight),
+      secondaryBackground: _buildSwipeBackground(AppColors.whatsapp, FontAwesomeIcons.whatsapp, 'واتساب', Alignment.centerLeft),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
           _makePhoneCall(opportunity['Phone1']);
@@ -1810,276 +1784,199 @@ FaIconData _getSourceIconData(String? sourceName) {
         }
         return false;
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border(
-            right: BorderSide(color: stageColor, width: 4),
-          ),
-        ),
-        child: InkWell(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6),
+        child: AppCard(
           onTap: () => _openOpportunityDetails(opportunity),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // الصف الأول: اسم العميل + الحالة (يسار) | رقم التليفون (يمين)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: stageColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _getStageIconWidget(stageId, stageColor, size: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: stageColor.withValues(alpha: 0.12),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                     ),
-                    const SizedBox(width: 10),
-Expanded(
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Flexible(
-            child: Text(
-              opportunity['ClientName'] ?? 'بدون اسم',
-              style: GoogleFonts.cairo(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (_isNewOpportunity(opportunity['CreatedAt'])) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.5)),
-              ),
-              child: Text(
-                '🆕 جديد',
-                style: GoogleFonts.cairo(
-                  color: Colors.green,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-                          const SizedBox(height: 2),
-                          Text(
-                            opportunity['StageNameAr'] ?? opportunity['StageName'] ?? '',
-                            style: GoogleFonts.cairo(
-                              color: stageColor,
-                              fontSize: 11,
+                    child: _getStageIconWidget(stageId, stageColor, size: 18),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                opportunity['ClientName'] ?? 'بدون اسم',
+                                style: GoogleFonts.cairo(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            if (_isNewOpportunity(opportunity['CreatedAt'])) ...[
+                              const SizedBox(width: 6),
+                              StatusBadge(label: 'جديد', color: AppColors.success, small: true),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          opportunity['StageNameAr'] ?? opportunity['StageName'] ?? '',
+                          style: GoogleFonts.cairo(color: stageColor, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  StatusBadge(
+                    label: opportunity['Phone1'] ?? 'لا يوجد',
+                    color: AppColors.neutral,
+                    icon: Icons.phone_rounded,
+                    small: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5), height: 1),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoPill(
+                      icon: FontAwesomeIcons.calendarPlus,
+                      text: 'أول تواصل: ${_formatDateShort(opportunity['FirstContactDate'])}',
+                      color: AppColors.info,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _buildInfoPill(
+                      icon: FontAwesomeIcons.clockRotateLeft,
+                      text: 'آخر تواصل: ${_formatDaysAgo(opportunity['LastContactDate'])}',
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  const FaFaIcon(FontAwesomeIcons.userTie, color: AppColors.gold, size: 12),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      opportunity['EmployeeName'] ?? 'غير محدد',
+                      style: GoogleFonts.cairo(color: AppColors.gold, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  StatusBadge(
+                    label: '${opportunity['InteractionCount'] ?? 0}',
+                    color: AppColors.info,
+                    icon: Icons.forum_rounded,
+                    small: true,
+                  ),
+                  if (followUpStatus != null && followUpStatus != 'NotSet') ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    StatusBadge(
+                      label: _getFollowUpStatusText(followUpStatus),
+                      color: followUpColor,
+                      icon: followUpStatus == 'Overdue' ? Icons.history_rounded : Icons.schedule_rounded,
+                      small: true,
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(8),
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: AppRadius.all(AppRadius.xs),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const FaFaIcon(FontAwesomeIcons.phone, color: Colors.grey, size: 12),
+                          _getSourceIcon(opportunity['SourceName'], size: 14),
                           const SizedBox(width: 6),
-                          Text(
-                            opportunity['Phone1'] ?? 'لا يوجد',
-                            style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 12),
+                          Flexible(
+                            child: Text(
+                              opportunity['SourceNameAr'] ?? opportunity['SourceName'] ?? '',
+                              style: GoogleFonts.cairo(color: theme.colorScheme.onSurfaceVariant, fontSize: 11),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-                Divider(color: Colors.grey.withOpacity(0.2), height: 1),
-                const SizedBox(height: 12),
-                
-                // ✅ الصف الجديد: أول تواصل + آخر تواصل
-Row(
-  children: [
-    Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.cyan.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const FaFaIcon(FontAwesomeIcons.calendarPlus, color: Colors.cyan, size: 12),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                'أول تواصل: ${_formatDateShort(opportunity['FirstContactDate'])}',
-                style: GoogleFonts.cairo(color: Colors.cyan, fontSize: 10),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.amber.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const FaFaIcon(FontAwesomeIcons.clockRotateLeft, color: Colors.amber, size: 12),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                'آخر تواصل: ${_formatDaysAgo(opportunity['LastContactDate'])}',
-                style: GoogleFonts.cairo(color: Colors.amber, fontSize: 10),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ],
-),
-                // الصف الثاني: صاحب الفرصة + عدد التواصلات + حالة المتابعة
-                Row(
-                  children: [
-                    const FaFaIcon(FontAwesomeIcons.userTie, color: Color(0xFFFFD700), size: 12),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        opportunity['EmployeeName'] ?? 'غير محدد',
-                        style: GoogleFonts.cairo(color: const Color(0xFFFFD700), fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _buildInfoPill(
+                      icon: FontAwesomeIcons.bullhorn,
+                      text: opportunity['AdTypeName'] ?? 'بدون حملة',
+                      color: AppStatus.editPending,
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  if (hasValue)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: AppRadius.all(AppRadius.xs),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const FaFaIcon(FontAwesomeIcons.comments, color: Colors.blue, size: 10),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${opportunity['InteractionCount'] ?? 0}',
-                            style: GoogleFonts.cairo(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold),
+                          const FaFaIcon(FontAwesomeIcons.coins, color: AppColors.success, size: 12),
+                          const SizedBox(width: 6),
+                          AmountText(
+                            value: _formatCurrency(opportunity['ExpectedValue']),
+                            size: 12,
+                            color: AppColors.success,
                           ),
                         ],
                       ),
                     ),
-                    if (followUpStatus != null && followUpStatus != 'NotSet') ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: followUpColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: followUpColor.withOpacity(0.5)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FaIcon(
-                              followUpStatus == 'Overdue'
-                                  ? FontAwesomeIcons.clockRotateLeft
-                                  : FontAwesomeIcons.clock,
-                              color: followUpColor,
-                              size: 10,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _getFollowUpStatusText(followUpStatus),
-                              style: GoogleFonts.cairo(
-                                color: followUpColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // الصف الثالث: المصدر + الحملة الإعلانية
-                Row(
-                  children: [
+                  if (opportunity['InterestedProduct'] != null && opportunity['InterestedProduct'].toString().isNotEmpty) ...[
+                    if (hasValue) const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                          borderRadius: AppRadius.all(AppRadius.xs),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _getSourceIcon(opportunity['SourceName'], size: 14),
+                            FaFaIcon(FontAwesomeIcons.box, color: theme.colorScheme.onSurfaceVariant, size: 12),
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
-                                opportunity['SourceNameAr'] ?? opportunity['SourceName'] ?? '',
-                                style: GoogleFonts.cairo(color: Colors.grey[300], fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const FaFaIcon(FontAwesomeIcons.bullhorn, color: Colors.purple, size: 12),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                opportunity['AdTypeName'] ?? 'بدون حملة',
-                                style: GoogleFonts.cairo(color: Colors.purple[200], fontSize: 11),
+                                opportunity['InterestedProduct'],
+                                style: GoogleFonts.cairo(color: theme.colorScheme.onSurfaceVariant, fontSize: 11),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -2089,133 +1986,110 @@ Row(
                       ),
                     ),
                   ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // الصف الرابع: القيمة + المنتج
-                Row(
-                  children: [
-                    if (opportunity['ExpectedValue'] != null && opportunity['ExpectedValue'] > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green.withOpacity(0.2),
-                              Colors.green.withOpacity(0.1),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.green.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const FaFaIcon(FontAwesomeIcons.coins, color: Colors.green, size: 12),
-                            const SizedBox(width: 6),
-                            Text(
-                              _formatCurrency(opportunity['ExpectedValue']),
-                              style: GoogleFonts.cairo(
-                                color: Colors.green,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (opportunity['InterestedProduct'] != null &&
-                        opportunity['InterestedProduct'].toString().isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'اتصال',
+                      icon: Icons.call_rounded,
+                      color: AppColors.info,
+                      onTap: () => _makePhoneCall(opportunity['Phone1']),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Material(
+                      color: AppColors.whatsapp.withValues(alpha: 0.09),
+                      borderRadius: AppRadius.all(AppRadius.lg),
+                      child: InkWell(
+                        onTap: () => _openWhatsApp(opportunity['Phone1']),
+                        borderRadius: AppRadius.all(AppRadius.lg),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: AppRadius.all(AppRadius.lg),
+                            border: Border.all(color: AppColors.whatsapp.withValues(alpha: 0.28)),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const FaFaIcon(FontAwesomeIcons.box, color: Colors.grey, size: 12),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  opportunity['InterestedProduct'],
-                                  style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 11),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              WhatsAppChip(onTap: () => _openWhatsApp(opportunity['Phone1'])),
+                              const SizedBox(width: AppSpacing.sm),
+                              Text(
+                                'واتساب',
+                                style: TextStyle(color: AppColors.whatsapp, fontSize: 13.5, fontWeight: FontWeight.w800),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ],
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Quick Actions
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildQuickActionButton(
-                        icon: FontAwesomeIcons.phone,
-                        label: 'اتصال',
-                        color: Colors.green,
-                        onTap: () => _makePhoneCall(opportunity['Phone1']),
-                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildQuickActionButton(
-                        icon: FontAwesomeIcons.whatsapp,
-                        label: 'واتساب',
-                        color: const Color(0xFF25D366),
-                        onTap: () => _openWhatsApp(opportunity['Phone1']),
-                      ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'تفاصيل',
+                      icon: Icons.info_rounded,
+                      color: AppColors.gold,
+                      onTap: () => _openOpportunityDetails(opportunity),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildQuickActionButton(
-                        icon: FontAwesomeIcons.circleInfo,
-                        label: 'تفاصيل',
-                        color: const Color(0xFFFFD700),
-                        onTap: () => _openOpportunityDetails(opportunity),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     ).animate().fadeIn(delay: Duration(milliseconds: 50 * index), duration: 300.ms).slideX(begin: 0.1, end: 0);
   }
 
+  Widget _buildInfoPill({required dynamic icon, required String text, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: AppRadius.all(AppRadius.xs),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          compatIcon(icon, color: color, size: 12),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: GoogleFonts.cairo(color: color, fontSize: 10),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSwipeBackground(Color color, dynamic icon, String label, Alignment alignment) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppRadius.all(AppRadius.lg),
       ),
       alignment: alignment,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (alignment == Alignment.centerLeft) ...[
             Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
           ],
           compatIcon(icon, color: color, size: 24),
           if (alignment == Alignment.centerRight) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold)),
           ],
         ],
@@ -2223,82 +2097,25 @@ Row(
     );
   }
 
-  Widget _buildQuickActionButton({
-    required dynamic icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            compatIcon(icon, color: color, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.cairo(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          FaFaIcon(FontAwesomeIcons.folderOpen, size: 60, color: Colors.grey[600]),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد فرص',
-            style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'أضف فرصة جديدة للبدء',
-            style: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _addNewOpportunity,
-            icon: const FaFaIcon(FontAwesomeIcons.plus, size: 16),
-            label: Text('إضافة فرصة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFD700),
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
+    return AppEmpty(
+      message: 'لا توجد فرص',
+      hint: 'أضف فرصة جديدة للبدء',
+      icon: Icons.folder_open_rounded,
+      onRefresh: _addNewOpportunity,
+      refreshLabel: 'إضافة فرصة',
     );
   }
 
   Widget _buildFAB() {
     return FloatingActionButton.extended(
       onPressed: _addNewOpportunity,
-      backgroundColor: const Color(0xFFFFD700),
-      icon: const FaFaIcon(FontAwesomeIcons.plus, color: Colors.black, size: 18),
+      backgroundColor: AppColors.gold,
+      foregroundColor: AppColors.navy,
+      icon: const FaFaIcon(FontAwesomeIcons.plus, color: AppColors.navy, size: 18),
       label: Text(
         'فرصة جديدة',
-        style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+        style: GoogleFonts.cairo(color: AppColors.navy, fontWeight: FontWeight.bold),
       ),
     ).animate().scale(delay: 500.ms, duration: 300.ms);
   }
@@ -2306,9 +2123,9 @@ Row(
   void _showSortBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
       ),
       builder: (context) => Padding(
         padding: const EdgeInsets.all(20),
@@ -2321,7 +2138,7 @@ Row(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2329,12 +2146,12 @@ Row(
             const SizedBox(height: 20),
             Row(
               children: [
-                const FaFaIcon(FontAwesomeIcons.arrowDownWideShort, color: Color(0xFFFFD700), size: 18),
+                const FaFaIcon(FontAwesomeIcons.arrowDownWideShort, color: AppColors.gold, size: 18),
                 const SizedBox(width: 10),
                 Text(
                   'ترتيب حسب',
                   style: GoogleFonts.cairo(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2358,8 +2175,8 @@ Row(
                     Navigator.pop(context);
                     _fetchOpportunities();
                   },
-                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
-                  label: Text('إزالة الترتيب', style: GoogleFonts.cairo(color: Colors.grey)),
+                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: AppColors.neutral),
+                  label: Text('إزالة الترتيب', style: GoogleFonts.cairo(color: AppColors.neutral)),
                 ),
               ),
           ],
@@ -2371,22 +2188,22 @@ Row(
   Widget _buildSortOption(String value, String label, dynamic icon) {
     final isSelected = sortBy == value;
     return ListTile(
-      leading: compatIcon(icon, color: isSelected ? const Color(0xFFFFD700) : Colors.grey, size: 16),
+      leading: compatIcon(icon, color: isSelected ? AppColors.gold : AppColors.neutral, size: 16),
       title: Text(
         label,
         style: GoogleFonts.cairo(
-          color: isSelected ? const Color(0xFFFFD700) : Colors.white,
+          color: isSelected ? AppColors.gold : Theme.of(context).colorScheme.onSurface,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: isSelected ? const FaFaIcon(FontAwesomeIcons.check, color: Color(0xFFFFD700), size: 16) : null,
+      trailing: isSelected ? const FaFaIcon(FontAwesomeIcons.check, color: AppColors.gold, size: 16) : null,
       onTap: () {
         setState(() => sortBy = value);
         Navigator.pop(context);
         _fetchOpportunities();
       },
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      tileColor: isSelected ? const Color(0xFFFFD700).withOpacity(0.1) : null,
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.sm)),
+      tileColor: isSelected ? AppColors.gold.withValues(alpha: 0.1) : null,
     );
   }
 
@@ -2394,9 +2211,9 @@ Row(
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
       ),
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(
@@ -2416,7 +2233,7 @@ Row(
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -2424,12 +2241,12 @@ Row(
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const FaFaIcon(FontAwesomeIcons.filter, color: Color(0xFFFFD700), size: 18),
+                  const FaFaIcon(FontAwesomeIcons.filter, color: AppColors.gold, size: 18),
                   const SizedBox(width: 10),
                   Text(
                     'فلترة الفرص',
                     style: GoogleFonts.cairo(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -2439,7 +2256,7 @@ Row(
               const SizedBox(height: 24),
 
               // ✅ قسم التاريخ (من - إلى)
-              Text('الفترة الزمنية', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14)),
+              Text('الفترة الزمنية', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -2449,12 +2266,12 @@ Row(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: dateFrom != null 
-                                ? const Color(0xFFFFD700).withOpacity(0.5) 
-                                : Colors.grey.withOpacity(0.3),
+                                ? AppColors.gold.withValues(alpha: 0.5) 
+                                : Colors.grey.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -2462,14 +2279,14 @@ Row(
                             FaIcon(
                               FontAwesomeIcons.calendarDay, 
                               size: 14, 
-                              color: dateFrom != null ? const Color(0xFFFFD700) : Colors.grey,
+                              color: dateFrom != null ? AppColors.gold : AppColors.neutral,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 dateFrom != null ? _formatDate(dateFrom!) : 'من تاريخ',
                                 style: GoogleFonts.cairo(
-                                  color: dateFrom != null ? Colors.white : Colors.grey,
+                                  color: dateFrom != null ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -2477,7 +2294,7 @@ Row(
                             if (dateFrom != null)
                               InkWell(
                                 onTap: () => setModalState(() => dateFrom = null),
-                                child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                                child: const Icon(Icons.close, size: 16, color: AppColors.neutral),
                               ),
                           ],
                         ),
@@ -2493,12 +2310,12 @@ Row(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: dateTo != null 
-                                ? const Color(0xFFFFD700).withOpacity(0.5) 
-                                : Colors.grey.withOpacity(0.3),
+                                ? AppColors.gold.withValues(alpha: 0.5) 
+                                : Colors.grey.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -2506,14 +2323,14 @@ Row(
                             FaIcon(
                               FontAwesomeIcons.calendarCheck, 
                               size: 14, 
-                              color: dateTo != null ? const Color(0xFFFFD700) : Colors.grey,
+                              color: dateTo != null ? AppColors.gold : AppColors.neutral,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 dateTo != null ? _formatDate(dateTo!) : 'إلى تاريخ',
                                 style: GoogleFonts.cairo(
-                                  color: dateTo != null ? Colors.white : Colors.grey,
+                                  color: dateTo != null ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -2521,7 +2338,7 @@ Row(
                             if (dateTo != null)
                               InkWell(
                                 onTap: () => setModalState(() => dateTo = null),
-                                child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                                child: const Icon(Icons.close, size: 16, color: AppColors.neutral),
                               ),
                           ],
                         ),
@@ -2572,30 +2389,30 @@ Row(
               const SizedBox(height: 20),
 
               // قسم الموظف - Dropdown
-              Text('الموظف المسؤول', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14)),
+              Text('الموظف المسؤول', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int?>(
                     value: selectedEmployeeId,
                     isExpanded: true,
-                    dropdownColor: const Color(0xFF2A2A2A),
-                    hint: Text('اختر الموظف', style: GoogleFonts.cairo(color: Colors.grey)),
-                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
+                    dropdownColor: Theme.of(context).colorScheme.surface,
+                    hint: Text('اختر الموظف', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: AppColors.neutral, size: 14),
                     items: [
                       DropdownMenuItem<int?>(
                         value: null,
-                        child: Text('الكل', style: GoogleFonts.cairo(color: Colors.white)),
+                        child: Text('الكل', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
                       ),
                       ...employees.map((e) => DropdownMenuItem<int?>(
                             value: e['EmployeeID'],
-                            child: Text(e['FullName'] ?? '', style: GoogleFonts.cairo(color: Colors.white)),
+                            child: Text(e['FullName'] ?? '', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
                           )),
                     ],
                     onChanged: (value) {
@@ -2607,30 +2424,30 @@ Row(
               const SizedBox(height: 20),
 
               // قسم الحملة الإعلانية - Dropdown
-              Text('الحملة الإعلانية', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14)),
+              Text('الحملة الإعلانية', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int?>(
                     value: selectedAdTypeId,
                     isExpanded: true,
-                    dropdownColor: const Color(0xFF2A2A2A),
-                    hint: Text('اختر الحملة', style: GoogleFonts.cairo(color: Colors.grey)),
-                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: Colors.grey, size: 14),
+                    dropdownColor: Theme.of(context).colorScheme.surface,
+                    hint: Text('اختر الحملة', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    icon: const FaFaIcon(FontAwesomeIcons.chevronDown, color: AppColors.neutral, size: 14),
                     items: [
                       DropdownMenuItem<int?>(
                         value: null,
-                        child: Text('الكل', style: GoogleFonts.cairo(color: Colors.white)),
+                        child: Text('الكل', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
                       ),
                       ...adTypes.map((a) => DropdownMenuItem<int?>(
                             value: a['AdTypeID'],
-                            child: Text(a['AdTypeName'] ?? '', style: GoogleFonts.cairo(color: Colors.white)),
+                            child: Text(a['AdTypeName'] ?? '', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurface)),
                           )),
                     ],
                     onChanged: (value) {
@@ -2642,23 +2459,23 @@ Row(
               const SizedBox(height: 20),
 
               // حالة المتابعة - Chips
-              Text('حالة المتابعة', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14)),
+              Text('حالة المتابعة', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildFollowUpChip('الكل', null, Colors.grey, setModalState),
-                  _buildFollowUpChip('متأخرة', 'Overdue', Colors.red, setModalState),
-                  _buildFollowUpChip('اليوم', 'Today', Colors.orange, setModalState),
-                  _buildFollowUpChip('غداً', 'Tomorrow', Colors.blue, setModalState),
-                  _buildFollowUpChip('قادم', 'Upcoming', Colors.green, setModalState),
+                  _buildFollowUpChip('الكل', null, AppColors.neutral, setModalState),
+                  _buildFollowUpChip('متأخرة', 'Overdue', AppColors.error, setModalState),
+                  _buildFollowUpChip('اليوم', 'Today', AppColors.warning, setModalState),
+                  _buildFollowUpChip('غداً', 'Tomorrow', AppColors.info, setModalState),
+                  _buildFollowUpChip('قادم', 'Upcoming', AppColors.success, setModalState),
                 ],
               ),
               const SizedBox(height: 20),
 
               // المصدر - Chips
-              Text('المصدر', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14)),
+              Text('المصدر', style: GoogleFonts.cairo(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -2677,24 +2494,15 @@ Row(
               // زر تطبيق الفلتر
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
+                child: GoldButton(
+                  label: 'تطبيق الفلتر',
+                  icon: Icons.check_rounded,
                   onPressed: () {
                     Navigator.pop(context);
                     setState(() {});
                     _fetchOpportunities();
                     _fetchSummary();
                   },
-                  icon: const FaFaIcon(FontAwesomeIcons.check, size: 16),
-                  label: Text(
-                    'تطبيق الفلتر',
-                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD700),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -2726,10 +2534,10 @@ Row(
                     _fetchOpportunities();
                     _fetchSummary();
                   },
-                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: Colors.grey),
+                  icon: const FaFaIcon(FontAwesomeIcons.rotateLeft, size: 14, color: AppColors.neutral),
                   label: Text(
                     'إعادة تعيين',
-                    style: GoogleFonts.cairo(color: Colors.grey),
+                    style: GoogleFonts.cairo(color: AppColors.neutral),
                   ),
                 ),
               ),
@@ -2748,13 +2556,13 @@ Row(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.cyan.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.info.withValues(alpha: 0.12),
+          borderRadius: AppRadius.all(AppRadius.pill),
           // ✅ شيل border تماماً
         ),
         child: Text(
           label,
-          style: GoogleFonts.cairo(color: Colors.cyan, fontSize: 11),
+          style: GoogleFonts.cairo(color: AppColors.info, fontSize: 11),
         ),
       ),
     ),
@@ -2767,7 +2575,7 @@ Row(
       label: Text(
         label,
         style: GoogleFonts.cairo(
-          color: isSelected ? Colors.black : Colors.white,
+          color: isSelected ? AppColors.navy : Theme.of(context).colorScheme.onSurface,
           fontSize: 12,
         ),
       ),
@@ -2775,10 +2583,10 @@ Row(
       onSelected: (selected) {
         setModalState(() => selectedFollowUpStatus = selected ? value : null);
       },
-      backgroundColor: color.withOpacity(0.2),
+      backgroundColor: color.withValues(alpha: 0.12),
       selectedColor: color,
-      checkmarkColor: Colors.black,
-      side: BorderSide(color: color.withOpacity(0.5)),
+      checkmarkColor: AppColors.navy,
+      side: BorderSide(color: color.withValues(alpha: 0.5)),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
@@ -2800,7 +2608,7 @@ Row(
       label: Text(
         label,
         style: GoogleFonts.cairo(
-          color: isSelected ? Colors.black : Colors.white,
+          color: isSelected ? AppColors.navy : Theme.of(context).colorScheme.onSurface,
           fontSize: 12,
         ),
       ),
@@ -2808,9 +2616,9 @@ Row(
       onSelected: (selected) {
         setModalState(() => selectedSourceId = selected ? sourceId : null);
       },
-      backgroundColor: Colors.grey[800],
-      selectedColor: const Color(0xFFFFD700),
-      checkmarkColor: Colors.black,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      selectedColor: AppColors.gold,
+      checkmarkColor: AppColors.navy,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }

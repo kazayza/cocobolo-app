@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../services/app_colors.dart';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -233,7 +234,7 @@ class _FinanceCard extends StatelessWidget {
       value: _num(balance),
       icon: Icons.savings_rounded,
       gradient: const [Color(0xFF0E4D45), Color(0xFF1B6E63)],
-      accent: const Color(0xFF26A69A),
+      accent: HomeAccent.teal,
       footer: 'محدث مع آخر تحديث للبيانات',
     );
   }
@@ -366,8 +367,8 @@ class _FinanceCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: (changePercent!.startsWith('+'))
-                        ? const Color(0xFF43A047).withValues(alpha: 0.25)
-                        : const Color(0xFFE53935).withValues(alpha: 0.25),
+                        ? AppColors.success.withValues(alpha: 0.25)
+                        : AppColors.error.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(

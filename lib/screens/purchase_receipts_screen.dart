@@ -7,10 +7,13 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../services/app_colors.dart';
 import '../services/purchase_receipt_service.dart';
 import '../services/theme_service.dart';
+import '../services/design_tokens.dart';
 import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import 'invoice/invoice_details_screen.dart';
 import 'job_order_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class PurchaseReceiptsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -262,8 +265,12 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_PurchaseReceiptStatus'),
       backgroundColor: AppColors.background(_isDark),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('استلامات الشراء',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -442,11 +449,10 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${_int(value)}',
-                      style: GoogleFonts.cairo(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14)),
+                  AmountText(
+                      value: '${_int(value)}',
+                      color: Colors.white,
+                      size: 14),
                   Text(label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -464,11 +470,8 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
   Widget _amount(String label, dynamic value) {
     return Expanded(
       child: Column(children: [
-        Text(_money(value),
-            style: GoogleFonts.cairo(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 12)),
+        AmountText(
+            value: _money(value), color: Colors.white, size: 12),
         Text(label,
             style: GoogleFonts.cairo(color: Colors.white54, fontSize: 9)),
       ]),
@@ -476,15 +479,13 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
   }
 
   Widget _filters() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.xl,
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
-      child: Column(children: [
+        child: Column(children: [
         TextField(
           controller: _searchController,
           onChanged: _searchChanged,
@@ -561,7 +562,8 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
             ),
           ),
         ],
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -775,16 +777,8 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color) =>
+      StatusBadge(label: text, color: color, small: true);
 
   Widget _chip(IconData icon, String text, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),

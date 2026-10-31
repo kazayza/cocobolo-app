@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/app_colors.dart';
 import 'package:provider/provider.dart';
 
 import '../models/home_dashboard_model.dart';
@@ -78,13 +79,13 @@ class _TaskTile extends StatelessWidget {
     if (priority == null) return null;
     final p = priority.toLowerCase();
     if (p.contains('عال') || p.contains('high') || p.contains('urgent')) {
-      return const Color(0xFFE53935);
+      return AppColors.error;
     }
     if (p.contains('متوسط') || p.contains('medium') || p.contains('normal')) {
       return const Color(0xFFFFA000);
     }
     if (p.contains('منخف') || p.contains('low')) {
-      return const Color(0xFF43A047);
+      return AppColors.success;
     }
     return null;
   }

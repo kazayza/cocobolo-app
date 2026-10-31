@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/theme_service.dart';
 import '../../services/inventory_service.dart';
 import '../../widgets/crm_design_system.dart';
 
+import '../../widgets/app_drawer.dart';
 /// قيمة المخزون - مطابق بلازور Inventory/StockValue.razor
 /// تقييم مالي: تكلفة + بيع متوقعة + ربح حسب الفرع/المخزن/باقة السعر
 /// تصميم بهوية فلاتر navy+gold
@@ -82,112 +82,39 @@ class _StockValueScreenState extends State<StockValueScreen> {
     _loadData();
   }
 
+  String? _error;
+
   Future<void> _loadData() async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
-      // نحسب قيمة المخزون من StockLevels + Products أسعار حسب الباقة
-      String url = '$baseUrl/api/products?';
-      if (_branchId != null) url += 'branchId=$_branchId&';
-      if (_warehouseId != null) url += 'warehouseId=$_warehouseId&';
-      url = url.endsWith('&') || url.endsWith('?') ? url.substring(0, url.length - 1) : url;
-
-      final productsRes = await http.get(Uri.parse(url));
-      List<dynamic> products = [];
-      if (productsRes.statusCode == 200) {
-        products = jsonDecode(productsRes.body) as List;
-      }
-
-      // جلب كل مستويات المخزون
-      final stockLevels = await InventoryService.getStockLevels(warehouseId: _warehouseId);
-
-      // Build rows: لكل مستوى مخزون + أسعار المنتج حسب الباقة
-      final Map<int, Map<String, dynamic>> productMap = {};
-      for (final p in products) {
-        final id = p['ProductID'] ?? p['ProductId'] ?? 0;
-        if (id is int) productMap[id] = Map<String, dynamic>.from(p as Map);
-        else if (int.tryParse('$id') != null) productMap[int.parse('$id')] = Map<String, dynamic>.from(p as Map);
-      }
-
-      List<dynamic> rows = [];
-      double totalCost = 0;
-      double totalSale = 0;
-      int totalQty = 0;
-      final Set<int> whSet = {};
-
-      for (final sl in stockLevels) {
-        final pid = sl['ProductID'] ?? sl['ProductId'] ?? 0;
-        final whId = sl['WarehouseID'] ?? sl['WarehouseId'] ?? 0;
-        final qty = sl['Quantity'] ?? 0;
-        if (qty <= 0) continue;
-
-        // لو فيه فلتر فرع، تأكد المخزن تابع للفرع
-        if (_branchId != null) {
-          final wh = _allWarehouses.firstWhere((w) => (w['WarehouseID'] ?? w['WarehouseId']) == whId, orElse: () => null);
-          if (wh != null) {
-            final bId = wh['BranchId'] ?? wh['BranchID'];
-            if (bId != _branchId) continue;
-          }
-        }
-
-        final product = productMap[pid] ?? {};
-        double unitCost = 0;
-        double unitSale = 0;
-
-        switch (_tier) {
-          case 'CClass':
-            unitCost = (product['PurchasePriceCClass'] ?? product['PurchasePrice'] ?? 0).toDouble();
-            unitSale = (product['SuggestedSalePriceCClass'] ?? product['SuggestedSalePrice'] ?? 0).toDouble();
-            break;
-          case 'Elite':
-            unitCost = (product['PurchasePriceElite'] ?? product['PurchasePrice'] ?? 0).toDouble();
-            unitSale = (product['SuggestedSalePriceElite'] ?? product['SuggestedSalePrice'] ?? 0).toDouble();
-            break;
-          case 'Premium':
-          default:
-            unitCost = (product['PurchasePrice'] ?? 0).toDouble();
-            unitSale = (product['SuggestedSalePrice'] ?? 0).toDouble();
-            break;
-        }
-
-        final costValue = unitCost * qty;
-        final saleValue = unitSale * qty;
-        final profit = saleValue - costValue;
-
-        final whName = sl['WarehouseName'] ?? _allWarehouses.firstWhere((w) => (w['WarehouseID'] ?? w['WarehouseId']) == whId, orElse: () => {'WarehouseName': '—'})['WarehouseName'] ?? '—';
-        final branchName = _branches.firstWhere((b) => (b['BranchId'] ?? b['BranchID']) == (sl['BranchId'] ?? 0), orElse: () => null)?['BranchNameAr'] ?? '';
-
-        rows.add({
-          'ProductId': pid,
-          'ProductName': product['ProductName'] ?? sl['ProductName'] ?? '—',
-          'WarehouseName': whName,
-          'BranchNameAr': branchName,
-          'Quantity': qty,
-          'UnitCost': unitCost,
-          'CostValue': costValue,
-          'UnitSalePrice': unitSale,
-          'SaleValue': saleValue,
-          'ExpectedProfit': profit,
-        });
-
-        totalCost += costValue;
-        totalSale += saleValue;
-        totalQty += qty as int;
-        whSet.add(whId is int ? whId : int.tryParse('$whId') ?? 0);
-      }
-
+      // قيمة المخزون تُحسب خادميًا فقط (GET /api/inventory/stock-value —
+      // مرآة GetStockValueAsync): أسعار الشراء محجوبة عن أغلب الأدوار في
+      // واجهة المنتجات، فأي حساب محلي كان يخرج أصفارًا مضللة. الشاشة
+      // مقصورة خادميًا على المدير ومدير الحسابات، وخطأ 403 يظهر بصدق.
+      final result = await InventoryService.getStockValue(
+        branchId: _branchId,
+        warehouseId: _warehouseId,
+        priceTier: _tier,
+      );
+      final rows = (result['rows'] as List?) ?? const [];
+      final summary = result['summary'];
       if (mounted) setState(() {
         _rows = rows;
-        _summary = {
-          'TotalCostValue': totalCost,
-          'TotalSaleValue': totalSale,
-          'TotalExpectedProfit': totalSale - totalCost,
-          'TotalProducts': productMap.length,
-          'TotalQuantity': totalQty,
-          'WarehousesCount': whSet.length,
-        };
+        if (summary is Map) {
+          _summary = Map<String, dynamic>.from(summary);
+        }
       });
     } catch (e) {
       debugPrint('StockValue error: $e');
+      if (mounted) setState(() {
+        _rows = [];
+        _error = e is InventoryApiException && e.statusCode == 403
+            ? 'غير مصرح لك بعرض قيمة المخزون — الشاشة مقصورة على المدير ومدير الحسابات'
+            : 'فشل تحميل قيمة المخزون: $e';
+      });
     } finally {
       if (mounted) setState(() {
         _loading = false;
@@ -211,14 +138,16 @@ class _StockValueScreenState extends State<StockValueScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
+        drawer: buildAppDrawer(currentRoute: 'frm_StockValue'),
+        backgroundColor: AppColors.background(_isDark),
         body: NestedScrollView(
           headerSliverBuilder: (ctx, inner) => [
-            SliverAppBar(
+            SliverAppBar( leading: const AppDrawerMenuButton(),
               pinned: true,
               expandedHeight: 150,
               backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
+              elevation: 0,
               title: Text('قيمة المخزون', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
               actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loadData)],
               flexibleSpace: FlexibleSpaceBar(background: _buildHero()),
@@ -227,9 +156,11 @@ class _StockValueScreenState extends State<StockValueScreen> {
             SliverToBoxAdapter(child: _buildKpis()),
           ],
           body: _loading
-              ? Center(child: CircularProgressIndicator(color: AppColors.gold))
-              : _rows.isEmpty
-                  ? CrmDesignSystem.emptyState(message: 'لا توجد بيانات قيمة مخزون', hint: 'جرب تغيير الفلاتر', icon: Icons.attach_money_rounded, onRefresh: _loadData)
+              ? const AppLoading()
+              : _error != null
+                  ? AppEmpty(message: _error!, hint: 'تحقق من الصلاحية ثم أعد المحاولة', icon: Icons.lock_outline_rounded, onRefresh: _loadData)
+                  : _rows.isEmpty
+                  ? AppEmpty(message: 'لا توجد بيانات قيمة مخزون', hint: 'جرب تغيير الفلاتر', icon: Icons.attach_money_rounded, onRefresh: _loadData)
                   : RefreshIndicator(
                       color: AppColors.gold,
                       onRefresh: _loadData,
@@ -246,7 +177,7 @@ class _StockValueScreenState extends State<StockValueScreen> {
 
   Widget _buildHero() {
     return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF1E293B), const Color(0xFF134E4A), const Color(0xFF166534)], begin: Alignment.topRight, end: Alignment.bottomLeft)),
+      decoration: BoxDecoration(gradient: LinearGradient(colors: AppGradients.identityHeader, begin: Alignment.topRight, end: Alignment.bottomLeft)),
       child: Stack(children: [
         Positioned(top: -20, right: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), shape: BoxShape.circle))),
         SafeArea(
@@ -268,10 +199,11 @@ class _StockValueScreenState extends State<StockValueScreen> {
   }
 
   Widget _buildFilters() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06))),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      child: AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
       child: Row(children: [
         Expanded(child: DropdownButtonFormField<int?>(value: _branchId, decoration: InputDecoration(labelText: 'الفرع', labelStyle: GoogleFonts.cairo(fontSize: 11), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10)), items: [DropdownMenuItem<int?>(value: null, child: Text('كل الفروع', style: GoogleFonts.cairo(fontSize: 12))), ..._branches.map((b) => DropdownMenuItem<int?>(value: b['BranchId'] ?? b['BranchID'], child: Text(b['BranchNameAr'] ?? b['BranchName'] ?? '', style: GoogleFonts.cairo(fontSize: 12))))], onChanged: (v) => _onBranchChanged(v))),
         const SizedBox(width: 8),
@@ -281,12 +213,13 @@ class _StockValueScreenState extends State<StockValueScreen> {
         const SizedBox(width: 8),
         ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), onPressed: _busy ? null : _loadData, icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.refresh_rounded, size: 16, color: Colors.white), label: Text(_busy ? 'جاري...' : 'تحديث', style: GoogleFonts.cairo(color: Colors.white, fontSize: 11))),
       ]),
+      ),
     );
   }
 
   Widget _buildKpis() {
     return Container(
-      color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
+      color: AppColors.background(_isDark),
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Row(children: [
         _kpi('إجمالي قيمة التكلفة', _fmt(_summary['TotalCostValue']), const Color(0xFFB45309)),
@@ -301,7 +234,7 @@ class _StockValueScreenState extends State<StockValueScreen> {
   }
 
   Widget _kpi(String label, String val, Color c) {
-    return Expanded(child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(gradient: LinearGradient(colors: [c.withOpacity(0.85), c], begin: Alignment.topRight, end: Alignment.bottomLeft), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: c.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), Text(val, style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)])));
+    return Expanded(child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(gradient: LinearGradient(colors: [c.withOpacity(0.85), c], begin: Alignment.topRight, end: Alignment.bottomLeft), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: c.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), AmountText(value: val, color: Colors.white, size: 13)])));
   }
 }
 
@@ -316,10 +249,11 @@ class _ValueRowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final profit = (row['ExpectedProfit'] ?? 0).toDouble();
     final profitColor = profit >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withOpacity(0.06))),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.sm,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(row['ProductName'] ?? '', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12))),
@@ -340,10 +274,11 @@ class _ValueRowCard extends StatelessWidget {
         const SizedBox(height: 8),
         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: profitColor.withOpacity(0.10), borderRadius: BorderRadius.circular(8)), child: Row(children: [Icon(profit >=0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, size: 14, color: profitColor), const SizedBox(width: 6), Text('الربح المتوقع ${fmt(profit)} ج', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: profitColor))])),
       ]),
+      ),
     );
   }
 
   Widget _valBox(String label, String val, Color c) {
-    return Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), decoration: BoxDecoration(color: c.withOpacity(0.08), borderRadius: BorderRadius.circular(8)), child: Column(children: [Text(label, style: GoogleFonts.cairo(fontSize: 9, color: Colors.grey.shade600)), const SizedBox(height: 2), Text(val, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: c))])));
+    return Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), decoration: BoxDecoration(color: c.withOpacity(0.08), borderRadius: BorderRadius.circular(8)), child: Column(children: [Text(label, style: GoogleFonts.cairo(fontSize: 9, color: Colors.grey.shade600)), const SizedBox(height: 2), AmountText(value: val, color: c, size: 11)])));
   }
 }

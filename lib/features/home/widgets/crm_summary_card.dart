@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/app_colors.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -7,10 +8,15 @@ import 'home_accent.dart';
 
 /// بطاقة CRM — ملخص الليدز والمتابعات + رسم Donut حقيقي
 /// محسّنة: Donut أكبر مع الإجمالي في المنتصف + أشرطة تقدم لكل فئة
+/// [embedded]: وضع كاروسيل الإحصائيات — المحتوى فقط بلا غلاف البطاقة،
+/// لأن غلاف الكاروسيل نفسه يحمل معالجة هذه البطاقة الأصلية (السطح
+/// الملوّن والإطار ونصف القطر والحشوة) فتعيش الصفحتان داخله
+/// بلا أغلفة مكرّرة.
 class CrmSummaryCard extends StatelessWidget {
   final VoidCallback? onTap;
+  final bool embedded;
 
-  const CrmSummaryCard({super.key, this.onTap});
+  const CrmSummaryCard({super.key, this.onTap, this.embedded = false});
 
   static int _toInt(dynamic v) {
     if (v is num) return v.toInt();
@@ -33,6 +39,181 @@ class CrmSummaryCard extends StatelessWidget {
     final rest = total > counted ? total - counted : 0;
     final hasDonut = total > 0;
 
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ──────────────────────────────────
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: HomeAccent.gradient(HomeAccent.indigo),
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.hub_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'إدارة علاقات العملاء',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'متابعة الليدز والمتابعات والفرص',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Directionality.of(context) == TextDirection.rtl
+                  ? Icons.chevron_left_rounded
+                  : Icons.chevron_right_rounded,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 18),
+
+        // ── المؤشرات الثلاثة ───────────────────────
+        Row(
+          children: [
+            Expanded(
+              child: _Metric(
+                title: 'Leads',
+                value: leads,
+                color: HomeAccent.indigo,
+              ),
+            ),
+            Expanded(
+              child: _Metric(
+                title: 'المتابعات',
+                value: total,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            Expanded(
+              child: _Metric(
+                title: 'متأخرة',
+                value: overdue,
+                isAlert: overdue > 0,
+              ),
+            ),
+          ],
+        ),
+
+        if (hasDonut) ...[
+          const SizedBox(height: 18),
+          Divider(
+            height: 1,
+            color: theme.dividerColor.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 16),
+
+          // ── الجزء البياني: Donut + أشرطة تقدم ────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Donut مع الإجمالي في المنتصف
+              SizedBox(
+                width: 132,
+                height: 132,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _DonutChart(
+                      overdue: overdue,
+                      today: today,
+                      tomorrow: tomorrow,
+                      rest: rest,
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$total',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'متابعة',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 18),
+
+              // أشرطة التقدم لكل فئة
+              Expanded(
+                child: Column(
+                  children: [
+                    _ProgressBar(
+                      label: 'متأخرة',
+                      value: overdue,
+                      total: total,
+                      color: AppColors.error,
+                    ),
+                    const SizedBox(height: 10),
+                    _ProgressBar(
+                      label: 'اليوم',
+                      value: today,
+                      total: total,
+                      color: HomeAccent.gold,
+                    ),
+                    const SizedBox(height: 10),
+                    _ProgressBar(
+                      label: 'غداً',
+                      value: tomorrow,
+                      total: total,
+                      color: AppColors.warningLight,
+                    ),
+                    if (rest > 0) ...[
+                      const SizedBox(height: 10),
+                      _ProgressBar(
+                        label: 'قادمة',
+                        value: rest,
+                        total: total,
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    // داخل غلاف الكاروسيل: المحتوى وحده — الغلاف يوفر السطح والحشوة
+    if (embedded) return content;
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -46,177 +227,7 @@ class CrmSummaryCard extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header ──────────────────────────────────
-              Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: HomeAccent.gradient(HomeAccent.indigo),
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(Icons.hub_rounded, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'إدارة علاقات العملاء',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'متابعة الليدز والمتابعات والفرص',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Directionality.of(context) == TextDirection.rtl
-                        ? Icons.chevron_left_rounded
-                        : Icons.chevron_right_rounded,
-                    size: 20,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              // ── المؤشرات الثلاثة ───────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: _Metric(
-                      title: 'Leads',
-                      value: leads,
-                      color: HomeAccent.indigo,
-                    ),
-                  ),
-                  Expanded(
-                    child: _Metric(
-                      title: 'المتابعات',
-                      value: total,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  Expanded(
-                    child: _Metric(
-                      title: 'متأخرة',
-                      value: overdue,
-                      isAlert: overdue > 0,
-                    ),
-                  ),
-                ],
-              ),
-
-              if (hasDonut) ...[
-                const SizedBox(height: 18),
-                Divider(
-                  height: 1,
-                  color: theme.dividerColor.withValues(alpha: 0.4),
-                ),
-                const SizedBox(height: 16),
-
-                // ── الجزء البياني: Donut + أشرطة تقدم ────
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Donut مع الإجمالي في المنتصف
-                    SizedBox(
-                      width: 132,
-                      height: 132,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          _DonutChart(
-                            overdue: overdue,
-                            today: today,
-                            tomorrow: tomorrow,
-                            rest: rest,
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '$total',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              Text(
-                                'متابعة',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 18),
-
-                    // أشرطة التقدم لكل فئة
-                    Expanded(
-                      child: Column(
-                        children: [
-                          _ProgressBar(
-                            label: 'متأخرة',
-                            value: overdue,
-                            total: total,
-                            color: const Color(0xFFE53935),
-                          ),
-                          const SizedBox(height: 10),
-                          _ProgressBar(
-                            label: 'اليوم',
-                            value: today,
-                            total: total,
-                            color: HomeAccent.gold,
-                          ),
-                          const SizedBox(height: 10),
-                          _ProgressBar(
-                            label: 'غداً',
-                            value: tomorrow,
-                            total: total,
-                            color: const Color(0xFFFFA726),
-                          ),
-                          if (rest > 0) ...[
-                            const SizedBox(height: 10),
-                            _ProgressBar(
-                              label: 'قادمة',
-                              value: rest,
-                              total: total,
-                              color: theme.colorScheme.outlineVariant,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
+          child: content,
         ),
       ),
     );
@@ -244,7 +255,7 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final c = isAlert
-        ? const Color(0xFFE53935)
+        ? AppColors.error
         : color ?? theme.colorScheme.primary;
 
     return Column(
@@ -354,7 +365,7 @@ class _DonutChart extends StatelessWidget {
       if (overdue > 0)
         PieChartSectionData(
           value: overdue.toDouble(),
-          color: const Color(0xFFE53935),
+          color: AppColors.error,
           radius: 16,
           showTitle: false,
         ),
@@ -368,7 +379,7 @@ class _DonutChart extends StatelessWidget {
       if (tomorrow > 0)
         PieChartSectionData(
           value: tomorrow.toDouble(),
-          color: const Color(0xFFFFA726),
+          color: AppColors.warningLight,
           radius: 16,
           showTitle: false,
         ),

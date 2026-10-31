@@ -3,9 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/auth/session_service.dart';
 
 import '../constants.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../features/home/widgets/home_accent.dart';
 import '../providers/auth_provider.dart';
 import '../services/leads_service.dart';
@@ -187,8 +190,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   static String _lower(String s) => s.toLowerCase();
 
   Future<List<SearchItem>?> _searchClients(String q) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    // التوكن مصدره الوحيد SessionService (Secure Storage).
+    final token = SessionService.instance.accessToken;
     final res = await http
         .get(
           Uri.parse('$baseUrl/api/clients/list'),
@@ -250,7 +253,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final url =
         '$baseUrl/api/products?search=${Uri.encodeComponent(q)}&limit=20';
     final res = await http
-        .get(Uri.parse(url))
+        .get(
+          Uri.parse(url),
+          headers: SessionService.instance.authHeaders,
+        )
         .timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
 
@@ -277,7 +283,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final url =
         '$baseUrl/api/expenses?search=${Uri.encodeComponent(q)}&limit=20';
     final res = await http
-        .get(Uri.parse(url), headers: {'Accept': 'application/json'})
+        .get(
+          Uri.parse(url),
+          headers: {
+            ...SessionService.instance.authHeaders,
+            'Accept': 'application/json',
+          },
+        )
         .timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
 
@@ -303,7 +315,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Future<List<SearchItem>?> _searchEmployees(String q) async {
     final res = await http
-        .get(Uri.parse('$baseUrl/api/employees/active'))
+        .get(
+          Uri.parse('$baseUrl/api/employees/active'),
+          headers: SessionService.instance.authHeaders,
+        )
         .timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
 
@@ -375,6 +390,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('بحث شامل'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.close_rounded),
@@ -409,7 +427,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   alpha: 0.5,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.all(AppRadius.lg),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -451,52 +469,22 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   Widget _buildResults(ThemeData theme) {
     // تحميل
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 3));
+      return const AppLoading();
     }
 
     // استعلام قصير
     if (_query.length < 2) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.manage_search_rounded,
-              size: 56,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'اكتب حرفين على الأقل للبحث',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      return const AppEmpty(
+        message: 'اكتب حرفين على الأقل للبحث',
+        icon: Icons.manage_search_rounded,
       );
     }
 
     // لا نتائج
     if (_results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: 56,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'لا توجد نتائج لـ "$_query"',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      return AppEmpty(
+        message: 'لا توجد نتائج لـ "$_query"',
+        icon: Icons.search_off_rounded,
       );
     }
 
@@ -524,7 +512,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             color: configs[entry.key]!.accent.withValues(alpha: 0.06),
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppRadius.all(AppRadius.lg),
               side: BorderSide(
                 color: configs[entry.key]!.accent.withValues(alpha: 0.25),
               ),
@@ -586,16 +574,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: accent),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-        ),
-      ],
-    );
+    return AppSectionHeader(title: label, icon: icon, accent: accent);
   }
 }
 
@@ -623,7 +602,7 @@ class _ResultTile extends StatelessWidget {
         height: 40,
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
         ),
         child: Icon(icon, color: accent, size: 20),
       ),

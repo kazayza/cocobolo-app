@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../features/home/widgets/home_accent.dart';
+import '../services/design_tokens.dart';
 import '../services/leads_service.dart';
+import '../widgets/design_kit.dart';
 import '../widgets/speech_text_field.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -207,7 +211,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                 : (result['message']?.toString() ?? 'حدث خطأ'),
             style: GoogleFonts.cairo(fontSize: 13),
           ),
-          backgroundColor: ok ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+          backgroundColor: ok ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -219,7 +223,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('خطأ: $e', style: GoogleFonts.cairo(fontSize: 13)),
-          backgroundColor: const Color(0xFFC62828),
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -236,13 +240,13 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFF4F7FB),
+      backgroundColor: isDark ? AppColors.navyDark : AppColors.lightInputFill,
       appBar: AppBar(
         title: Text(
           'إضافة Lead يدوي',
           style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 17),
         ),
-        backgroundColor: HomeAccent.navyDark,
+        backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -387,7 +391,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
               isDark,
               icon: Icons.shopping_bag_rounded,
               title: 'بيانات المشروع',
-              color: const Color(0xFF2563EB),
+              color: AppColors.info,
               children: [
                 // نوع المشروع — قائمة منسدلة + كتابة + إضافة جديدة
                 _suggestField(
@@ -513,7 +517,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                 onPressed: _saving ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: HomeAccent.gold,
-                  foregroundColor: const Color(0xFF0D1A2A),
+                  foregroundColor: AppColors.navyDark,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -523,7 +527,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(0xFF0D1A2A)),
+                            strokeWidth: 2, color: AppColors.navyDark),
                       )
                     : const Icon(Icons.save_rounded, size: 20),
                 label: Text(
@@ -608,42 +612,14 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
     required Color color,
     required List<Widget> children,
   }) {
-    final theme = Theme.of(context);
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(icon, size: 16, color: color),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.cairo(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          AppSectionHeader(title: title, icon: icon, accent: color),
+          const SizedBox(height: AppSpacing.md),
           ...children,
         ],
       ),
@@ -688,8 +664,8 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
           .copyWith(
         suffixIcon: IconButton(
           tooltip: 'فتح واتساب بهذا الرقم',
-          icon: const Icon(Icons.chat_rounded),
-          color: const Color(0xFF25D366),
+          icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 20),
+          color: AppColors.whatsapp,
           onPressed: () => _openWhatsApp(controller.text),
         ),
       ),
@@ -837,13 +813,13 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.add_circle_rounded,
-                        size: 20, color: Color(0xFF43A047)),
+                        size: 20, color: AppColors.success),
                     title: Text(
                       'إضافة قيمة جديدة',
                       style: GoogleFonts.cairo(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF43A047),
+                        color: AppColors.success,
                       ),
                     ),
                     onTap: () => Navigator.pop(context, '__ADD__'),
@@ -903,7 +879,7 @@ class _AddLeadScreenState extends State<AddLeadScreen> {
             onPressed: () => Navigator.pop(context, ctrl.text),
             style: FilledButton.styleFrom(
               backgroundColor: HomeAccent.gold,
-              foregroundColor: const Color(0xFF0D1A2A),
+              foregroundColor: AppColors.navyDark,
             ),
             child: Text('إضافة', style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
           ),

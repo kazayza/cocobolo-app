@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 
 import '../../features/home/widgets/home_accent.dart';
 import '../../services/admin_service.dart';
@@ -6,6 +9,7 @@ import '../../services/permission_service.dart';
 import 'user_form_screen.dart';
 import 'user_permissions_screen.dart';
 
+import '../../widgets/app_drawer.dart';
 /// ─────────────────────────────────────────────────────────────
 ///  إدارة المستخدمين — قائمة + بحث + فلتر نشط/غير نشط
 ///  (مطابقة لصفحة Users في الـ Blazor)
@@ -137,7 +141,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
             child: const Text('إلغاء'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('حذف'),
           ),
@@ -154,8 +158,8 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
       SnackBar(
         content: Text(result['message'] ?? 'تم الحذف'),
         backgroundColor: result['success'] == true
-            ? const Color(0xFF43A047)
-            : Colors.red,
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -168,8 +172,12 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frm_AllUsers'),
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: const Text('إدارة المستخدمين'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           if (_canAdd)
             IconButton(
@@ -183,7 +191,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
         children: [
           // ── شريط البحث ──────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xs),
             child: TextField(
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
@@ -200,7 +208,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
                   alpha: 0.4,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -209,7 +217,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
 
           // ── الفلاتر ─────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6),
             child: Row(
               children: [
                 const Text(
@@ -228,7 +236,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
                 const SizedBox(width: 6),
                 _FilterChip(
                   label: 'نشط',
-                  color: const Color(0xFF43A047),
+                  color: AppColors.success,
                   selected: _filterActive == true,
                   onTap: () => setState(() {
                     _filterActive = true;
@@ -238,7 +246,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
                 const SizedBox(width: 6),
                 _FilterChip(
                   label: 'غير نشط',
-                  color: const Color(0xFFE53935),
+                  color: AppColors.error,
                   selected: _filterActive == false,
                   onTap: () => setState(() {
                     _filterActive = false;
@@ -246,23 +254,9 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
                   }),
                 ),
                 const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: HomeAccent.gold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_filtered.length} مستخدم',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: HomeAccent.gold,
-                    ),
-                  ),
+                StatusBadge(
+                  label: '${_filtered.length} مستخدم',
+                  color: AppColors.gold,
                 ),
               ],
             ),
@@ -276,38 +270,21 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
   }
 
   Widget _buildBody(bool isDark) {
-    final theme = Theme.of(context);
-
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 3));
+      return const AppLoading();
     }
 
     if (_filtered.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.person_off_rounded,
-              size: 56,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _searchText.isNotEmpty || _filterActive != null
-                  ? 'لا توجد نتائج مطابقة'
-                  : 'لا يوجد مستخدمين في النظام',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      return AppEmpty(
+        message: _searchText.isNotEmpty || _filterActive != null
+            ? 'لا توجد نتائج مطابقة'
+            : 'لا يوجد مستخدمين في النظام',
+        icon: Icons.person_off_rounded,
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.xl),
       itemCount: _filtered.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
@@ -362,20 +339,20 @@ class _UserCard extends StatelessWidget {
       case 'accountmanager':
         return const Color(0xFF9C27B0);
       case 'hrmanager':
-        return const Color(0xFF26A69A);
+        return HomeAccent.teal;
       case 'socialmanager':
-        return const Color(0xFFEC407A);
+        return HomeAccent.pink;
       case 'factory':
-        return const Color(0xFFFF9800);
+        return AppColors.warning;
       case 'sales':
-        return const Color(0xFF2196F3);
+        return AppColors.info;
       case 'account':
-        return const Color(0xFFEF5350);
+        return AppColors.errorLight;
       case 'social':
         return const Color(0xFFE91E63);
       case 'viewer':
       case 'socialview':
-        return const Color(0xFF78909C);
+        return HomeAccent.blueGrey;
       case 'b2b':
         return const Color(0xFF00ACC1);
       default:
@@ -430,19 +407,10 @@ class _UserCard extends StatelessWidget {
     final theme = Theme.of(context);
     final roleColor = _roleColor(user.role);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: user.isActive
-              ? roleColor.withValues(alpha: 0.25)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return AppCard(
+      radius: AppRadius.xl,
+      padding: const EdgeInsets.all(14),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -460,7 +428,7 @@ class _UserCard extends StatelessWidget {
                         Color.lerp(roleColor, Colors.black, 0.25)!,
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text(
@@ -475,7 +443,7 @@ class _UserCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,39 +461,18 @@ class _UserCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: roleColor.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _roleTitle(user.role),
-                              style: TextStyle(
-                                color: roleColor,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                          StatusBadge(
+                            label: _roleTitle(user.role),
+                            color: roleColor,
+                            small: true,
                           ),
                           const SizedBox(width: 8),
-                          Icon(
-                            user.isActive ? Icons.circle : Icons.cancel_rounded,
-                            size: 8,
+                          StatusBadge(
+                            label: user.isActive ? 'نشط' : 'غير نشط',
                             color: user.isActive
-                                ? const Color(0xFF43A047)
-                                : const Color(0xFFE53935),
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            user.isActive ? 'نشط' : 'غير نشط',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                                ? AppColors.success
+                                : AppColors.error,
+                            small: true,
                           ),
                         ],
                       ),
@@ -581,7 +528,7 @@ class _UserCard extends StatelessWidget {
                     TextButton.icon(
                       onPressed: onDelete,
                       style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFFE53935),
+                        foregroundColor: AppColors.error,
                       ),
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),
                       label: const Text('حذف'),
@@ -591,7 +538,6 @@ class _UserCard extends StatelessWidget {
               ),
           ],
         ),
-      ),
     );
   }
 }
@@ -644,7 +590,7 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
         decoration: BoxDecoration(
           color: selected
               ? c.withValues(alpha: 0.15)

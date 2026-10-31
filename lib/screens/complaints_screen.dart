@@ -4,8 +4,11 @@ import '../models/complaint_model.dart';
 import '../services/complaints_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'complaint_details_screen.dart';
 import 'add_complaint_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class ComplaintsScreen extends StatefulWidget {
   final int userId;
@@ -163,6 +166,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     final isDark = ThemeService().isDarkMode;
 
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_Complaints_Main'),
       backgroundColor: AppColors.background(isDark),
       appBar: _buildAppBar(isDark),
       body: _isLoading
@@ -179,28 +183,25 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   // ===================================
   PreferredSizeWidget _buildAppBar(bool isDark) {
     return AppBar(
-      backgroundColor: isDark ? AppColors.navy : Colors.white,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       elevation: 0,
       title: Text(
         'الشكاوى',
         style: GoogleFonts.cairo(
           fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white : AppColors.navy,
+          color: Colors.white,
         ),
       ),
       centerTitle: true,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios,
-          color: isDark ? Colors.white : AppColors.navy,
-        ),
-        onPressed: () => Navigator.pop(context),
+      leading: AppDrawerMenuButton(
+        color: Colors.white,
       ),
       actions: [
         IconButton(
           icon: Icon(
             Icons.refresh,
-            color: isDark ? AppColors.gold : AppColors.navy,
+            color: AppColors.gold,
           ),
           onPressed: _loadComplaints,
         ),
@@ -212,64 +213,14 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   // Loading
   // ===================================
   Widget _buildLoading(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: AppColors.gold),
-          const SizedBox(height: 16),
-          Text(
-            'جاري تحميل الشكاوى...',
-            style: GoogleFonts.cairo(
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const AppLoading(message: 'جاري تحميل الشكاوى...');
   }
 
   // ===================================
   // Error
   // ===================================
   Widget _buildError(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red.shade400,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: GoogleFonts.cairo(
-              fontSize: 16,
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _loadComplaints,
-            icon: const Icon(Icons.refresh),
-            label: Text(
-              'إعادة المحاولة',
-              style: GoogleFonts.cairo(),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.navy,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _loadComplaints);
   }
 
   // ===================================
@@ -370,7 +321,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             isDark: isDark,
             title: 'جديدة',
             count: _stats['new']!,
-            color: Colors.blue,
+            color: AppColors.info,
             isSelected: _selectedStatus == 1,
             onTap: () {
               setState(() {
@@ -383,7 +334,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             isDark: isDark,
             title: 'قيد الحل',
             count: _stats['inProgress']!,
-            color: Colors.orange,
+            color: AppColors.warning,
             isSelected: _selectedStatus == 2,
             onTap: () {
               setState(() {
@@ -396,7 +347,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             isDark: isDark,
             title: 'انتظار',
             count: _stats['waiting']!,
-            color: Colors.amber,
+            color: AppColors.warning,
             isSelected: _selectedStatus == 3,
             onTap: () {
               setState(() {
@@ -409,7 +360,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             isDark: isDark,
             title: 'محلولة',
             count: _stats['resolved']!,
-            color: Colors.green,
+            color: AppColors.success,
             isSelected: _selectedStatus == 4,
             onTap: () {
               setState(() {
@@ -422,7 +373,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             isDark: isDark,
             title: 'مصعدة',
             count: _stats['escalated']!,
-            color: Colors.purple,
+            color: AppStatus.editPending,
             isSelected: _selectedStatus == 6,
             onTap: () {
               setState(() {
@@ -450,7 +401,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         width: 90,
         margin: const EdgeInsets.only(left: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : AppColors.card(isDark),
+          color: isSelected ? color.withValues(alpha: 0.2) : AppColors.card(isDark),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? color : Colors.transparent,
@@ -458,7 +409,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -527,12 +478,12 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
                     color: _openOnly
-                        ? Colors.green.withOpacity(0.15)
+                        ? AppColors.success.withValues(alpha: 0.15)
                         : AppColors.inputFill(isDark),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: _openOnly
-                          ? Colors.green
+                          ? AppColors.success
                           : AppColors.divider(isDark),
                     ),
                   ),
@@ -542,7 +493,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                       Icon(
                         Icons.lock_open_rounded,
                         size: 13,
-                        color: _openOnly ? Colors.green : AppColors.textSecondary(isDark),
+                        color: _openOnly ? AppColors.success : AppColors.textSecondary(isDark),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -550,7 +501,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                         style: GoogleFonts.cairo(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
-                          color: _openOnly ? Colors.green : AppColors.textSecondary(isDark),
+                          color: _openOnly ? AppColors.success : AppColors.textSecondary(isDark),
                         ),
                       ),
                     ],
@@ -617,7 +568,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.gold.withOpacity(0.15)
+              ? AppColors.gold.withValues(alpha: 0.15)
               : AppColors.inputFill(isDark),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -646,7 +597,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: _hasPeriodFilter && label != 'الكل'
-              ? AppColors.gold.withOpacity(0.15)
+              ? AppColors.gold.withValues(alpha: 0.15)
               : AppColors.inputFill(isDark),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -720,10 +671,10 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               child: Row(
                 children: [
                   _buildPriorityChip(isDark, null, 'الكل'),
-                  _buildPriorityChip(isDark, 1, 'عالية جداً', Colors.red.shade700),
-                  _buildPriorityChip(isDark, 2, 'عالية', Colors.orange),
-                  _buildPriorityChip(isDark, 3, 'متوسطة', Colors.amber),
-                  _buildPriorityChip(isDark, 4, 'منخفضة', Colors.green),
+                  _buildPriorityChip(isDark, 1, 'عالية جداً', AppColors.error),
+                  _buildPriorityChip(isDark, 2, 'عالية', AppColors.warning),
+                  _buildPriorityChip(isDark, 3, 'متوسطة', AppColors.warning),
+                  _buildPriorityChip(isDark, 4, 'منخفضة', AppColors.success),
                 ],
               ),
             ),
@@ -808,7 +759,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -820,7 +771,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: _getPriorityColor(complaint.priority).withOpacity(0.1),
+                color: _getPriorityColor(complaint.priority).withValues(alpha: 0.1),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -830,40 +781,15 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // الأولوية
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(complaint.priority),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      complaint.priorityText,
-                      style: GoogleFonts.cairo(
-                        fontSize: 11,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  StatusBadge(
+                    label: complaint.priorityText,
+                    color: _getPriorityColor(complaint.priority),
+                    filled: true,
                   ),
                   // الحالة
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(complaint.status).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _getStatusColor(complaint.status),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      complaint.statusText,
-                      style: GoogleFonts.cairo(
-                        fontSize: 11,
-                        color: _getStatusColor(complaint.status),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  StatusBadge(
+                    label: complaint.statusText,
+                    color: _getStatusColor(complaint.status),
                   ),
                 ],
               ),
@@ -965,20 +891,20 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                         const Icon(
                           Icons.attach_file,
                           size: 16,
-                          color: Colors.blue,
+                          color: AppColors.info,
                         ),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.15),
+                            color: AppColors.info.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${complaint.attachmentsCount} مرفق',
                             style: GoogleFonts.cairo(
                               fontSize: 11,
-                              color: Colors.blue,
+                              color: AppColors.info,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -993,7 +919,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.purple.withOpacity(0.1),
+                        color: AppStatus.editPending.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -1002,14 +928,14 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                           const Icon(
                             Icons.arrow_upward,
                             size: 14,
-                            color: Colors.purple,
+                            color: AppStatus.editPending,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'مصعدة',
                             style: GoogleFonts.cairo(
                               fontSize: 11,
-                              color: Colors.purple,
+                              color: AppStatus.editPending,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1030,34 +956,10 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   // حالة فارغة
   // ===================================
   Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 80,
-            color: AppColors.textHint(isDark),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد شكاوى',
-            style: GoogleFonts.cairo(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'اضغط على + لإضافة شكوى جديدة',
-            style: GoogleFonts.cairo(
-              fontSize: 14,
-              color: AppColors.textHint(isDark),
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      message: 'لا توجد شكاوى',
+      hint: 'اضغط على + لإضافة شكوى جديدة',
+      icon: Icons.inbox_outlined,
     );
   }
 
@@ -1081,6 +983,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         }
       },
       backgroundColor: AppColors.gold,
+      foregroundColor: AppColors.navy,
       icon: Icon(Icons.add, color: AppColors.navy),
       label: Text(
         'شكوى جديدة',
@@ -1097,23 +1000,23 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   // ===================================
   Color _getStatusColor(int status) {
     switch (status) {
-      case 1: return Colors.blue;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber;
-      case 4: return Colors.green;
-      case 5: return Colors.red;
-      case 6: return Colors.purple;
-      default: return Colors.grey;
+      case 1: return AppColors.info;
+      case 2: return AppColors.warning;
+      case 3: return AppColors.warning;
+      case 4: return AppColors.success;
+      case 5: return AppColors.error;
+      case 6: return AppStatus.editPending;
+      default: return AppColors.neutral;
     }
   }
 
   Color _getPriorityColor(int priority) {
     switch (priority) {
-      case 1: return Colors.red.shade700;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber.shade700;
-      case 4: return Colors.green;
-      default: return Colors.grey;
+      case 1: return AppColors.error;
+      case 2: return AppColors.warning;
+      case 3: return AppStatus.overdue;
+      case 4: return AppColors.success;
+      default: return AppColors.neutral;
     }
   }
 

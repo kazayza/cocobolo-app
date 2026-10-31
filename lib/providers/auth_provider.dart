@@ -30,9 +30,15 @@ class AuthProvider extends ChangeNotifier {
   // التحقق من الأدوار
   bool get isAdmin => _role?.toLowerCase() == 'admin';
   bool get isSalesManager => _role?.toLowerCase() == 'salesmanager';
-  bool get isAccountManager => _role?.toLowerCase() == 'accountmanager';
+  // مدير الحسابات بصيغتيه — بلازور وحّدهما (12-H16)
+  bool get isAccountManager =>
+      _role?.toLowerCase() == 'accountmanager' ||
+      _role?.toLowerCase() == 'accountsmanager';
   bool get isSales => _role?.toLowerCase() == 'sales';
-  bool get isAccount => _role?.toLowerCase() == 'account';
+  // المحاسب دور مستقل في بلازور (Accountant) وصيغته المختصرة Account
+  bool get isAccount =>
+      _role?.toLowerCase() == 'account' ||
+      _role?.toLowerCase() == 'accountant';
 
   // تسجيل الدخول
   void login({

@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/delivery_service.dart';
+import '../services/permission_service.dart';
+import 'general_tasks_screen.dart';
+import '../widgets/record_delivery_dialog.dart';
 import '../services/theme_service.dart';
 import '../widgets/app_states.dart';
 import 'invoice/invoice_details_screen.dart';
@@ -26,6 +32,7 @@ class DeliveryDetailsScreen extends StatefulWidget {
 class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   final DeliveryService _service = DeliveryService();
   Map<String, dynamic>? _data;
+  List<Map<String, dynamic>> _scheduleRequests = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
   bool _loading = true;
   bool _busy = false;
@@ -69,6 +76,17 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         _data = data;
         _loading = false;
       });
+      try {
+        final sched =
+            await _service.getScheduleRequests(widget.transactionId);
+        if (mounted) {
+          setState(() {
+            _scheduleRequests = ((sched['rows'] as List?) ?? const [])
+                .map<Map<String, dynamic>>(_map)
+                .toList();
+          });
+        }
+      } catch (_) {}
       if (_can('canEditFull')) {
         try {
           _employees = await _service.getEmployees();
@@ -93,92 +111,399 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   }
 
   Future<void> _confirm() async {
-    final data = _data!;
-    final remaining = _num(data['RemainingAmount']);
-    if (remaining > 0 && !_can('canOverrideRemaining')) {
-      if (data['HasPendingPermissionRequest'] == true) {
-        _message('طلب الإذن ما زال قيد المراجعة', error: true);
-      } else if (data['LastPermissionAction'] != 'DeliveryPermissionGranted') {
-        await _requestPermission();
-      } else {
-        await _showConfirmDialog();
-      }
-      return;
-    }
     await _showConfirmDialog();
   }
 
+  // Item 1/3 (Pkg1): recording now goes through the per-line record-event
+  // dialog (dispositions + live coverage) as the primary path.
   Future<void> _showConfirmDialog() async {
-    int? employeeId = _data?['DeliveryEmployeeId'] is num
-        ? (_data!['DeliveryEmployeeId'] as num).toInt()
-        : null;
-    final notes =
-        TextEditingController(text: '${_data?['DeliveredNotes'] ?? ''}');
-    final confirmed = await showDialog<bool>(
+    final data = _data!;
+    final products = ((data['Products'] as List?) ?? const [])
+        .map<Map<String, dynamic>>(_map)
+        .toList();
+    final saved = await showRecordDeliveryDialog(
+      context,
+      transactionId: widget.transactionId,
+      products: products,
+      employees: _employees,
+      canSeeAmounts: _can('canSeeAmounts'),
+      canEditFull: _can('canEditFull'),
+      canOverrideRemaining: _can('canOverrideRemaining'),
+      permissionGranted:
+          data['LastPermissionAction'] == 'DeliveryPermissionGranted',
+      initialEmployeeId: data['DeliveryEmployeeId'] is num
+          ? (data['DeliveryEmployeeId'] as num).toInt()
+          : null,
+    );
+    if (saved && mounted) await _load();
+  }
+
+  // Item 2 (Pkg1): void a delivery event — Admin/AccountManager only
+  // (capability canVoidDelivery), mandatory reason.
+  Future<void> _voidEvent(Map<String, dynamic> event) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('إلغاء حدث تسليم',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          style: GoogleFonts.cairo(),
+          decoration: InputDecoration(
+            labelText: 'سبب الإلغاء (إلزامي)',
+            labelStyle: GoogleFonts.cairo(),
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('تراجع', style: GoogleFonts.cairo()),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, true);
+            },
+            child: Text('إلغاء الحدث', style: GoogleFonts.cairo()),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final reason = ctrl.text.trim();
+    ctrl.dispose();
+    await _run(() => _service.voidEvent(
+          id: widget.transactionId,
+          deliveryId: _int(event['DeliveryId']),
+          reason: reason,
+        ));
+  }
+
+  // Item 6 (Pkg2): create a schedule-change request.
+  Future<void> _createScheduleRequest() async {
+    final data = _data!;
+    final products = ((data['Products'] as List?) ?? const [])
+        .map<Map<String, dynamic>>(_map)
+        .where((pr) => _num(pr['RemainingQty']) > 0.0005)
+        .toList();
+    final reasonCtrl = TextEditingController();
+    DateTime? proposedDue;
+    final lineDates = <int, DateTime?>{};
+    final lineCustom = <int, bool>{};
+    final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (_, setDialogState) => AlertDialog(
-          title: Text('تأكيد التسليم',
+          title: Text('طلب تعديل موعد / تقسيم',
               style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              if (_can('canEditFull') && _employees.isNotEmpty)
-                DropdownButtonFormField<int?>(
-                  initialValue: employeeId,
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('التاريخ الكلي المقترح (اختياري)',
+                      style: GoogleFonts.cairo(fontSize: 12)),
+                  subtitle: Text(
+                      proposedDue == null
+                          ? 'لا تغيير'
+                          : DateFormat('yyyy/MM/dd').format(proposedDue!),
+                      style: GoogleFonts.cairo(fontSize: 11)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.calendar_month_rounded),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: proposedDue ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 730)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => proposedDue = picked);
+                      }
+                    },
+                  ),
+                ),
+                for (final pr in products) ...[
+                  const Divider(height: 8),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        '${pr['ProductName'] ?? ''} — موعده: ${_date(pr['ScheduledDate'])}${pr['ScheduledDateIsCustom'] == true ? ' (خاص)' : ''}',
+                        style: GoogleFonts.cairo(fontSize: 11.5),
+                      ),
+                    ),
+                    if (lineCustom[_int(pr['DetailID'])] == true)
+                      TextButton(
+                        onPressed: () => setDialogState(() {
+                          lineCustom[_int(pr['DetailID'])] = false;
+                          lineDates[_int(pr['DetailID'])] = null;
+                        }),
+                        child: Text('اتباع تاريخ الفاتورة',
+                            style: GoogleFonts.cairo(fontSize: 10)),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_month_rounded,
+                          size: 19),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate:
+                              lineDates[_int(pr['DetailID'])] ??
+                                  DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 730)),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            lineDates[_int(pr['DetailID'])] = picked;
+                            lineCustom[_int(pr['DetailID'])] = true;
+                          });
+                        }
+                      },
+                    ),
+                  ]),
+                  if (lineCustom[_int(pr['DetailID'])] == true)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        'المقترح: ${DateFormat('yyyy/MM/dd').format(lineDates[_int(pr['DetailID'])]!)}',
+                        style: GoogleFonts.cairo(
+                            fontSize: 10.5, color: AppColors.warning),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: reasonCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.cairo(),
                   decoration: InputDecoration(
-                    labelText: 'مندوب التسليم',
+                    labelText: 'سبب طلب التعديل (إلزامي)',
                     labelStyle: GoogleFonts.cairo(),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14)),
                   ),
-                  items: [
-                    DropdownMenuItem<int?>(
-                      value: null,
-                      child:
-                          Text('المستخدم الحالي', style: GoogleFonts.cairo()),
-                    ),
-                    ..._employees.map((employee) => DropdownMenuItem<int?>(
-                          value: _int(employee['EmployeeID']),
-                          child: Text('${employee['FullName'] ?? ''}',
-                              style: GoogleFonts.cairo()),
-                        )),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => employeeId = value),
                 ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: notes,
-                maxLines: 3,
-                style: GoogleFonts.cairo(),
-                decoration: InputDecoration(
-                  labelText: 'ملاحظات التسليم',
-                  labelStyle: GoogleFonts.cairo(),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ]),
+              ]),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
               child: Text('إلغاء', style: GoogleFonts.cairo()),
             ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.check_circle_rounded, size: 18),
-              label: Text('تأكيد', style: GoogleFonts.cairo()),
+            FilledButton(
+              onPressed: () {
+                if (reasonCtrl.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, true);
+              },
+              child: Text('إرسال الطلب', style: GoogleFonts.cairo()),
             ),
           ],
         ),
       ),
     );
-    if (confirmed != true) return;
-    await _run(() => _service.confirmDelivery(
+    if (ok != true) return;
+    final lines = <Map<String, dynamic>>[
+      for (final entry in lineCustom.entries)
+        if (entry.value || lineDates[entry.key] != null)
+          {
+            'transactionDetailId': entry.key,
+            'proposedDate': lineDates[entry.key]?.toIso8601String(),
+            'proposedIsCustom': entry.value,
+          },
+    ];
+    final reason = reasonCtrl.text.trim();
+    reasonCtrl.dispose();
+    await _run(() => _service.createScheduleRequest(
           id: widget.transactionId,
-          deliveryEmployeeId: employeeId,
-          notes: notes.text.trim(),
+          reason: reason,
+          proposedDueDate: proposedDue,
+          lines: lines,
+        ));
+  }
+
+  // Item 6 (Pkg2): decide a schedule-change request with editable finals.
+  Future<void> _decideScheduleRequest(Map<String, dynamic> request) async {
+    Map<String, dynamic> approval;
+    try {
+      approval = await _service.getScheduleApproval(_int(request['Id']));
+    } catch (error) {
+      if (mounted) _message(error.toString(), error: true);
+      return;
+    }
+    if (!mounted) return;
+    final reqMap = _map(approval['Request']);
+    final currentLines = ((approval['CurrentLines'] as List?) ?? const [])
+        .map<Map<String, dynamic>>(_map)
+        .toList();
+    final proposedByDetail = <int, Map<String, dynamic>>{};
+    for (final l in ((reqMap['Lines'] as List?) ?? const [])
+        .map<Map<String, dynamic>>(_map)) {
+      proposedByDetail[_int(l['TransactionDetailId'])] = l;
+    }
+    final finalDates = <int, DateTime?>{};
+    final finalCustom = <int, bool>{};
+    for (final entry in proposedByDetail.entries) {
+      finalCustom[entry.key] = entry.value['ProposedIsCustom'] == true;
+      finalDates[entry.key] = entry.value['ProposedDate'] == null
+          ? null
+          : DateTime.tryParse('${entry.value['ProposedDate']}');
+    }
+    DateTime? finalDue = reqMap['ProposedDueDate'] == null
+        ? null
+        : DateTime.tryParse('${reqMap['ProposedDueDate']}');
+    final noteCtrl = TextEditingController();
+    final decision = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text('اعتماد طلب تعديل المواعيد',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+          content: SizedBox(
+            width: 540,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('السبب: ${reqMap['Reason'] ?? ''}',
+                    style: GoogleFonts.cairo(fontSize: 12)),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                      'التاريخ الكلي الحالي (الحقيقي): ${_date(approval['CurrentDueDate'])}',
+                      style: GoogleFonts.cairo(fontSize: 11.5)),
+                  subtitle: Text(
+                      'النهائي: ${finalDue == null ? 'لا تغيير' : DateFormat('yyyy/MM/dd').format(finalDue!)}',
+                      style: GoogleFonts.cairo(fontSize: 11)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.calendar_month_rounded),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: finalDue ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 730)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => finalDue = picked);
+                      }
+                    },
+                  ),
+                ),
+                for (final line in currentLines) ...[
+                  const Divider(height: 8),
+                  Text(
+                    '${line['ProductName'] ?? ''} — الحالي الحقيقي: ${_date(line['CurrentDate'])}${line['CurrentIsCustom'] == true ? ' (خاص)' : ''} — متبقٍّ ${_num(line['RemainingQty'])}',
+                    style: GoogleFonts.cairo(fontSize: 11.5),
+                  ),
+                  if (proposedByDetail
+                      .containsKey(_int(line['TransactionDetailId'])))
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          finalCustom[_int(line['TransactionDetailId'])] ==
+                                  true
+                              ? 'النهائي: ${finalDates[_int(line['TransactionDetailId'])] == null ? '—' : DateFormat('yyyy/MM/dd').format(finalDates[_int(line['TransactionDetailId'])]!)}'
+                              : 'النهائي: اتباع تاريخ الفاتورة',
+                          style: GoogleFonts.cairo(fontSize: 11),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setDialogState(() {
+                          finalCustom[_int(line['TransactionDetailId'])] =
+                              false;
+                          finalDates[_int(line['TransactionDetailId'])] =
+                              null;
+                        }),
+                        child: Text('اتباع الفاتورة',
+                            style: GoogleFonts.cairo(fontSize: 10)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_month_rounded,
+                            size: 19),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: dialogContext,
+                            initialDate:
+                                finalDates[_int(line['TransactionDetailId'])] ??
+                                    DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 730)),
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              finalDates[_int(line['TransactionDetailId'])] =
+                                  picked;
+                              finalCustom[_int(line['TransactionDetailId'])] =
+                                  true;
+                            });
+                          }
+                        },
+                      ),
+                    ]),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 2,
+                  style: GoogleFonts.cairo(),
+                  decoration: InputDecoration(
+                    labelText: 'ملاحظة القرار (إلزامية عند الرفض)',
+                    labelStyle: GoogleFonts.cairo(),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: Text('إغلاق', style: GoogleFonts.cairo()),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                if (noteCtrl.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, false);
+              },
+              child: Text('رفض الطلب',
+                  style: GoogleFonts.cairo(color: AppColors.error)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('اعتماد وتطبيق', style: GoogleFonts.cairo()),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (decision == null) return;
+    final note = noteCtrl.text.trim();
+    noteCtrl.dispose();
+    final finalLines = <Map<String, dynamic>>[
+      for (final entry in proposedByDetail.entries)
+        {
+          'transactionDetailId': entry.key,
+          'finalDate': finalDates[entry.key]?.toIso8601String(),
+          'finalIsCustom': finalCustom[entry.key] ?? false,
+        },
+    ];
+    await _run(() => _service.decideScheduleRequest(
+          requestId: _int(request['Id']),
+          approve: decision,
+          finalDueDate: finalDue,
+          finalLines: finalLines,
+          note: note.isEmpty ? null : note,
         ));
   }
 
@@ -306,6 +631,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(_isDark),
       appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('تفاصيل التسليم #${widget.transactionId}',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -315,6 +643,25 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
               icon: const Icon(Icons.edit_rounded),
               tooltip: 'تعديل',
             ),
+          IconButton(
+            tooltip: 'تكليف جديد',
+            icon: const Icon(Icons.add_task_rounded),
+            color: AppColors.gold,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => GeneralTasksScreen(
+                    userId: PermissionService().userId ?? 0,
+                    username: widget.username,
+                    presetLinkedType: 'Delivery',
+                    presetLinkedId: widget.transactionId,
+                    autoOpenCreate: true,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             onPressed: _busy ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
@@ -352,21 +699,17 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           Container(
-            padding: const EdgeInsets.all(17),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [
-                  AppColors.navyDark,
-                  AppColors.navy,
-                  AppColors.navyLight
-                ],
+                colors: AppGradients.identityHeader,
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: AppRadius.all(AppRadius.xxl),
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.32)),
             ),
             child:
@@ -377,7 +720,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                   height: 48,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: AppRadius.all(AppRadius.md),
                   ),
                   child: Icon(
                       delivered
@@ -402,7 +745,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                                 color: Colors.white60, fontSize: 10.5)),
                       ]),
                 ),
-                _badge(_statusLabel(status), color),
+                StatusBadge(label: _statusLabel(status), color: color, filled: true),
               ]),
               if (_can('canSeeAmounts')) ...[
                 const SizedBox(height: 14),
@@ -458,15 +801,185 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                     title: Text('${product['ProductName'] ?? '—'}',
                         style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
                     subtitle: Text(
-                      'الكمية: ${product['Quantity'] ?? 0}${(product['AlternativeName'] ?? '').toString().isEmpty ? '' : ' — ${product['AlternativeName']}'}',
+                      'الكمية: ${product['Quantity'] ?? 0}'
+                      '${(product['AlternativeName'] ?? '').toString().isEmpty ? '' : ' — ${product['AlternativeName']}'}'
+                      '\nمقبول: ${_num(product['DeliveredQty'])} — داخل الصيانة: ${_num(product['InLoopQty'])} — مُسوّى: ${_num(product['SettledQty'])} — متبقٍّ: ${_num(product['RemainingQty'])}'
+                      '\nموعد التسليم: ${_date(product['ScheduledDate'])}${product['ScheduledDateIsCustom'] == true ? ' (موعد خاص)' : ''}${product['IsScheduleOverdue'] == true ? ' — متأخر' : ''}'
+                      '${product['LastDeliveryDate'] == null ? '' : '\nآخر تسليمة: ${_date(product['LastDeliveryDate'])}'}',
                       style: GoogleFonts.cairo(fontSize: 10.5),
                     ),
                     trailing: _can('canSeeAmounts')
-                        ? Text(_money(product['TotalAmount']),
-                            style:
-                                GoogleFonts.cairo(fontWeight: FontWeight.w700))
+                        ? AmountText(value: _money(product['TotalAmount']))
                         : null,
                   ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Item 8 (Pkg1): delivery progress summary from the API Progress block
+          _section(
+            title: 'تقدم التسليم',
+            icon: Icons.local_shipping_rounded,
+            children: [
+              _line('إجمالي المفوتر', '${_num(_map(data['Progress'])['TotalInvoicedQty'])}'),
+              _line('المقبول', '${_num(_map(data['Progress'])['TotalDeliveredQty'])}'),
+              _line('داخل الصيانة', '${_num(_map(data['Progress'])['TotalInLoopQty'])}'),
+              _line('المُسوّى', '${_num(_map(data['Progress'])['TotalSettledQty'])}'),
+              _line('المتبقي', '${_num(_map(data['Progress'])['TotalRemainingQty'])}'),
+              _line('عدد الأحداث', '${_int(_map(data['Progress'])['EventCount'])}'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Item 8 + Item 2: events history (actual dates are facts — never masked)
+          _section(
+            title: 'سجل أحداث التسليم',
+            icon: Icons.history_rounded,
+            children: [
+              if (((data['Events'] as List?) ?? const []).isEmpty)
+                Text('لا توجد أحداث تسليم مسجلة', style: GoogleFonts.cairo())
+              else
+                for (final event in ((data['Events'] as List?) ?? const [])
+                    .map<Map<String, dynamic>>(_map))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: Icon(
+                        event['IsVoided'] == true
+                            ? Icons.block_rounded
+                            : Icons.check_circle_rounded,
+                        color: event['IsVoided'] == true
+                            ? AppColors.error
+                            : AppColors.success),
+                    title: Text(
+                      '${_date(event['DeliveryDate'])} — ${event['DeliveryEmployeeName'] ?? ''}${event['IsVoided'] == true ? ' (ملغي)' : ''}',
+                      style: GoogleFonts.cairo(
+                          fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      ((event['Items'] as List?) ?? const [])
+                          .map<Map<String, dynamic>>(_map)
+                          .map((it) =>
+                              '${it['ProductName'] ?? ''}: مقبول ${_num(it['AcceptedQty'])} / راجع ${_num(it['ReturnedManufacturingQty']) + _num(it['ReturnedHandlingQty']) + _num(it['ReturnedModificationQty'])}')
+                          .join('، '),
+                      style: GoogleFonts.cairo(fontSize: 10.5),
+                    ),
+                    trailing: (event['IsVoided'] != true &&
+                            _can('canVoidDelivery'))
+                        ? IconButton(
+                            icon: const Icon(Icons.undo_rounded,
+                                color: AppColors.error),
+                            tooltip: 'إلغاء الحدث',
+                            onPressed:
+                                _busy ? null : () => _voidEvent(event),
+                          )
+                        : null,
+                  ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _section(
+            title: 'سجلات الصيانة',
+            icon: Icons.build_circle_rounded,
+            children: [
+              if (((data['Maintenance'] as List?) ?? const []).isEmpty)
+                Text('لا توجد سجلات صيانة', style: GoogleFonts.cairo())
+              else
+                for (final m in ((data['Maintenance'] as List?) ?? const [])
+                    .map<Map<String, dynamic>>(_map))
+                  _line(
+                    '${m['ReasonClass'] ?? ''} — ${m['Status'] ?? ''}',
+                    'كمية ${_num(m['Quantity'])}${(m['IssueDescription'] ?? '').toString().isEmpty ? '' : ' — ${m['IssueDescription']}'}',
+                  ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _section(
+            title: 'رسوم التعديل',
+            icon: Icons.receipt_long_rounded,
+            children: [
+              if (((data['Charges'] as List?) ?? const []).isEmpty)
+                Text('لا توجد رسوم تعديل', style: GoogleFonts.cairo())
+              else
+                for (final ch in ((data['Charges'] as List?) ?? const [])
+                    .map<Map<String, dynamic>>(_map))
+                  _line(
+                    '${ch['ChargeDescription'] ?? 'رسم تعديل'} — ${ch['Status'] ?? ''}',
+                    _can('canSeeAmounts') && ch['ChargeAmount'] != null
+                        ? _money(ch['ChargeAmount'])
+                        : 'الحالة فقط',
+                  ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Item 6 (Pkg2): schedule-change requests section
+          _section(
+            title: 'طلبات تعديل المواعيد',
+            icon: Icons.schedule_rounded,
+            children: [
+              if (_scheduleRequests.any((r) => r['Status'] == 'Pending'))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: StatusBadge(
+                      label: 'طلب تعديل موعد قيد الانتظار',
+                      color: AppColors.warning,
+                      small: true),
+                ),
+              if (_scheduleRequests.isEmpty)
+                Text('لا توجد طلبات تعديل مواعيد',
+                    style: GoogleFonts.cairo())
+              else
+                for (final r in _scheduleRequests)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(
+                      '${r['Status'] ?? ''} — ${r['RequesterName'] ?? r['RequesterUserName'] ?? ''}',
+                      style: GoogleFonts.cairo(
+                          fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      '${r['Reason'] ?? ''}${r['DecisionNote'] == null ? '' : '\nقرار: ${r['DecisionNote']}'}',
+                      style: GoogleFonts.cairo(fontSize: 10.5),
+                    ),
+                    trailing: Wrap(spacing: 2, children: [
+                      if (r['Status'] == 'Pending' &&
+                          _can('canDecideScheduleChange'))
+                        IconButton(
+                          icon: const Icon(Icons.gavel_rounded,
+                              color: AppColors.navy),
+                          tooltip: 'اعتماد / رفض',
+                          onPressed: _busy
+                              ? null
+                              : () => _decideScheduleRequest(r),
+                        ),
+                      if (r['Status'] == 'Pending' &&
+                          '${r['RequesterUserName'] ?? ''}' ==
+                              widget.username)
+                        IconButton(
+                          icon: const Icon(Icons.undo_rounded,
+                              color: AppColors.error),
+                          tooltip: 'سحب الطلب',
+                          onPressed: _busy
+                              ? null
+                              : () => _run(() =>
+                                  _service.withdrawScheduleRequest(
+                                      _int(r['Id']))),
+                        ),
+                    ]),
+                  ),
+              if (_can('canRequestScheduleChange') &&
+                  !_scheduleRequests
+                      .any((r) => r['Status'] == 'Pending')) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _createScheduleRequest,
+                    icon: const Icon(Icons.schedule_rounded, size: 17),
+                    label: Text('طلب تعديل موعد / تقسيم',
+                        style: GoogleFonts.cairo()),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -483,7 +996,10 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _whatsapp('${data['Phone']}'),
-                  icon: const Icon(Icons.chat_rounded),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    color: AppColors.whatsapp,
+                  ),
                   label: Text('واتساب', style: GoogleFonts.cairo()),
                 ),
               ),
@@ -549,23 +1065,11 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xl,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, color: AppColors.goldDark, size: 19),
-          const SizedBox(width: 7),
-          Text(title,
-              style: GoogleFonts.cairo(
-                  color: AppColors.text(_isDark),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14)),
-        ]),
+        AppSectionHeader(title: title, icon: icon, accent: AppColors.goldDark),
         const Divider(height: 20),
         ...children,
       ]),
@@ -593,24 +1097,10 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
   Widget _amount(String label, dynamic value) => Expanded(
         child: Column(children: [
-          Text(_money(value),
-              style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800)),
+          AmountText(value: _money(value), color: Colors.white, size: 12),
           Text(label,
               style: GoogleFonts.cairo(color: Colors.white54, fontSize: 9)),
         ]),
-      );
-
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(20)),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
       );
 
   Future<void> _call(String phone) async => launchUrl(Uri.parse('tel:$phone'));
@@ -627,7 +1117,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         'overdue' => AppColors.error,
         'today' => AppColors.warning,
         'soon' => AppColors.info,
-        'returned' => Colors.purple,
+        'returned' => AppStatus.editPending,
         _ => AppColors.goldDark,
       };
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -37,20 +39,9 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -104,7 +95,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
           color: isSelected
               ? barColor.withOpacity(widget.isDark ? 0.1 : 0.05)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
           border: isSelected
               ? Border.all(color: barColor.withOpacity(0.3))
               : null,
@@ -125,7 +116,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
                         barColor.withOpacity(0.08),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppRadius.all(AppRadius.sm),
                     border: Border.all(
                       color: barColor.withOpacity(0.2),
                     ),
@@ -287,7 +278,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
         widget.sources.indexWhere((s) => s.sourceId == source.sourceId));
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -295,7 +286,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
             barColor.withOpacity(widget.isDark ? 0.04 : 0.02),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(color: barColor.withOpacity(0.3)),
       ),
       child: Row(
@@ -305,14 +296,14 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
             '💰',
             'الإيراد المتوقع',
             _formatCurrency(source.expectedRevenue),
-            const Color(0xFF42A5F5),
+            AppColors.infoLight,
           ),
           _buildDetailDivider(),
           _buildDetailItem(
             '💵',
             'الإيراد الفعلي',
             _formatCurrency(source.actualRevenue),
-            const Color(0xFF66BB6A),
+            AppColors.successLight,
           ),
           _buildDetailDivider(),
           _buildDetailItem(
@@ -369,12 +360,12 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
         widget.sources.fold<double>(0, (sum, s) => sum + s.actualRevenue);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         children: [
@@ -383,7 +374,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
             '🏆',
             'أفضل تحويل',
             '${bestConversion.name} (${bestConversion.conversionRate.toStringAsFixed(0)}%)',
-            const Color(0xFF66BB6A),
+            AppColors.successLight,
           ),
 
           // أسرع إغلاق
@@ -394,7 +385,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
                 '⚡',
                 'أسرع إغلاق',
                 '${fastestClose.first.name} (${fastestClose.first.avgCloseTime} يوم)',
-                const Color(0xFF42A5F5),
+                AppColors.infoLight,
               ),
             ),
 
@@ -480,7 +471,7 @@ class _CrmSourcesChartState extends State<CrmSourcesChart> {
       color = const Color(0xFF1877F2); // Facebook Blue
     } else if (lower.contains('واتس') || lower.contains('whats')) {
       icon = FontAwesomeIcons.whatsapp;
-      color = const Color(0xFF25D366); // WhatsApp Green
+      color = AppColors.whatsapp; // WhatsApp Green
     } else if (lower.contains('انستا') || lower.contains('انستج')) {
       icon = FontAwesomeIcons.instagram;
       color = const Color(0xFFE1306C); // Instagram Gradient (simplified)

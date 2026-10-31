@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -28,20 +30,9 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -101,7 +92,7 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
           decoration: isSelected
               ? BoxDecoration(
                   color: barColor.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                   border: Border.all(
                     color: barColor.withOpacity(0.3),
                   ),
@@ -139,8 +130,8 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
                         Container(
                           height: isSelected ? 34 : 30,
                           decoration: BoxDecoration(
-                            color: barColor.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppColors.divider(widget.isDark),
+                            borderRadius: AppRadius.all(AppRadius.xs),
                           ),
                         ),
 
@@ -162,7 +153,7 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
                                     barColor.withOpacity(0.6),
                                   ],
                                 ),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: AppRadius.all(AppRadius.xs),
                                 boxShadow: [
                                   BoxShadow(
                                     color: barColor.withOpacity(0.3),
@@ -226,7 +217,7 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
     final barColor = _parseColor(item.stageColor) ?? const Color(0xFF42A5F5);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -234,7 +225,7 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
             barColor.withOpacity(widget.isDark ? 0.05 : 0.02),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(
           color: barColor.withOpacity(0.3),
         ),
@@ -277,14 +268,14 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
                 '💰',
                 'القيمة المتوقعة',
                 _formatCurrency(item.totalValue),
-                const Color(0xFF42A5F5),
+                AppColors.infoLight,
               ),
               _buildDetailDivider(),
               _buildDetailItem(
                 '💵',
                 'القيمة الفعلية',
                 _formatCurrency(item.actualValue),
-                const Color(0xFF66BB6A),
+                AppColors.successLight,
               ),
             ],
           ),
@@ -338,12 +329,12 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
     final gap = totalExpected - totalActual;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -374,7 +365,7 @@ class _CrmFunnelChartState extends State<CrmFunnelChart> {
             '📉',
             'الفجوة',
             _formatCurrency(gap),
-            gap > 0 ? const Color(0xFFEF5350) : const Color(0xFF66BB6A),
+            gap > 0 ? AppColors.errorLight : AppColors.successLight,
           ),
         ],
       ),

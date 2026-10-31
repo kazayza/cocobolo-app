@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 
 import 'package:flutter/material.dart';
 
@@ -101,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen>
     final isDark = ThemeService().isDarkMode;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1A2A),
+      backgroundColor: AppColors.navyDark,
       body: Stack(
         children: [
           // ── التدرج الأساسي ────────────────────────────
@@ -111,9 +113,9 @@ class _SplashScreenState extends State<SplashScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0xFF0D1A2A),
-                  Color(0xFF13273F),
-                  Color(0xFF0D1A2A),
+                  AppColors.navyDark,
+                  AppColors.navy,
+                  AppColors.navyDark,
                 ],
               ),
             ),
@@ -217,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 ],
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(AppRadius.xxxl),
                                 child: Image.asset(
                                   'assets/images/logo.png',
                                   fit: BoxFit.cover,

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
 import '../services/permission_service.dart';
+import '../core/auth/session_service.dart';
 
+import '../widgets/app_drawer.dart';
 class PricingMarginsScreen extends StatefulWidget {
   final String username;
 
@@ -57,12 +62,12 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
       // جلب النسب الحالية
       final marginsRes = await http.get(
         Uri.parse('$baseUrl/api/pricing/margins'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       // جلب السجل
       final historyRes = await http.get(
         Uri.parse('$baseUrl/api/pricing/margins/history'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (marginsRes.statusCode == 200 && historyRes.statusCode == 200) {
         final margins = jsonDecode(marginsRes.body);
@@ -71,9 +76,9 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
         setState(() {
           currentMargins = margins;
           marginsHistory = history;
-          _cclassController.text = (margins?['CClassMargin'] ?? 40).toString();
-          _premiumController.text = (margins?['PremiumMargin'] ?? 60).toString();
-          _eliteController.text = (margins?['EliteMargin'] ?? 65).toString();
+          _cclassController.text = (margins?['CClassMargin'] ?? 0).toString();
+          _premiumController.text = (margins?['PremiumMargin'] ?? 0).toString();
+          _eliteController.text = (margins?['EliteMargin'] ?? 0).toString();
           _isLoading = false;
         });
       } else {
@@ -105,11 +110,11 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.darkSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber, color: Color(0xFFFFD700), size: 28),
+            const Icon(Icons.warning_amber, color: AppColors.gold, size: 28),
             const SizedBox(width: 10),
             Text(
               'تأكيد التعديل',
@@ -129,7 +134,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -145,7 +150,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             const SizedBox(height: 12),
             Text(
               '⚠️ النسب الجديدة هتتطبق على المنتجات الجديدة فقط',
-              style: GoogleFonts.cairo(color: Colors.orangeAccent, fontSize: 12),
+              style: GoogleFonts.cairo(color: AppColors.warning, fontSize: 12),
             ),
           ],
         ),
@@ -157,7 +162,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
+              backgroundColor: AppColors.gold,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text('تأكيد', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -173,7 +178,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/pricing/margins'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'cClassMargin': cclass,
           'premiumMargin': premium,
@@ -210,35 +215,33 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
     // التحقق من الصلاحية
     if (!PermissionService().canEditPricingMargins) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
-        appBar: AppBar(
-          title: Text('نسب الربح', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
-          backgroundColor: const Color(0xFFE8B923),
-          iconTheme: const IconThemeData(color: Colors.black),
+        drawer: buildAppDrawer(currentRoute: 'frm_PricingMargins'),
+        backgroundColor: AppColors.darkBackground,
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
+          title: Text('نسب الربح', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
+          elevation: 0,
           centerTitle: true,
         ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock_outline, size: 60, color: Colors.grey),
-              const SizedBox(height: 16),
-              Text('ليس لديك صلاحية لعرض هذه الشاشة', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 16)),
-            ],
-          ),
+        body: const AppEmpty(
+          message: 'ليس لديك صلاحية لعرض هذه الشاشة',
+          icon: Icons.lock_outline,
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frm_PricingMargins'),
+      backgroundColor: AppColors.darkBackground,
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: Text(
           'إعدادات نسب الربح',
-          style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFFE8B923),
-        iconTheme: const IconThemeData(color: Colors.black),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(
@@ -248,7 +251,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
+          ? const AppLoading()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -277,20 +280,20 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFFFFD700).withOpacity(0.15),
-            const Color(0xFFFFD700).withOpacity(0.05),
+            AppColors.gold.withValues(alpha: 0.15),
+            AppColors.gold.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              const Icon(Icons.percent, color: Color(0xFFFFD700), size: 24),
+              const Icon(Icons.percent, color: AppColors.gold, size: 24),
               const SizedBox(width: 10),
               Text(
                 'النسب الحالية',
@@ -310,7 +313,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                 child: _buildMarginDisplay(
                   'Standard',
                   '${currentMargins?['CClassMargin'] ?? 0}%',
-                  const Color(0xFF42A5F5),
+                  AppColors.infoLight,
                 ),
               ),
               const SizedBox(width: 16),
@@ -319,7 +322,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                 child: _buildMarginDisplay(
                   'Premium',
                   '${currentMargins?['PremiumMargin'] ?? 0}%',
-                  const Color(0xFFFFD700),
+                  AppColors.gold,
                 ),
               ),
               const SizedBox(width: 16),
@@ -348,9 +351,9 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -359,9 +362,10 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             style: GoogleFonts.cairo(color: color, fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.cairo(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+          AmountText(
+            value: value,
+            size: 28,
+            color: Colors.white,
           ),
         ],
       ),
@@ -369,19 +373,16 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
   }
 
   Widget _buildEditSection() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.edit, color: Color(0xFFFFD700), size: 22),
+              const Icon(Icons.edit, color: AppColors.gold, size: 22),
               const SizedBox(width: 10),
               Text(
                 'تعديل النسب',
@@ -398,7 +399,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                 child: _buildMarginInput(
                   controller: _cclassController,
                   label: 'نسبة ربح Standard %',
-                  color: const Color(0xFF42A5F5),
+                  color: AppColors.infoLight,
                 ),
               ),
               const SizedBox(width: 16),
@@ -406,7 +407,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                 child: _buildMarginInput(
                   controller: _premiumController,
                   label: 'نسبة ربح Premium %',
-                  color: const Color(0xFFFFD700),
+                  color: AppColors.gold,
                 ),
               ),
             ],
@@ -437,16 +438,16 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             decoration: InputDecoration(
               labelText: 'سبب التغيير (اختياري)',
               labelStyle: GoogleFonts.cairo(color: Colors.grey),
-              prefixIcon: const Icon(Icons.note, color: Color(0xFFFFD700)),
+              prefixIcon: const Icon(Icons.note, color: AppColors.gold),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.08),
+              fillColor: Colors.white.withValues(alpha: 0.08),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                borderSide: const BorderSide(color: AppColors.gold),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
@@ -461,7 +462,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             child: ElevatedButton(
               onPressed: _isSaving ? null : _saveMargins,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE8B923),
+                backgroundColor: AppColors.gold,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _isSaving
@@ -504,7 +505,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
         suffixText: '%',
         suffixStyle: GoogleFonts.cairo(color: color, fontWeight: FontWeight.bold),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white.withValues(alpha: 0.08),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -524,7 +525,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
       children: [
         Row(
           children: [
-            const Icon(Icons.history, color: Color(0xFFFFD700), size: 22),
+            const Icon(Icons.history, color: AppColors.gold, size: 22),
             const SizedBox(width: 10),
             Text(
               'سجل التغييرات',
@@ -538,7 +539,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -563,19 +564,13 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: AppRadius.sm,
         color: isFirst
-            ? const Color(0xFFFFD700).withOpacity(0.08)
-            : Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isFirst
-              ? const Color(0xFFFFD700).withOpacity(0.3)
-              : Colors.white.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
+            ? AppColors.gold.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.05),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // التاريخ والمستخدم
@@ -583,7 +578,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             children: [
               Icon(
                 isFirst ? Icons.fiber_new : Icons.history,
-                color: isFirst ? const Color(0xFFFFD700) : Colors.grey,
+                color: isFirst ? AppColors.gold : Colors.grey,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -614,7 +609,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                   'Standard',
                   record['PreviousCClass'],
                   record['CClassMargin'],
-                  const Color(0xFF42A5F5),
+                  AppColors.infoLight,
                 ),
               ),
               const SizedBox(width: 12),
@@ -624,7 +619,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                   'Premium',
                   record['PreviousPremium'],
                   record['PremiumMargin'],
-                  const Color(0xFFFFD700),
+                  AppColors.gold,
                 ),
               ),
               const SizedBox(width: 12),
@@ -647,7 +642,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -665,6 +660,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             ),
           ],
         ],
+        ),
       ),
     );
   }
@@ -677,7 +673,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -702,16 +698,18 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
                 const SizedBox(width: 6),
                 const Icon(Icons.arrow_forward, color: Colors.grey, size: 14),
                 const SizedBox(width: 6),
-                Text(
-                  '$current%',
-                  style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                AmountText(
+                  value: '$current%',
+                  size: 14,
+                  color: Colors.white,
                 ),
               ],
             )
           else
-            Text(
-              '$current%',
-              style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+            AmountText(
+              value: '$current%',
+              size: 14,
+              color: Colors.white,
             ),
         ],
       ),
@@ -727,9 +725,9 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
           children: [
             Text(oldVal, style: GoogleFonts.cairo(color: Colors.grey, fontSize: 13, decoration: TextDecoration.lineThrough)),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward, color: Color(0xFFFFD700), size: 16),
+            const Icon(Icons.arrow_forward, color: AppColors.gold, size: 16),
             const SizedBox(width: 8),
-            Text(newVal, style: GoogleFonts.cairo(color: const Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(newVal, style: GoogleFonts.cairo(color: AppColors.gold, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
       ],
@@ -750,7 +748,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -765,7 +763,7 @@ class _PricingMarginsScreenState extends State<PricingMarginsScreen> {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

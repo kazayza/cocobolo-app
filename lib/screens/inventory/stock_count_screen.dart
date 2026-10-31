@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/theme_service.dart';
 import '../../services/inventory_service.dart';
 import '../../widgets/crm_design_system.dart';
 import '../../widgets/inventory_design.dart';
 
+import '../../widgets/app_drawer.dart';
 /// الجرد المخزني - مطابق بلازور Inventory/StockCount.razor
 /// يقارن كمية النظام مع الفعلية ويعمل تسويات تلقائية
 /// تصميم بهوية فلاتر navy+gold
@@ -42,6 +41,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
 
   List<_CountLine> _lines = [];
   List<dynamic> _recentCounts = [];
+  int? _stockCountId;
 
   bool get _isDark => ThemeService().isDarkMode;
 
@@ -62,10 +62,18 @@ class _StockCountScreenState extends State<StockCountScreen> {
     try {
       final branches = await InventoryService.getBranches();
       final warehouses = await InventoryService.getAllWarehouses();
+      List<dynamic> recent = [];
+      try {
+        recent = await InventoryService.getStockCounts();
+      } catch (_) {
+        // قائمة الجردات الحديثة ثانوية — لا تُسقط الشاشة عند فشلها
+        recent = [];
+      }
       if (mounted) setState(() {
         _branches = branches;
         _allWarehouses = warehouses;
         _warehouses = [];
+        _recentCounts = recent;
         _loading = false;
       });
     } catch (_) {
@@ -79,6 +87,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
       _selectedWarehouseId = null;
       _warehouses = [];
       _lines = [];
+      _stockCountId = null;
     });
     if (branchId != null) {
       final wh = await InventoryService.getWarehouses(branchId: branchId);
@@ -94,23 +103,32 @@ class _StockCountScreenState extends State<StockCountScreen> {
 
     setState(() => _loading = true);
     try {
-      final stockLevels = await InventoryService.getStockLevels(warehouseId: _selectedWarehouseId);
+      // مساحة عمل الجرد من الخادم: بنود المخزن الحالية بلا منتجات العملاء
+      final workspace = await InventoryService.getStockCountWorkspace(warehouseId: _selectedWarehouseId);
       final wh = _allWarehouses.firstWhere((w) => (w['WarehouseID'] ?? w['WarehouseId']) == _selectedWarehouseId, orElse: () => {'WarehouseName': '—'});
-      final branchName = _branches.firstWhere((b) => (b['BranchId'] ?? b['BranchID']) == _selectedBranchId, orElse: () => null)?['BranchNameAr'] ?? '';
+      final branchName = workspace['BranchNameAr'] ?? _branches.firstWhere((b) => (b['BranchId'] ?? b['BranchID']) == _selectedBranchId, orElse: () => null)?['BranchNameAr'] ?? '';
+      final wsLines = (workspace['Lines'] as List?) ?? const [];
 
       if (mounted) setState(() {
-        _lines = stockLevels.map((sl) => _CountLine(
-          productId: sl['ProductID'] ?? sl['ProductId'] ?? 0,
-          productName: sl['ProductName'] ?? '—',
-          systemQty: sl['Quantity'] ?? 0,
-          actualQty: sl['Quantity'] ?? 0,
-          warehouseName: wh['WarehouseName'] ?? '—',
-          branchNameAr: branchName,
-        )).toList();
+        _stockCountId = null;
+        _lines = wsLines.map((sl) {
+          final m = Map<String, dynamic>.from(sl as Map);
+          return _CountLine(
+            productId: m['ProductId'] ?? m['ProductID'] ?? 0,
+            productName: m['ProductName'] ?? '—',
+            systemQty: m['SystemQty'] ?? 0,
+            actualQty: m['ActualQty'] ?? m['SystemQty'] ?? 0,
+            warehouseName: wh['WarehouseName'] ?? '—',
+            branchNameAr: branchName,
+          );
+        }).toList();
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل تحميل أصناف المخزن: $e', style: GoogleFonts.cairo()), backgroundColor: Colors.red.shade700));
+      }
     }
   }
 
@@ -120,53 +138,77 @@ class _StockCountScreenState extends State<StockCountScreen> {
     });
   }
 
+  Future<int?> _persistDraft() async {
+    final id = await InventoryService.saveStockCountDraft(
+      stockCountId: _stockCountId,
+      branchId: _selectedBranchId!,
+      warehouseId: _selectedWarehouseId!,
+      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      lines: _lines
+          .map((l) => <String, dynamic>{
+                'productId': l.productId,
+                'systemQty': l.systemQty,
+                'actualQty': l.actualQty,
+                'notes': l.notes.isEmpty ? null : l.notes,
+              })
+          .toList(),
+    );
+    if (mounted) setState(() => _stockCountId = id);
+    return id;
+  }
+
   Future<void> _saveDraft() async {
-    if (_selectedWarehouseId == null || _lines.isEmpty) {
+    if (_selectedWarehouseId == null || _selectedBranchId == null || _lines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حمّل أصناف المخزن أولاً', style: GoogleFonts.cairo()), backgroundColor: Colors.orange.shade700));
       return;
     }
     setState(() => _savingDraft = true);
-    // محاكاة حفظ مسودة - في الواقع يحتاج API للـ StockCount
-    await Future.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ مسودة الجرد (${_lines.length} صنف)', style: GoogleFonts.cairo()), backgroundColor: Colors.blue.shade700));
-    setState(() => _savingDraft = false);
+    try {
+      // حفظ حقيقي في مستند جرد خادمي (مسودة) — لا نجاح إلا بعد رد الخادم
+      final id = await _persistDraft();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ مسودة الجرد رقم $id (${_lines.length} صنف)', style: GoogleFonts.cairo()), backgroundColor: Colors.blue.shade700));
+      try {
+        final recent = await InventoryService.getStockCounts();
+        if (mounted) setState(() => _recentCounts = recent);
+      } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل حفظ مسودة الجرد: $e', style: GoogleFonts.cairo()), backgroundColor: Colors.red.shade700));
+      }
+    } finally {
+      if (mounted) setState(() => _savingDraft = false);
+    }
   }
 
   Future<void> _finalize() async {
     if (_lines.isEmpty) return;
-    final hasDiff = _lines.any((l) => l.difference != 0);
-    if (!hasDiff) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا يوجد فرق للتسوية', style: GoogleFonts.cairo()), backgroundColor: Colors.grey.shade700));
+    if (_selectedWarehouseId == null || _selectedBranchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حمّل أصناف المخزن أولاً', style: GoogleFonts.cairo()), backgroundColor: Colors.orange.shade700));
       return;
     }
 
     setState(() => _finalizing = true);
     try {
-      // تنفيذ التسويات: لكل فرق نعمل حركة In/Out
-      int adjusted = 0;
-      for (final line in _lines) {
-        final diff = line.difference;
-        if (diff == 0) continue;
-        final type = diff > 0 ? 'In' : 'Out';
-        final qty = diff.abs();
-        try {
-          await http.post(Uri.parse('$baseUrl/api/inventory/transactions'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({
-            'productId': line.productId,
-            'warehouseId': _selectedWarehouseId,
-            'transactionType': type,
-            'quantity': qty,
-            'referenceType': 'Adjustment',
-            'referenceId': 'COUNT-${DateTime.now().millisecondsSinceEpoch}',
-            'notes': 'تسوية جرد: ${line.notes.isEmpty ? 'فرق ${diff}' : line.notes} - ${_notesCtrl.text}',
-            'createdBy': widget.username,
-          }));
-          adjusted++;
-        } catch (_) {}
-      }
+      // الاعتماد ذرّي في الخادم: يُحفظ المستند أولًا ثم يُعتمد في معاملة
+      // واحدة تعيد حساب الفرق مقابل الرصيد الحالي لحظة الاعتماد.
+      final id = _stockCountId ?? await _persistDraft();
+      if (id == null) throw const InventoryApiException('تعذر حفظ مستند الجرد');
+      await InventoryService.finalizeStockCount(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم اعتماد الجرد وتسوية $adjusted صنف', style: GoogleFonts.cairo()), backgroundColor: Colors.green.shade700));
-      setState(() => _lines = []);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم اعتماد الجرد رقم $id وتنفيذ تسوياته', style: GoogleFonts.cairo()), backgroundColor: Colors.green.shade700));
+      setState(() {
+        _lines = [];
+        _stockCountId = null;
+      });
+      try {
+        final recent = await InventoryService.getStockCounts();
+        if (mounted) setState(() => _recentCounts = recent);
+      } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل اعتماد الجرد: $e', style: GoogleFonts.cairo()), backgroundColor: Colors.red.shade700));
+      }
     } finally {
       if (mounted) setState(() => _finalizing = false);
     }
@@ -177,10 +219,11 @@ class _StockCountScreenState extends State<StockCountScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(backgroundColor: AppColors.navy, foregroundColor: Colors.white, title: Text('الجرد المخزني', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16))),
+        drawer: buildAppDrawer(currentRoute: 'frm_StockCount'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),backgroundColor: AppColors.navy, foregroundColor: Colors.white, elevation: 0, title: Text('الجرد المخزني', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16))),
         body: Stack(children: [
-          _loading ? Center(child: CircularProgressIndicator(color: AppColors.gold)) : SingleChildScrollView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 24), child: Column(children: [
+          _loading ? const AppLoading() : SingleChildScrollView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 24), child: Column(children: [
             _buildHero(),
             const SizedBox(height: 14),
             LayoutBuilder(
@@ -294,7 +337,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
         Divider(height: 1, color: Colors.black.withOpacity(0.06)),
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          OutlinedButton(onPressed: () => setState(() => _lines = []), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: Text('إلغاء / مسح', style: GoogleFonts.cairo(fontSize: 12))),
+          OutlinedButton(onPressed: () => setState(() { _lines = []; _stockCountId = null; }), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: Text('إلغاء / مسح', style: GoogleFonts.cairo(fontSize: 12))),
           const SizedBox(width: 8),
           ElevatedButton(onPressed: _savingDraft ? null : _saveDraft, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: Text(_savingDraft ? 'جاري الحفظ...' : 'حفظ مسودة', style: GoogleFonts.cairo(fontSize: 12, color: Colors.white))),
           const SizedBox(width: 8),
@@ -322,7 +365,7 @@ class _StockCountScreenState extends State<StockCountScreen> {
       title: 'آخر الجردات',
       icon: Icons.history_rounded,
       color: const Color(0xFF64748B),
-      child: _recentCounts.isEmpty ? Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.06), borderRadius: BorderRadius.circular(10)), child: Text('لا توجد مستندات جرد حتى الآن', style: GoogleFonts.cairo(fontSize: 11, color: Colors.blue.shade700))) : Column(children: _recentCounts.take(5).map((c) => ListTile(dense: true, title: Text(c['WarehouseName'] ?? '', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: Text('${c['BranchNameAr'] ?? ''} • ${c['CountDate'] != null ? DateFormat('yyyy/MM/dd HH:mm').format(DateTime.tryParse(c['CountDate'].toString()) ?? DateTime.now()) : ''}', style: GoogleFonts.cairo(fontSize: 10)), trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Text(c['Status'] ?? 'Draft', style: GoogleFonts.cairo(fontSize: 10, color: Colors.orange.shade700))))).toList()),
+      child: _recentCounts.isEmpty ? Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.06), borderRadius: BorderRadius.circular(10)), child: Text('لا توجد مستندات جرد حتى الآن', style: GoogleFonts.cairo(fontSize: 11, color: Colors.blue.shade700))) : Column(children: _recentCounts.take(5).map((c) => ListTile(dense: true, title: Text(c['WarehouseName'] ?? '', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: Text('${c['BranchNameAr'] ?? ''} • ${c['CountDate'] != null ? DateFormat('yyyy/MM/dd HH:mm').format(DateTime.tryParse(c['CountDate'].toString()) ?? DateTime.now()) : ''}', style: GoogleFonts.cairo(fontSize: 10)), trailing: StatusBadge(label: (c['Status'] ?? 'Draft').toString(), color: AppColors.warning, small: true))).toList()),
     );
   }
 }
@@ -348,9 +391,9 @@ class _CountLineCard extends StatelessWidget {
   const _CountLineCard({required this.line, required this.onQtyChanged});
 
   Color _diffColor(int diff) {
-    if (diff > 0) return Colors.green;
-    if (diff < 0) return Colors.red;
-    return Colors.grey;
+    if (diff > 0) return AppColors.success;
+    if (diff < 0) return AppColors.error;
+    return AppColors.neutral;
   }
 
   @override
@@ -366,7 +409,7 @@ class _CountLineCard extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          _qtyBox('نظام', '${line.systemQty}', Colors.blue),
+          _qtyBox('نظام', '${line.systemQty}', AppColors.info),
           const SizedBox(width: 8),
           SizedBox(width: 100, child: TextField(keyboardType: TextInputType.number, style: GoogleFonts.cairo(fontSize: 12), decoration: InputDecoration(labelText: 'فعلي', labelStyle: GoogleFonts.cairo(fontSize: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)), controller: TextEditingController(text: '${line.actualQty}'), onChanged: (v) => onQtyChanged(int.tryParse(v) ?? 0))),
           const SizedBox(width: 8),

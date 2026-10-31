@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -142,7 +145,7 @@ Future<void> loadDashboardData() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('فشل تحميل البيانات', style: GoogleFonts.cairo()),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   } finally {
@@ -270,7 +273,7 @@ DateTimeRange _getDateRangeForPeriod(String period) {
     final List<PieChartSectionData> sections = [];
     final List<String> names = [];
     final List<Color> colors = [
-      Color(0xFFE8B923),
+      AppColors.gold,
       Color(0xFF4CAF50),
       Color(0xFF2196F3),
       Color(0xFF9C27B0),
@@ -337,11 +340,11 @@ DateTimeRange _getDateRangeForPeriod(String period) {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: ColorScheme.dark(
-              primary: Color(0xFFE8B923),
+              primary: AppColors.gold,
               onPrimary: Colors.black,
-              surface: Color(0xFF1A1A1A),
+              surface: AppColors.darkSurface,
             ),
-            dialogBackgroundColor: Color(0xFF1A1A1A),
+            dialogBackgroundColor: AppColors.darkSurface,
           ),
           child: child!,
         );
@@ -372,20 +375,22 @@ DateTimeRange _getDateRangeForPeriod(String period) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background(true),
       appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text(
           'لوحة التحكم المالية',
           style: GoogleFonts.cairo(
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: Color(0xFFE8B923),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: Colors.black),
+            icon: Icon(Icons.refresh, color: Colors.white),
             onPressed: loadDashboardData,
           ),
         ],
@@ -397,19 +402,7 @@ DateTimeRange _getDateRangeForPeriod(String period) {
   }
   
   Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Color(0xFFE8B923)),
-          SizedBox(height: 20),
-          Text(
-            'جاري تحميل البيانات...',
-            style: GoogleFonts.cairo(color: Colors.white),
-          ),
-        ],
-      ),
-    );
+    return AppLoading(message: 'جاري تحميل البيانات...');
   }
   
   Widget _buildDashboardContent() {
@@ -454,13 +447,8 @@ DateTimeRange _getDateRangeForPeriod(String period) {
   
   // 1. فلاتر الفترة الزمنية
   Widget _buildPeriodFilter() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFE8B923).withOpacity(0.3)),
-      ),
+    return AppCard(
+      color: AppColors.darkSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -481,17 +469,17 @@ DateTimeRange _getDateRangeForPeriod(String period) {
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Color(0xFFE8B923).withOpacity(0.2),
+                      color: AppColors.gold.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.edit, size: 14, color: Color(0xFFE8B923)),
+                        Icon(Icons.edit, size: 14, color: AppColors.gold),
                         SizedBox(width: 4),
                         Text(
                           'تعديل',
                           style: GoogleFonts.cairo(
-                            color: Color(0xFFE8B923),
+                            color: AppColors.gold,
                             fontSize: 12,
                           ),
                         ),
@@ -519,8 +507,8 @@ DateTimeRange _getDateRangeForPeriod(String period) {
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: Color(0xFFE8B923),
-                backgroundColor: Color(0xFF2A2A2A),
+                selectedColor: AppColors.gold,
+                backgroundColor: AppColors.darkSurface,
                 onSelected: (selected) {
                   if (period == 'مخصص') {
                     _selectDateRange(context);
@@ -537,7 +525,7 @@ DateTimeRange _getDateRangeForPeriod(String period) {
           // عرض الفترة المحددة
           Row(
             children: [
-              Icon(Icons.calendar_today, color: Color(0xFFE8B923), size: 16),
+              Icon(Icons.calendar_today, color: AppColors.gold, size: 16),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -591,14 +579,14 @@ Widget _buildDailyBrief() {
     decoration: BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFFE8B923).withOpacity(0.1),
-          Color(0xFF1A1A1A),
+          AppColors.gold.withOpacity(0.1),
+          AppColors.darkSurface,
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Color(0xFFE8B923).withOpacity(0.3)),
+      border: Border.all(color: AppColors.gold.withOpacity(0.3)),
     ),
     child: Column(
       children: [
@@ -842,15 +830,10 @@ Widget _buildQuickStats() {
   String? subtitle,
   bool isTotal = false,
 }) {
-  return Container(
-    decoration: BoxDecoration(
-      color: Color(0xFF1A1A1A),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: color.withOpacity(0.3)),
-    ),
-    child: Padding(
-      padding: EdgeInsets.all(12),
-      child: Column(
+  return AppCard(
+    color: AppColors.darkSurface,
+    padding: EdgeInsets.all(AppSpacing.md),
+    child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -869,13 +852,13 @@ Widget _buildQuickStats() {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Color(0xFFE8B923).withOpacity(0.2),
+                    color: AppColors.gold.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     _selectedPeriod,
                     style: GoogleFonts.cairo(
-                      color: Color(0xFFE8B923),
+                      color: AppColors.gold,
                       fontSize: 10,
                     ),
                   ),
@@ -886,18 +869,15 @@ Widget _buildQuickStats() {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              AmountText(
                 // إذا كان الرقم (مصاريف) يظهر بـ "ج.م"، وإلا رقم عادي
-                value is num && (title.contains('مصروف') || title.contains('إجمالي') || title.contains('تصنيف'))
+                value: value is num && (title.contains('مصروف') || title.contains('إجمالي') || title.contains('تصنيف'))
                     ? '${NumberFormat('#,##0').format(value)} ج.م'
                     : value is num 
                         ? '${NumberFormat('#,##0').format(value)}'
                         : '$value',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                color: Colors.white,
+                size: 18,
               ),
               SizedBox(height: 4),
               Text(
@@ -921,7 +901,6 @@ Widget _buildQuickStats() {
           ),
         ],
       ),
-    ),
   );
 }
   
@@ -1049,13 +1028,8 @@ Widget _buildComparisonSection() {
   final sign = difference >= 0 ? '+' : '-';
   final absoluteDifference = difference.abs();
   
-  return Container(
-    padding: EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Color(0xFF1A1A1A),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Color(0xFFE8B923).withOpacity(0.3)),
-    ),
+  return AppCard(
+    color: AppColors.darkSurface,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1260,7 +1234,7 @@ Widget _buildComparisonSection() {
         Container(
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
+            color: AppColors.darkSurface,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -1280,13 +1254,13 @@ Widget _buildComparisonSection() {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Color(0xFFE8B923).withOpacity(0.2),
+                      color: AppColors.gold.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       _selectedPeriod,
                       style: GoogleFonts.cairo(
-                        color: Color(0xFFE8B923),
+                        color: AppColors.gold,
                         fontSize: 12,
                       ),
                     ),
@@ -1323,8 +1297,8 @@ Widget _buildComparisonSection() {
                         isCurved: true,
                         gradient: LinearGradient(
                           colors: [
-                            Color(0xFFE8B923).withOpacity(0.8),
-                            Color(0xFFE8B923).withOpacity(0.2),
+                            AppColors.gold.withOpacity(0.8),
+                            AppColors.gold.withOpacity(0.2),
                         ],
                         ),
                         barWidth: 3,
@@ -1332,8 +1306,8 @@ Widget _buildComparisonSection() {
                           show: true,
                           gradient: LinearGradient(
                             colors: [
-                              Color(0xFFE8B923).withOpacity(0.3),
-                              Color(0xFFE8B923).withOpacity(0.1),
+                              AppColors.gold.withOpacity(0.3),
+                              AppColors.gold.withOpacity(0.1),
                             ],
                           ),
                         ),
@@ -1363,7 +1337,7 @@ Widget _buildComparisonSection() {
         Container(
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
+            color: AppColors.darkSurface,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -1472,7 +1446,7 @@ Widget _buildComparisonSection() {
               Text(
                 '${(section.value / periodTotalExpenses * 100).toStringAsFixed(1)}%',
                 style: GoogleFonts.cairo(
-                  color: Color(0xFFE8B923),
+                  color: AppColors.gold,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1490,7 +1464,7 @@ Widget _buildComparisonSection() {
       return Container(
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.darkSurface,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
@@ -1530,7 +1504,7 @@ Widget _buildComparisonSection() {
         Container(
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
+            color: AppColors.darkSurface,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -1551,7 +1525,7 @@ Widget _buildComparisonSection() {
   
   Color _getCategoryColor(int index) {
     final colors = [
-      Color(0xFFE8B923),
+      AppColors.gold,
       Color(0xFF4CAF50),
       Color(0xFF2196F3),
       Color(0xFF9C27B0),

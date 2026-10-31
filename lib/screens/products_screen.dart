@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../constants.dart';
 import '../core/network/api_client.dart';
 import '../services/app_colors.dart';
+import '../widgets/design_kit.dart';
 import '../services/permission_service.dart';
 import '../services/theme_service.dart';
 import 'add_product_screen.dart';
@@ -21,6 +22,7 @@ import 'price_requests_screen.dart';
 import 'price_list_screen.dart';
 import 'product_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class ProductsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -642,11 +644,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frm_ProductList'),
         backgroundColor: AppColors.background(_isDark),
         body: NestedScrollView(
           headerSliverBuilder:
               (BuildContext context, bool innerBoxIsScrolled) => <Widget>[
-            SliverAppBar(
+            SliverAppBar( leading: const AppDrawerMenuButton(),
               pinned: true,
               stretch: true,
               expandedHeight: 300,
@@ -1790,19 +1793,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Widget _buildProductsBody() {
     if (loading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const CircularProgressIndicator(color: AppColors.gold),
-            const SizedBox(height: 14),
-            Text(
-              'جاري تحميل المنتجات...',
-              style: GoogleFonts.cairo(color: _secondaryTextColor),
-            ),
-          ],
-        ),
-      );
+      return const AppLoading(message: 'جاري تحميل المنتجات...');
     }
 
     if (_errorMessage != null) return _buildErrorState();
@@ -2427,13 +2418,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              price > 0 ? _formatNumber(price) : '-',
-              style: GoogleFonts.cairo(
-                color: _textColor,
-                fontSize: compact ? 10.5 : 10,
-                fontWeight: FontWeight.w800,
-              ),
+            child: AmountText(
+              value: price > 0 ? _formatNumber(price) : '-',
+              color: _textColor,
+              size: compact ? 10.5 : 10,
+              weight: FontWeight.w800,
             ),
           ),
         ],
@@ -2518,21 +2507,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Widget _statusBadge(String? statusName) {
     final Color color = _statusColor(statusName);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withOpacity(0.22)),
-      ),
-      child: Text(
-        _statusName(statusName),
-        style: GoogleFonts.cairo(
-          color: color,
-          fontSize: 8.6,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+    return StatusBadge(
+      label: _statusName(statusName),
+      color: color,
+      small: true,
     );
   }
 

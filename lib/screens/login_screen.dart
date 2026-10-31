@@ -12,6 +12,7 @@ import '../features/home/home_screen_v2.dart';
 import '../services/permission_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import '../core/responsive.dart';
 import '../services/notification_service.dart';
 import '../providers/auth_provider.dart';
@@ -184,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
         margin: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: AppColors.surface(isDark),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(AppRadius.xxxl),
           border: Border.all(color: AppColors.gold.withOpacity(0.3)),
           boxShadow: [
             BoxShadow(
@@ -212,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 child: Image.asset(
                   'assets/images/logo.png',
                   width: 70,
@@ -232,12 +233,12 @@ class _LoginScreenState extends State<LoginScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.15),
+                color: AppColors.success.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.check_rounded,
-                color: Colors.green,
+                color: AppColors.success,
                 size: 28,
               ),
             ).animate().fadeIn(delay: 300.ms).scale(delay: 300.ms),
@@ -298,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         margin: const EdgeInsets.all(20),
@@ -372,7 +373,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: (isDark ? AppColors.navy : Colors.white).withOpacity(0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
             color: AppColors.gold.withOpacity(0.5),
           ),
@@ -615,11 +616,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
+          borderSide: BorderSide(color: AppColors.error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
+          borderSide: BorderSide(color: AppColors.error, width: 2),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

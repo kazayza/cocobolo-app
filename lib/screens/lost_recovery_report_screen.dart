@@ -4,10 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:fl_chart/fl_chart.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import '../services/recovery_service.dart';
 import 'opportunity_detail_screen.dart';
 
+import '../widgets/app_drawer.dart';
 /// تقرير استرداد الفرص الخاسرة - مطابق بلازور LostRecoveryReport.razor 1044 سطر
 /// تصميم بهوية فلاتر navy+gold + تحليلات: جدول + اتجاه شهري + أداء موظفين + أسباب خسارة
 class LostRecoveryReportScreen extends StatefulWidget {
@@ -188,10 +191,11 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        drawer: buildAppDrawer(currentRoute: 'frm_LostRecoveryReport'),
+        backgroundColor: AppColors.background(_isDark),
         body: NestedScrollView(
           headerSliverBuilder: (ctx, inner) => [
-            SliverAppBar(
+            SliverAppBar( leading: const AppDrawerMenuButton(),
               pinned: true,
               expandedHeight: 170,
               backgroundColor: AppColors.navy,
@@ -214,7 +218,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
             SliverToBoxAdapter(child: _buildTabs()),
           ],
           body: _loading
-              ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+              ? const AppLoading()
               : _buildTabContent(),
         ),
       ),
@@ -224,17 +228,17 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
   Widget _buildHero() {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.navy, const Color(0xFF1E3A5F), const Color(0xFF2D4A7F)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+        gradient: LinearGradient(colors: [AppColors.navy, AppColors.navyLight, AppColors.navyLight], begin: Alignment.topRight, end: Alignment.bottomLeft),
       ),
       child: Stack(children: [
-        Positioned(top: -20, right: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), shape: BoxShape.circle))),
-        Positioned(bottom: -30, left: 20, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.08), shape: BoxShape.circle))),
+        Positioned(top: -20, right: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle))),
+        Positioned(bottom: -30, left: 20, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), shape: BoxShape.circle))),
         SafeArea(
           bottom: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 56, 16, 16),
             child: Row(children: [
-              Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withOpacity(0.18))), child: Icon(Icons.assessment_rounded, color: AppColors.gold, size: 28)),
+              Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withValues(alpha: 0.18))), child: Icon(Icons.assessment_rounded, color: AppColors.gold, size: 28)),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('تقرير استرداد الفرص الخاسرة', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15)),
@@ -254,18 +258,18 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     final uncontacted = _result['UncontactedCount'] ?? 0;
 
     return Container(
-      color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      color: AppColors.background(_isDark),
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
-          _kpi(Icons.track_changes_rounded, '$rowCount', 'إجمالي الفرص', const Color(0xFF2563EB)),
+          _kpi(Icons.track_changes_rounded, '$rowCount', 'إجمالي الفرص', AppColors.info),
           const SizedBox(width: 8),
-          _kpi(Icons.payments_outlined, _money(totalValue), 'إجمالي القيمة', const Color(0xFF4F46E5)),
+          _kpi(Icons.payments_outlined, _money(totalValue), 'إجمالي القيمة', AppStatus.editPending),
           const SizedBox(width: 8),
-          _kpi(Icons.restart_alt_rounded, '$revived', 'مُسترد', const Color(0xFF059669)),
+          _kpi(Icons.restart_alt_rounded, '$revived', 'مُسترد', AppStatus.profit),
           const SizedBox(width: 8),
-          _kpi(Icons.trending_down_rounded, '$uncontacted', 'لم يُتواصل', const Color(0xFF64748B)),
+          _kpi(Icons.trending_down_rounded, '$uncontacted', 'لم يُتواصل', AppColors.neutral),
         ]),
       ),
     );
@@ -274,15 +278,16 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
   Widget _kpi(IconData icon, String val, String label, Color c) {
     return SizedBox(
       width: 145,
-      child: Container(
+      child: AppCard(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))]),
+        radius: AppRadius.md,
+        color: AppColors.card(_isDark),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(width: 30, height: 30, decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: c, size: 17)),
+            Container(width: 30, height: 30, decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: c, size: 17)),
           ]),
           const SizedBox(height: 8),
-          Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w900, color: c)),
+          AmountText(value: val, size: 13, color: c),
           Text(label, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary(_isDark))),
         ]),
       ),
@@ -303,15 +308,15 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06))),
+      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
       child: Column(children: [
-        _segment('لم يُتواصل', un, pct(un), const Color(0xFF64748B)),
+        _segment('لم يُتواصل', un, pct(un), AppColors.neutral),
         const SizedBox(height: 8),
-        _segment('قيد المتابعة', con, pct(con), const Color(0xFFD97706)),
+        _segment('قيد المتابعة', con, pct(con), AppStatus.overdue),
         const SizedBox(height: 8),
-        _segment('رفض نهائي', rej, pct(rej), const Color(0xFFDC2626)),
+        _segment('رفض نهائي', rej, pct(rej), AppColors.error),
         const SizedBox(height: 8),
-        _segment('مُسترد', rev, pct(rev), const Color(0xFF059669)),
+        _segment('مُسترد', rev, pct(rev), AppStatus.profit),
       ]),
     );
   }
@@ -326,7 +331,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
         Text('$count (${percent.toStringAsFixed(0)}%)', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: c)),
       ]),
       const SizedBox(height: 4),
-      ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: percent / 100, minHeight: 5, backgroundColor: c.withOpacity(0.15), valueColor: AlwaysStoppedAnimation(c))),
+      ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: percent / 100, minHeight: 5, backgroundColor: c.withValues(alpha: 0.15), valueColor: AlwaysStoppedAnimation(c))),
     ]);
   }
 
@@ -334,7 +339,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withOpacity(0.06))),
+      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
       child: Column(children: [
         Row(children: [
           Expanded(child: _dateField('من تاريخ', _from, (d) => setState(() => _from = d))),
@@ -404,7 +409,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
         ),
         const SizedBox(height: 6),
         Row(children: [
-          Text('آخر تحديث: ${DateFormat('yyyy/MM/dd HH:mm:ss').format(DateTime.now())}', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey)),
+          Text('آخر تحديث: ${DateFormat('yyyy/MM/dd HH:mm:ss').format(DateTime.now())}', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
           const Spacer(),
           Row(children: [
             Checkbox(value: _autoRefresh, onChanged: (v) => setState(() => _autoRefresh = v ?? true), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
@@ -437,11 +442,11 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isClear ? const Color(0xFFFEE2E2) : (selected ? AppColors.navy : Colors.white),
+            color: isClear ? AppColors.error.withValues(alpha: 0.15) : (selected ? AppColors.navy : Colors.white),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isClear ? const Color(0xFFFCA5A5) : (selected ? AppColors.navy : const Color(0xFFDBE3F3))),
+            border: Border.all(color: isClear ? AppColors.errorLight : (selected ? AppColors.navy : AppColors.lightDivider)),
           ),
-          child: Text(label, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: isClear ? const Color(0xFFB91C1C) : (selected ? Colors.white : const Color(0xFF475569)))),
+          child: Text(label, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: isClear ? AppColors.error : (selected ? Colors.white : AppColors.neutral))),
         ),
       ),
     );
@@ -451,7 +456,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.04), borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         _tabBtn('table', 'الجدول', Icons.table_rows_rounded),
         _tabBtn('trend', 'الاتجاه', Icons.show_chart_rounded),
@@ -467,14 +472,14 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: () => setState(() => _tab = key),
-        child: Container(padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: sel ? AppColors.card(_isDark) : Colors.transparent, borderRadius: BorderRadius.circular(8), boxShadow: sel ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6)] : null), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 15, color: sel ? AppColors.gold : AppColors.textSecondary(_isDark)), const SizedBox(width: 4), Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10.5, fontWeight: sel ? FontWeight.bold : FontWeight.w600, color: sel ? AppColors.navy : AppColors.textSecondary(_isDark))))])),
+        child: Container(padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: sel ? AppColors.card(_isDark) : Colors.transparent, borderRadius: BorderRadius.circular(8), boxShadow: sel ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)] : null), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 15, color: sel ? AppColors.gold : AppColors.textSecondary(_isDark)), const SizedBox(width: 4), Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10.5, fontWeight: sel ? FontWeight.bold : FontWeight.w600, color: sel ? AppColors.navy : AppColors.textSecondary(_isDark))))])),
       ),
     );
   }
 
   Widget _buildTabContent() {
     if (_searching) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(color: AppColors.gold), const SizedBox(height: 8), Text('جارٍ البحث...', style: GoogleFonts.cairo(fontSize: 12, color: Colors.grey))]));
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(color: AppColors.gold), const SizedBox(height: 8), Text('جارٍ البحث...', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.neutral))]));
     }
 
     switch (_tab) {
@@ -493,11 +498,11 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
     final rows = (_result['Rows'] as List?) ?? [];
     if (rows.isEmpty) {
       return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.shade400),
+        Icon(Icons.inbox_rounded, size: 48, color: AppColors.neutralLight),
         const SizedBox(height: 12),
         Text(_hasActiveFilters ? 'لا توجد نتائج مطابقة' : 'لا توجد بيانات للتقرير بعد', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
-        Text('جرب تغيير الفلاتر أو البحث', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
+        Text('جرب تغيير الفلاتر أو البحث', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
       ])));
     }
 
@@ -505,13 +510,13 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
       Container(
         margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFC7D2FE), style: BorderStyle.solid)),
+        decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppStatus.editPending.withValues(alpha: 0.3), style: BorderStyle.solid)),
         child: Row(children: [
-          Text('لم يُتواصل = بلا تواصل بعد الخسارة', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey.shade700)),
+          Text('لم يُتواصل = بلا تواصل بعد الخسارة', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
           const SizedBox(width: 8),
-          Text('•', style: GoogleFonts.cairo(color: Colors.grey)),
+          Text('•', style: GoogleFonts.cairo(color: AppColors.neutral)),
           const SizedBox(width: 8),
-          Text('مُسترد = عاد لدورة البيع', style: GoogleFonts.cairo(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+          Text('مُسترد = عاد لدورة البيع', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.success, fontWeight: FontWeight.bold)),
         ]),
       ),
       Expanded(
@@ -543,7 +548,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
 
   Widget _buildTrendTab() {
     if (_trend.isEmpty) {
-      return Center(child: Text('لا توجد بيانات كافية للرسم بعد', style: GoogleFonts.cairo(color: Colors.grey)));
+      return Center(child: Text('لا توجد بيانات كافية للرسم بعد', style: GoogleFonts.cairo(color: AppColors.neutral)));
     }
 
     return Padding(
@@ -551,43 +556,43 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06))),
+          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('الاتجاه الشهري — آخر 12 شهرًا', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13)),
-            Text('عدد الفرص حسب حالة الصف وتاريخ حدث الحالة', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
+            Text('عدد الفرص حسب حالة الصف وتاريخ حدث الحالة', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
             const SizedBox(height: 16),
             SizedBox(
               height: 300,
               child: LineChart(
                 LineChartData(
-                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 1, getDrawingHorizontalLine: (v) => FlLine(color: Colors.black.withOpacity(0.06), strokeWidth: 1)),
+                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 1, getDrawingHorizontalLine: (v) => FlLine(color: Colors.black.withValues(alpha: 0.06), strokeWidth: 1)),
                   titlesData: FlTitlesData(
                     bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, meta) {
                       final idx = v.toInt();
                       if (idx < 0 || idx >= _trend.length) return const SizedBox.shrink();
                       final label = '${_trend[idx]['Label'] ?? ''}';
-                      return Padding(padding: const EdgeInsets.only(top: 6), child: Text(label.split('/').last, style: GoogleFonts.cairo(fontSize: 9, color: Colors.grey)));
+                      return Padding(padding: const EdgeInsets.only(top: 6), child: Text(label.split('/').last, style: GoogleFonts.cairo(fontSize: 9, color: AppColors.neutral)));
                     })),
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, meta) => Text('${v.toInt()}', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey)))),
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, meta) => Text('${v.toInt()}', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)))),
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
                   lineBarsData: [
-                    _lineBar(_trend.map((e) => (e['Revived'] ?? 0) as int).toList(), const Color(0xFF10B981)),
-                    _lineBar(_trend.map((e) => (e['Contacting'] ?? 0) as int).toList(), const Color(0xFFF59E0B)),
-                    _lineBar(_trend.map((e) => (e['Rejected'] ?? 0) as int).toList(), const Color(0xFFEF4444)),
-                    _lineBar(_trend.map((e) => (e['Uncontacted'] ?? 0) as int).toList(), const Color(0xFF94A3B8)),
+                    _lineBar(_trend.map((e) => (e['Revived'] ?? 0) as int).toList(), AppColors.successLight),
+                    _lineBar(_trend.map((e) => (e['Contacting'] ?? 0) as int).toList(), AppColors.warning),
+                    _lineBar(_trend.map((e) => (e['Rejected'] ?? 0) as int).toList(), AppColors.error),
+                    _lineBar(_trend.map((e) => (e['Uncontacted'] ?? 0) as int).toList(), AppColors.neutralLight),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 12),
             Wrap(spacing: 12, children: [
-              _legendDot('مُسترد', const Color(0xFF10B981)),
-              _legendDot('قيد المتابعة', const Color(0xFFF59E0B)),
-              _legendDot('رفض نهائي', const Color(0xFFEF4444)),
-              _legendDot('لم يُتواصل', const Color(0xFF94A3B8)),
+              _legendDot('مُسترد', AppColors.successLight),
+              _legendDot('قيد المتابعة', AppColors.warning),
+              _legendDot('رفض نهائي', AppColors.error),
+              _legendDot('لم يُتواصل', AppColors.neutralLight),
             ]),
           ]),
         ),
@@ -602,7 +607,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
       color: c,
       barWidth: 3,
       dotData: const FlDotData(show: true),
-      belowBarData: BarAreaData(show: true, color: c.withOpacity(0.12)),
+      belowBarData: BarAreaData(show: true, color: c.withValues(alpha: 0.12)),
     );
   }
 
@@ -616,7 +621,7 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
 
   Widget _buildStaffTab() {
     if (_staff.isEmpty) {
-      return Center(child: Text('لا توجد بيانات أداء بعد', style: GoogleFonts.cairo(color: Colors.grey)));
+      return Center(child: Text('لا توجد بيانات أداء بعد', style: GoogleFonts.cairo(color: AppColors.neutral)));
     }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
@@ -627,28 +632,28 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06))),
+          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.navy.withOpacity(0.10), shape: BoxShape.circle), child: Center(child: Text('${(s['FullName'] ?? '?')[0]}', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: AppColors.navy)))),
+              Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: 0.10), shape: BoxShape.circle), child: Center(child: Text('${(s['FullName'] ?? '?')[0]}', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: AppColors.navy)))),
               const SizedBox(width: 10),
               Expanded(child: Text(s['FullName'] ?? '', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13))),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Text('مُسترد ${s['Revived']} • ${_money(s['RevivedValue'])}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF047857)))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.successLight.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: Text('مُسترد ${s['Revived']} • ${_money(s['RevivedValue'])}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: AppStatus.profit))),
             ]),
             const SizedBox(height: 10),
             Row(children: [
-              _miniStat('القضايا', '${s['Assigned']}', Colors.blue),
+              _miniStat('القضايا', '${s['Assigned']}', AppColors.info),
               const SizedBox(width: 8),
-              _miniStat('لم يُتواصل', '${s['Uncontacted']}', Colors.grey),
+              _miniStat('لم يُتواصل', '${s['Uncontacted']}', AppColors.neutral),
               const SizedBox(width: 8),
-              _miniStat('قيد المتابعة', '${s['Contacting']}', Colors.orange),
+              _miniStat('قيد المتابعة', '${s['Contacting']}', AppColors.warning),
               const SizedBox(width: 8),
-              _miniStat('رفض', '${s['Rejected']}', Colors.red),
+              _miniStat('رفض', '${s['Rejected']}', AppColors.error),
             ]),
             const SizedBox(height: 10),
-            ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (rate / 100).clamp(0, 1), minHeight: 8, backgroundColor: Colors.black.withOpacity(0.08), valueColor: const AlwaysStoppedAnimation(Color(0xFF10B981)))),
+            ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (rate / 100).clamp(0, 1), minHeight: 8, backgroundColor: Colors.black.withValues(alpha: 0.08), valueColor: const AlwaysStoppedAnimation(AppColors.successLight))),
             const SizedBox(height: 4),
-            Text('نسبة الاسترداد ${rate.toStringAsFixed(0)}%', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey.shade600)),
+            Text('نسبة الاسترداد ${rate.toStringAsFixed(0)}%', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
           ]),
         );
       },
@@ -657,13 +662,13 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
 
   Widget _miniStat(String label, String val, Color c) {
     return Expanded(
-      child: Container(padding: const EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: c.withOpacity(0.10), borderRadius: BorderRadius.circular(8)), child: Column(children: [Text(val, style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: c)), Text(label, style: GoogleFonts.cairo(fontSize: 9, color: Colors.grey.shade600))])),
+      child: Container(padding: const EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: c.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8)), child: Column(children: [Text(val, style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: c)), Text(label, style: GoogleFonts.cairo(fontSize: 9, color: AppColors.neutral))])),
     );
   }
 
   Widget _buildReasonsTab() {
     if (_reasons.isEmpty) {
-      return Center(child: Text('لا توجد أسباب مسجلة بعد', style: GoogleFonts.cairo(color: Colors.grey)));
+      return Center(child: Text('لا توجد أسباب مسجلة بعد', style: GoogleFonts.cairo(color: AppColors.neutral)));
     }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
@@ -674,16 +679,16 @@ class _LostRecoveryReportScreenState extends State<LostRecoveryReportScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.06))),
+          decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(r['ReasonName'] ?? '', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13))),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.10), borderRadius: BorderRadius.circular(20)), child: Text('العدد ${r['Total']} • مُسترد ${r['Revived']}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.info.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)), child: Text('العدد ${r['Total']} • مُسترد ${r['Revived']}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.info))),
             ]),
             const SizedBox(height: 10),
-            ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (rate / 100).clamp(0, 1), minHeight: 8, backgroundColor: Colors.black.withOpacity(0.08), valueColor: const AlwaysStoppedAnimation(Color(0xFF10B981)))),
+            ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (rate / 100).clamp(0, 1), minHeight: 8, backgroundColor: Colors.black.withValues(alpha: 0.08), valueColor: const AlwaysStoppedAnimation(AppColors.successLight))),
             const SizedBox(height: 4),
-            Text('نسبة الاسترداد ${rate.toStringAsFixed(0)}% - لمعرفة أين تتركز فرص الاسترداد', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey.shade600)),
+            Text('نسبة الاسترداد ${rate.toStringAsFixed(0)}% - لمعرفة أين تتركز فرص الاسترداد', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
           ]),
         );
       },
@@ -702,13 +707,13 @@ class _ReportRowCard extends StatelessWidget {
   Color _statusColor(String s) {
     switch (s) {
       case 'رفض نهائي':
-        return const Color(0xFFDC2626);
+        return AppColors.error;
       case 'مُسترد':
-        return const Color(0xFF059669);
+        return AppStatus.profit;
       case 'قيد المتابعة':
-        return const Color(0xFFD97706);
+        return AppStatus.overdue;
       default:
-        return const Color(0xFF64748B);
+        return AppColors.neutral;
     }
   }
 
@@ -718,13 +723,13 @@ class _ReportRowCard extends StatelessWidget {
     final color = _statusColor(status);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withOpacity(0.22))),
+      decoration: BoxDecoration(color: AppColors.card(isDark), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.22))),
       child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(14), child: InkWell(borderRadius: BorderRadius.circular(14), onTap: onOpen, child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.black.withOpacity(0.06), borderRadius: BorderRadius.circular(8)), child: Text('#${row['OpportunityId']}', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)), child: Text('#${row['OpportunityId']}', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold))),
           const SizedBox(width: 8),
           Expanded(child: Text(row['ClientName'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 13))),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.25))), child: Text(status, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: color))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withValues(alpha: 0.25))), child: Text(status, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: color))),
         ]),
         const SizedBox(height: 8),
         Wrap(spacing: 6, runSpacing: 4, children: [
@@ -737,7 +742,7 @@ class _ReportRowCard extends StatelessWidget {
         ]),
         if (row['LastCsSummary'] != null && '${row['LastCsSummary']}'.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8)), child: Text('${row['LastCsSummary']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey.shade700))),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.inputFill(isDark), borderRadius: BorderRadius.circular(8)), child: Text('${row['LastCsSummary']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral))),
         ],
       ])))),
     );
@@ -748,19 +753,19 @@ class _ReportRowCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
+        color: Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: Colors.grey.shade600),
+          Icon(icon, size: 10, color: AppColors.neutral),
           const SizedBox(width: 4),
           Text(
             text,
             style: GoogleFonts.cairo(
               fontSize: 10,
-              color: Colors.grey.shade700,
+              color: AppColors.neutral,
             ),
           ),
         ],

@@ -4,11 +4,15 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/personal_account_service.dart';
+import '../../widgets/design_kit.dart';
 import 'personal_account_form_screen.dart';
 import 'personal_account_statement_screen.dart';
 import 'personal_account_transaction_screen.dart';
 
+import '../../widgets/app_drawer.dart';
 /// مُنسّق أرقام مشترك
 final NumberFormat _fmtShared = NumberFormat('#,##0');
 
@@ -190,8 +194,12 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frmPersonalAccounts'),
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: const Text('الحسابات الشخصية'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -204,7 +212,7 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null && _accounts.isEmpty
               ? _buildError(theme)
               : RefreshIndicator(
@@ -219,22 +227,7 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded, size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _init,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _init);
   }
 
   Widget _buildBody(ThemeData theme, bool isDark) {
@@ -289,23 +282,12 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
           ),
 
         // ── رأس القائمة ──────────────────────────
-        Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(color: HomeAccent.gold, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            const Text('الحسابات', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$_total حساب',
-                style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ),
-          ],
+        AppSectionHeader(
+          title: 'الحسابات',
+          trailing: Text(
+            '$_total حساب',
+            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+          ),
         ),
         const SizedBox(height: 8),
 
@@ -366,7 +348,7 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
                 icon: Icons.arrow_downward_rounded,
                 label: 'عليكم (دائن)',
                 value: _fmt(creditors),
-                color: const Color(0xFFE53935),
+                color: AppColors.error,
               ),
             ),
             SizedBox(
@@ -375,7 +357,7 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
                 icon: Icons.arrow_upward_rounded,
                 label: 'لكم (مدين)',
                 value: _fmt(debtors),
-                color: const Color(0xFF43A047),
+                color: AppColors.success,
               ),
             ),
             SizedBox(
@@ -384,7 +366,7 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
                 icon: Icons.balance_rounded,
                 label: 'الصافي (${(_totals['NetLabel'] ?? 'عليكم')})',
                 value: _fmt(net.abs()),
-                color: net >= 0 ? const Color(0xFF43A047) : const Color(0xFFE53935),
+                color: net >= 0 ? AppColors.success : AppColors.error,
               ),
             ),
           ],
@@ -394,13 +376,9 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
   }
 
   Widget _buildFilterPanel(ThemeData theme, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
       child: Column(
         children: [
           TextField(
@@ -514,33 +492,10 @@ class _PersonalAccountsScreenState extends State<PersonalAccountsScreen> {
   }
 
   Widget _buildEmpty(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(Icons.people_outline_rounded, size: 36, color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          const Text('لا توجد حسابات', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(
-            'ابدأ بإضافة حساب جديد (مالك، مستثمر، مقرض، موظف...)',
-            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.people_outline_rounded,
+      message: 'لا توجد حسابات',
+      hint: 'ابدأ بإضافة حساب جديد (مالك، مستثمر، مقرض، موظف...)',
     );
   }
 
@@ -642,7 +597,7 @@ class _StatCard extends StatelessWidget {
               children: [
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(value, maxLines: 1, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: color)),
+                  child: AmountText(value: value, size: 15, color: color),
                 ),
                 const SizedBox(height: 1),
                 Text(
@@ -723,7 +678,7 @@ class _AccountCard extends StatelessWidget {
     final color = typeColor(type);
     final balance = (account['CurrentBalance'] ?? 0).toDouble();
     final isPositive = balance > 0;
-    final balanceColor = isPositive ? const Color(0xFFE53935) : (balance < 0 ? const Color(0xFF43A047) : theme.colorScheme.onSurfaceVariant);
+    final balanceColor = isPositive ? AppColors.error : (balance < 0 ? AppColors.success : theme.colorScheme.onSurfaceVariant);
     final name = account['AccountName']?.toString() ?? '—';
     final phone = account['Phone']?.toString() ?? '';
     final isActive = (account['IsActive'] ?? true) == true;
@@ -750,27 +705,10 @@ class _AccountCard extends StatelessWidget {
               Row(
                 children: [
                   // شارة النوع
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      typeLabel(type),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color),
-                    ),
-                  ),
+                  StatusBadge(label: typeLabel(type), color: color, small: true),
                   const SizedBox(width: 6),
                   if (!isActive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text('معطل', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: theme.colorScheme.error)),
-                    ),
+                    StatusBadge(label: 'معطل', color: theme.colorScheme.error, small: true),
                   const Spacer(),
                   // زر حركة
                   GestureDetector(
@@ -814,9 +752,10 @@ class _AccountCard extends StatelessWidget {
                     children: [
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${fmt(balance.abs())} ج.م',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: balanceColor),
+                        child: AmountText(
+                          value: '${fmt(balance.abs())} ج.م',
+                          size: 15,
+                          color: balanceColor,
                         ),
                       ),
                       Text(

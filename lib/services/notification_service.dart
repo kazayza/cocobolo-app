@@ -22,6 +22,10 @@ class NotificationService {
   Future<void> Function(String? payload)? onNotificationTap;
   String? get launchPayload => _launchPayload;
 
+  /// يُستدعى عندما يكتشف الفحص الدوري إشعارات جديدة — حتى يزامن
+  /// المستمع (شارة عدّاد الرئيسية) عدّاده من الخادم بدل بقائه قديمًا.
+  static void Function()? onUnreadCountMayHaveChanged;
+
   Future<void> initialize({
     required Future<void> Function(String? payload) onTap,
   }) async {
@@ -188,11 +192,15 @@ class NotificationService {
   Future<void> _checkForNewNotifications() async {
     if (_currentUsername == null) return;
     try {
-      final response =
-          await ApiClient.instance.get('/api/notifications/unread');
+      // forceRefresh: بدونها يقرأ الفاحص كاش الـ٢٤ ساعة ولا يرى جديدًا أبدًا.
+      final response = await ApiClient.instance.get(
+        '/api/notifications/unread',
+        forceRefresh: true,
+      );
       final data = ApiClient.instance.decode(response);
       final notifications = (data['notifications'] as List?) ?? const [];
 
+      var surfacedNew = false;
       for (final raw in notifications) {
         final notification = Map<String, dynamic>.from(raw as Map);
         final notificationId = notification['NotificationID'] is int
@@ -213,6 +221,12 @@ class NotificationService {
           }),
         );
         _lastNotificationId = notificationId;
+        surfacedNew = true;
+      }
+
+      // جديد وصل: نُعلم مستمع الشارة ليقرأ العدّاد الطازج من الخادم.
+      if (surfacedNew) {
+        onUnreadCountMayHaveChanged?.call();
       }
     } catch (e) {
       debugPrint('Notification polling error: $e');

@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
+import '../../core/auth/session_service.dart';
+import '../../services/cashbox_service.dart';
+import '../../services/permission_service.dart';
 
 /// ─────────────────────────────────────────────────────────────
 ///  🏦 إدارة الخزن — إنشاء + تعديل + حذف
@@ -25,8 +32,13 @@ class CashBoxManageScreen extends StatefulWidget {
 
 class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
   List<Map<String, dynamic>> _boxes = [];
+  List<Map<String, dynamic>> _branches = [];
   bool _loading = true;
   String? _error;
+
+  // حذف الخزينة ببوابة frmCashBox:Delete (Item 6)
+  bool get _canDelete =>
+      PermissionService().isAdmin || PermissionService().canDelete('frmCashBox');
 
   @override
   void initState() {
@@ -40,7 +52,7 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
       _error = null;
     });
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/cashbox'));
+      final res = await http.get(Uri.parse('$baseUrl/api/cashbox'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         List<Map<String, dynamic>> list = [];
@@ -67,62 +79,210 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
         _loading = false;
       });
     }
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/inventory/branches'),
+        headers: SessionService.instance.authHeaders,
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is List && mounted) {
+          setState(() {
+            _branches =
+                data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          });
+        }
+      }
+    } catch (_) {}
   }
 
-  Future<void> _createBox() async {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final openCtrl = TextEditingController();
-    String kind = 'Cash';
+  // نموذج موحد إنشاء/تعديل — Item 15 (مرآة CashBoxForm في بلازور)
+  Future<void> _openBoxForm({Map<String, dynamic>? box}) async {
+    final editing = box != null;
+    final nameCtrl =
+        TextEditingController(text: editing ? '${box['CashBoxName'] ?? ''}' : '');
+    final descCtrl =
+        TextEditingController(text: editing ? '${box['Description'] ?? ''}' : '');
+    final openCtrl = TextEditingController(
+        text: editing ? '${box['OpeningBalance'] ?? 0}' : '0');
+    String kind = editing ? '${box['CashBoxKind'] ?? 'Cash'}' : 'Cash';
+    int? branchId = editing ? (box['BranchID'] as num?)?.toInt() : null;
+    bool isDefault = editing && box['IsDefault'] == true;
+    bool isActive = !editing || box['IsActive'] != false;
 
     final submitted = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('خزينة جديدة'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'اسم الخزينة *',
-                  border: OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(editing ? 'تعديل خزينة' : 'خزينة جديدة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الخزينة *',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: descCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'وصف (اختياري)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'الوصف (اختياري)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: openCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'رصيد افتتاحي',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  initialValue: branchId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الفرع *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _branches
+                      .map((b) => DropdownMenuItem<int>(
+                            value: (b['BranchId'] as num?)?.toInt(),
+                            child: Text(
+                                '${b['BranchNameAr'] ?? b['BranchName'] ?? ''}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => branchId = v),
                 ),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: kind,
-                decoration: const InputDecoration(
-                  labelText: 'النوع',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: openCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'الرصيد الافتتاحي',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'Cash', child: Text('نقدية')),
-                  DropdownMenuItem(value: 'Bank', child: Text('بنكي')),
-                  DropdownMenuItem(value: 'Wallet', child: Text('محفظة')),
-                ],
-                onChanged: (v) => kind = v ?? 'Cash',
-              ),
-            ],
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: kind,
+                  decoration: const InputDecoration(
+                    labelText: 'النوع',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Cash', child: Text('خزينة نقدية')),
+                    DropdownMenuItem(value: 'Bank', child: Text('حساب بنكي')),
+                    DropdownMenuItem(
+                        value: 'Wallet', child: Text('محفظة إلكترونية')),
+                    DropdownMenuItem(value: 'Other', child: Text('أخرى')),
+                  ],
+                  onChanged: (v) => setDialogState(() => kind = v ?? 'Cash'),
+                ),
+                SwitchListTile(
+                  title: const Text('الخزينة الافتراضية'),
+                  value: isDefault,
+                  onChanged: (v) => setDialogState(() => isDefault = v),
+                ),
+                SwitchListTile(
+                  title: const Text('نشطة'),
+                  value: isActive,
+                  onChanged: (v) => setDialogState(() => isActive = v),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: HomeAccent.accent,
+                foregroundColor: AppColors.navy,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(editing ? 'حفظ التعديل' : 'إنشاء'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (submitted != true || !mounted) {
+      nameCtrl.dispose();
+      descCtrl.dispose();
+      openCtrl.dispose();
+      return;
+    }
+    if (nameCtrl.text.trim().isEmpty) {
+      _showMsg('اسم الخزينة مطلوب', false);
+      nameCtrl.dispose();
+      descCtrl.dispose();
+      openCtrl.dispose();
+      return;
+    }
+    if (branchId == null) {
+      // الفرع إلزامي كما في بلازور (Item 4)
+      _showMsg('الفرع مطلوب', false);
+      nameCtrl.dispose();
+      descCtrl.dispose();
+      openCtrl.dispose();
+      return;
+    }
+
+    final payload = {
+      'cashBoxName': nameCtrl.text.trim(),
+      'description': descCtrl.text.trim(),
+      'branchId': branchId,
+      'cashBoxKind': kind,
+      'openingBalance': double.tryParse(openCtrl.text.trim()) ?? 0,
+      'isDefault': isDefault,
+      'isActive': isActive,
+      'createdBy': widget.username,
+    };
+    try {
+      final res = editing
+          ? await http.put(
+              Uri.parse('$baseUrl/api/cashbox/${box['CashBoxID']}'),
+              headers: {
+                ...SessionService.instance.authHeaders,
+                'Content-Type': 'application/json'
+              },
+              body: jsonEncode(payload),
+            )
+          : await http.post(
+              Uri.parse('$baseUrl/api/cashbox'),
+              headers: {
+                ...SessionService.instance.authHeaders,
+                'Content-Type': 'application/json'
+              },
+              body: jsonEncode(payload),
+            );
+      final result = jsonDecode(res.body);
+      _showMsg(
+        result['message'] ?? (editing ? 'تم تعديل الخزينة' : 'تم إنشاء الخزينة'),
+        result['success'] == true || res.statusCode == 200,
+      );
+      _load();
+    } catch (e) {
+      _showMsg('خطأ في الاتصال', false);
+    }
+    nameCtrl.dispose();
+    descCtrl.dispose();
+    openCtrl.dispose();
+  }
+
+  // حذف خزينة — حوار تأكيد يذكر هوية الخزينة بالاسم، والخادم يرفض
+  // الحذف برسالة بلازور عند وجود حركات (Item 6)
+  Future<void> _confirmDelete(Map<String, dynamic> box) async {
+    final name = '${box['CashBoxName'] ?? ''}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف الخزينة'),
+        content: Text(
+          'سيتم حذف الخزينة «$name» نهائيًا. '
+          'لا يمكن حذف خزينة بها حركات — عطّلها بدلًا من ذلك.',
         ),
         actions: [
           TextButton(
@@ -131,42 +291,23 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('إنشاء'),
+            child: const Text('حذف نهائي'),
           ),
         ],
       ),
     );
-
-    if (submitted != true || !mounted) return;
-    if (nameCtrl.text.trim().isEmpty) {
-      _showMsg('اسم الخزينة مطلوب', false);
-      return;
-    }
-
+    if (confirmed != true || !mounted) return;
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/cashbox'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'cashBoxName': nameCtrl.text.trim(),
-          'description': descCtrl.text.trim(),
-          'cashBoxKind': kind,
-          'openingBalance': double.tryParse(openCtrl.text.trim()) ?? 0,
-          'createdBy': widget.username,
-        }),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(
-        result['message'] ?? 'تم إنشاء الخزينة',
-        result['success'] == true || res.statusCode == 200,
-      );
+      final result =
+          await CashboxService.deleteCashbox((box['CashBoxID'] as num).toInt());
+      _showMsg(result['message'] ?? 'تم حذف الخزينة بنجاح', true);
       _load();
     } catch (e) {
-      _showMsg('خطأ في الاتصال', false);
+      _showMsg(e.toString(), false);
     }
   }
 
@@ -176,18 +317,18 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isSuccess
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   String _fmt(dynamic v) {
-    if (v == null) return '0';
-    return v is num
-        ? v.toStringAsFixed(0)
-        : double.tryParse(v.toString())?.toStringAsFixed(0) ?? '0';
+    final n = v is num
+        ? v.toDouble()
+        : double.tryParse(v?.toString() ?? '') ?? 0;
+    return NumberFormat('#,##0').format(n);
   }
 
   String _kindLabel(String? kind) {
@@ -223,16 +364,19 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('إدارة الخزن'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_rounded),
             tooltip: 'خزينة جديدة',
-            onPressed: _createBox,
+            onPressed: () => _openBoxForm(),
           ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
               ? _buildError(theme)
               : _boxes.isEmpty
@@ -242,54 +386,27 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _boxes.length,
-                        itemBuilder: (context, index) =>
-                            _BoxCard(box: _boxes[index], fmt: _fmt),
+                        itemBuilder: (context, index) => _BoxCard(
+                              box: _boxes[index],
+                              fmt: _fmt,
+                              onTap: () => _openBoxForm(box: _boxes[index]),
+                              onDelete: _canDelete
+                                  ? () => _confirmDelete(_boxes[index])
+                                  : null,
+                            ),
                       ),
                     ),
     );
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   Widget _buildEmpty(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.account_balance_wallet_rounded,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد خزن — اضغط + لإنشاء أول خزينة',
-            style: TextStyle(
-              fontSize: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.account_balance_wallet_rounded,
+      message: 'لا توجد خزن — اضغط + لإنشاء أول خزينة',
     );
   }
 }
@@ -297,8 +414,10 @@ class _CashBoxManageScreenState extends State<CashBoxManageScreen> {
 class _BoxCard extends StatelessWidget {
   final Map<String, dynamic> box;
   final String Function(dynamic) fmt;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
-  const _BoxCard({required this.box, required this.fmt});
+  const _BoxCard({required this.box, required this.fmt, this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -306,20 +425,16 @@ class _BoxCard extends StatelessWidget {
     final balance = box['CurrentBalance'] ?? 0;
     final isPositive = (balance is num ? balance : 0) >= 0;
     final color =
-        isPositive ? const Color(0xFF43A047) : const Color(0xFFE53935);
+        isPositive ? AppColors.success : AppColors.error;
     final kind = box['CashBoxKind']?.toString();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
+        child: Row(
         children: [
           Container(
             width: 44,
@@ -355,20 +470,23 @@ class _BoxCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (box['BranchName'] != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${box['BranchName']}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                fmt(balance),
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                ),
-              ),
+              AmountText(value: fmt(balance), size: 15, color: color),
               Text(
                 'الرصيد',
                 style: TextStyle(
@@ -376,9 +494,25 @@ class _BoxCard extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (box['TransactionsCount'] != null)
+                Text(
+                  '${box['TransactionsCount']} حركة',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
             ],
           ),
+          if (onDelete != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              color: AppColors.error,
+              tooltip: 'حذف الخزينة',
+              onPressed: onDelete,
+            ),
         ],
+        ),
       ),
     );
   }

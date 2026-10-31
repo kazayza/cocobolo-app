@@ -13,9 +13,12 @@ import 'package:share_plus/share_plus.dart';
 import '../services/additional_charge_service.dart';
 import '../services/app_colors.dart';
 import '../services/theme_service.dart';
+import '../services/design_tokens.dart';
 import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import 'invoice/invoice_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class AdditionalChargesScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -64,12 +67,16 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
     'Shipping': 'رسوم شحن',
     'Installation': 'رسوم تركيب',
     'Advance': 'دفعة مقدمة',
+    'Modification': 'رسوم تعديل',
     'Other': 'رسوم أخرى',
   };
   static const Map<String, String> _statusNames = {
     'Paid': 'مدفوعة وغير مطبقة',
     'Applied': 'مطبقة على فاتورة',
     'NonRefundable': 'غير مستردة',
+    'PendingApproval': 'بانتظار الاعتماد',
+    'Approved': 'معتمدة — غير محصّلة',
+    'Rejected': 'مرفوضة',
   };
 
   @override
@@ -426,6 +433,149 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
         : _service.create(body));
   }
 
+  // ──────────── دورة رسوم تعديل التسليم (Item 13) ────────────
+  Future<void> _approveModification(Map<String, dynamic> row) async {
+    final amountCtrl =
+        TextEditingController(text: _num(row['ChargeAmount']).toStringAsFixed(2));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('اعتماد رسم التعديل',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${row['ChargeDescription'] ?? ''}',
+              style: GoogleFonts.cairo()),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'المبلغ النهائي *',
+              labelStyle: GoogleFonts.cairo(),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('إلغاء', style: GoogleFonts.cairo())),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('اعتماد', style: GoogleFonts.cairo())),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final amount = _num(amountCtrl.text);
+    if (amount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('لا يمكن الاعتماد بلا مبلغ نهائي',
+              style: GoogleFonts.cairo())));
+      return;
+    }
+    await _run(() => _service.approveModification(
+        id: _int(row['ChargeID']), amount: amount));
+  }
+
+  Future<void> _rejectModification(Map<String, dynamic> row) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('رفض رسم التعديل',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: reasonCtrl,
+          maxLines: 3,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'سبب الرفض *',
+            labelStyle: GoogleFonts.cairo(),
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('إلغاء', style: GoogleFonts.cairo())),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('رفض', style: GoogleFonts.cairo())),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (reasonCtrl.text.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('سبب الرفض إلزامي', style: GoogleFonts.cairo())));
+      return;
+    }
+    await _run(() => _service.rejectModification(
+        id: _int(row['ChargeID']), reason: reasonCtrl.text.trim()));
+  }
+
+  Future<void> _collectModification(Map<String, dynamic> row) async {
+    final data = await _service.getLookups();
+    final cashboxes = (data['cashboxes'] as List? ?? const [])
+        .map<Map<String, dynamic>>(_map)
+        .toList();
+    int? cashBoxId;
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text('تحصيل رسم التعديل',
+              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
+          content: SizedBox(
+            width: 440,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(
+                '${row['ChargeDescription'] ?? ''} — ${_money(row['ChargeAmount'])}',
+                style: GoogleFonts.cairo(),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: cashBoxId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'الخزينة (افتراضية إن تُركت)',
+                  labelStyle: GoogleFonts.cairo(),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                items: cashboxes
+                    .map((box) => DropdownMenuItem<int>(
+                          value: _int(box['CashBoxID']),
+                          child: Text('${box['CashBoxName'] ?? ''}',
+                              style: GoogleFonts.cairo(fontSize: 12)),
+                        ))
+                    .toList(),
+                onChanged: (v) => setDialogState(() => cashBoxId = v),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('إلغاء', style: GoogleFonts.cairo())),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('تحصيل', style: GoogleFonts.cairo())),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await _run(() => _service.collectModification(
+        id: _int(row['ChargeID']), cashBoxId: cashBoxId));
+  }
+
   Future<void> _apply(Map<String, dynamic> row) async {
     final data = await _service.getLookups(partyId: _int(row['PartyID']));
     final invoices = (data['invoices'] as List? ?? const [])
@@ -722,6 +872,10 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
                         color: const PdfColor.fromInt(0xFF13273F))),
               ),
             ),
+            // التفقيط يولّده الخادم بخوارزمية بلازور (AmountInWords)
+            if ((data['AmountInWords'] ?? '').toString().isNotEmpty)
+              _pdfLine('المبلغ بالحروف', '${data['AmountInWords']}',
+                  regular, bold),
             pw.SizedBox(height: 12),
             _pdfLine('الخزينة', '${data['CashBoxName'] ?? '—'}', regular, bold),
             _pdfLine('التاريخ', _date(data['ReceiptDate'] ?? data['CreatedAt']),
@@ -820,8 +974,12 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frmInspectionCharge'),
       backgroundColor: AppColors.background(_isDark),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('الرسوم والدفعات المقدمة',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -834,7 +992,7 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
           ? FloatingActionButton.extended(
               onPressed: _busy ? null : () => _openForm(),
               backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.navyDark,
+              foregroundColor: AppColors.navy,
               icon: const Icon(Icons.add_rounded),
               label: Text(_advances ? 'دفعة مقدمة' : 'رسوم جديدة',
                   style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
@@ -1009,13 +1167,10 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_money(value),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.cairo(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10.5)),
+              AmountText(
+                  value: _money(value),
+                  color: Colors.white,
+                  size: 10.5),
               Text(label,
                   style:
                       GoogleFonts.cairo(color: Colors.white60, fontSize: 8.5)),
@@ -1025,15 +1180,13 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
       );
 
   Widget _filters() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.xl,
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
-      child: Column(children: [
+        child: Column(children: [
         TextField(
           controller: _searchController,
           onChanged: _searchChanged,
@@ -1122,7 +1275,8 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
               icon: const Icon(Icons.filter_alt_off_rounded),
             ),
         ]),
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -1197,12 +1351,11 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(_money(row['ChargeAmount']),
-                style: GoogleFonts.cairo(
-                    color: AppColors.text(_isDark),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13)),
-            _badge(_statusName(status), color),
+            AmountText(
+                value: _money(row['ChargeAmount']),
+                color: AppColors.text(_isDark),
+                size: 13),
+            _badge(_statusName(status), color, icon: _statusIcon(status)),
           ]),
         ]),
         const SizedBox(height: 10),
@@ -1250,6 +1403,31 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
               icon: const Icon(Icons.link_rounded, color: AppColors.success),
               tooltip: 'تطبيق على فاتورة',
             ),
+          if (row['IsDeliveryModification'] == true &&
+              status == 'PendingApproval' &&
+              _can('canEdit')) ...[
+            IconButton(
+              onPressed: _busy ? null : () => _approveModification(row),
+              icon: const Icon(Icons.verified_rounded,
+                  color: AppColors.success),
+              tooltip: 'اعتماد رسم التعديل',
+            ),
+            IconButton(
+              onPressed: _busy ? null : () => _rejectModification(row),
+              icon:
+                  const Icon(Icons.cancel_rounded, color: AppColors.error),
+              tooltip: 'رفض رسم التعديل',
+            ),
+          ],
+          if (row['IsDeliveryModification'] == true &&
+              status == 'Approved' &&
+              _can('canEdit'))
+            IconButton(
+              onPressed: _busy ? null : () => _collectModification(row),
+              icon: const Icon(Icons.point_of_sale_rounded,
+                  color: AppColors.success),
+              tooltip: 'تحصيل رسم التعديل',
+            ),
           const Spacer(),
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -1291,16 +1469,8 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 8.5, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color, {IconData? icon}) =>
+      StatusBadge(label: text, color: color, icon: icon, small: true);
 
   Widget _chip(IconData icon, String text, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1326,13 +1496,26 @@ class _AdditionalChargesScreenState extends State<AdditionalChargesScreen> {
         'Shipping' => Icons.local_shipping_rounded,
         'Installation' => Icons.handyman_rounded,
         'Advance' => Icons.savings_rounded,
+        'Modification' => Icons.fact_check_rounded,
         _ => Icons.account_balance_wallet_rounded,
       };
 
   Color _statusColor(String status) => switch (status) {
         'Applied' => AppColors.success,
+        'Approved' => AppColors.success,
         'NonRefundable' => AppColors.error,
+        'Rejected' => AppColors.error,
+        'PendingApproval' => AppColors.warning,
         _ => AppColors.warning,
+      };
+
+  IconData _statusIcon(String status) => switch (status) {
+        'PendingApproval' => Icons.hourglass_top_rounded,
+        'Approved' => Icons.verified_rounded,
+        'Rejected' => Icons.cancel_rounded,
+        'Applied' => Icons.link_rounded,
+        'NonRefundable' => Icons.block_rounded,
+        _ => Icons.payments_rounded,
       };
 
   String _money(dynamic value) =>

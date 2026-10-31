@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -32,20 +34,9 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -179,7 +170,7 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
           color: isTouched
               ? color.withOpacity(0.1)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.all(AppRadius.xs),
           border: isTouched
               ? Border.all(color: color.withOpacity(0.3))
               : null,
@@ -250,7 +241,7 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
                     Text(
                       '${_formatCurrency(item.lostValue)} ج.م',
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFFEF5350),
+                        color: AppColors.errorLight,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -277,7 +268,7 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         children: [
@@ -289,7 +280,7 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
                 '💸',
                 'القيمة المفقودة',
                 '${_formatCurrency(totalValue)} ج.م',
-                const Color(0xFFEF5350),
+                AppColors.errorLight,
               ),
               Container(
                 width: 1,
@@ -324,7 +315,7 @@ class _CrmLostReasonsState extends State<CrmLostReasons> {
                     child: Text(
                       '${topReason.name} (${topReason.count} فرصة - ${_formatCurrency(topReason.lostValue)} ج.م)',
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFFEF5350),
+                        color: AppColors.errorLight,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),

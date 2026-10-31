@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/auth/session_service.dart';
 
 import '../constants.dart';
 
@@ -109,8 +109,8 @@ class UserPermissionState {
 
 class AdminService {
   static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+    // التوكن مصدره الوحيد SessionService (Secure Storage).
+    return SessionService.instance.accessToken;
   }
 
   static Map<String, String> _headers(String? token) => {

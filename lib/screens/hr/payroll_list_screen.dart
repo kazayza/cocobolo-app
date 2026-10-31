@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../services/app_colors.dart';
-import '../../services/theme_service.dart';
-import '../../services/payroll_service.dart';
-import '../../services/permission_service.dart';
 
-/// سجل المرتبات — مطابق 100% لـ HR/Payroll/PayrollList.razor (بلازور هو الأساس)
-/// هيدر بريميوم + خطوات 1-4 + 6 كروت إحصاء + شرائح شهور + جدول + فلاتر
+import '../../services/app_colors.dart';
+import '../../services/cashbox_service.dart';
+import '../../services/design_tokens.dart';
+import '../../services/payroll_service.dart';
+import '../../services/theme_service.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/design_kit.dart';
+import 'off_payroll_screen.dart';
+import 'payroll_status.dart';
+import 'payslip_screen.dart';
+
+/// سجل المرتبات — مطابق لـ HR/Payroll/PayrollList.razor (بلازور هو الأساس)
+/// بهوية التطبيق: مرساة كحلية تحمل الشهر والإجراءات، وبطاقات موظفين
+/// يعرض كلٌّ منها الصافي الحقيقي (NetSalary) لا الإجمالي.
 class PayrollListScreen extends StatefulWidget {
   final int userId;
   final String username;
-  const PayrollListScreen({super.key, required this.userId, required this.username});
+  const PayrollListScreen({
+    super.key,
+    required this.userId,
+    required this.username,
+  });
 
   @override
   State<PayrollListScreen> createState() => _PayrollListScreenState();
@@ -31,6 +42,7 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
   String? _error;
 
   bool get _isDark => ThemeService().isDarkMode;
+
   String get _statsTitle {
     if (_selectedMonth == null) return 'الشهر الحالي';
     return _formatMonth(_selectedMonth!);
@@ -49,6 +61,19 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
   String _formatMoney(dynamic v) {
     final n = v is num ? v : num.tryParse('$v') ?? 0;
     return NumberFormat('#,##0').format(n);
+  }
+
+  double _num(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+
+  /// إجمالي خصومات الصف: الحقل التجميعي من الخادم، واحتياطيًا مجموع
+  /// مكوناته (غياب + تأخير + سلف + جزاءات) أو عمود الخصومات العام.
+  double _deductionsOf(Map row) {
+    if (row['TotalDeductions'] != null) return _num(row['TotalDeductions']);
+    final parts = ['AbsenceDeduction', 'LateDeduction', 'LoanDeduction', 'PenaltyDeduction']
+        .where((k) => row[k] != null)
+        .fold<double>(0, (s, k) => s + _num(row[k]));
+    if (parts > 0) return parts;
+    return _num(row['Deductions']);
   }
 
   @override
@@ -95,6 +120,212 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
     await _load();
   }
 
+  void _snack(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? AppColors.error : AppColors.success,
+      ),
+    );
+  }
+
+  int _payrollId(Map row) =>
+      (row['PayrollID'] as num?)?.toInt() ??
+      (row['PayrollId'] as num?)?.toInt() ??
+      (row['ID'] as num?)?.toInt() ??
+      (row['Id'] as num?)?.toInt() ??
+      0;
+
+  /// حساب وحفظ رواتب الشهر للمراجعة — POST /api/payroll/runs
+  Future<void> _createRun() async {
+    final month =
+        _selectedMonth ?? DateFormat('yyyy-MM').format(DateTime.now());
+    final textTheme = Theme.of(context).textTheme;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(_isDark),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: Text(
+          'حساب وحفظ رواتب الشهر',
+          style: textTheme.titleMedium?.copyWith(
+            color: AppColors.text(_isDark),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'سيتم حساب رواتب شهر ${_formatMonth(month)} لجميع الموظفين النشطين وحفظها بحالة «قيد المراجعة» (تُتخطى المسجلة سابقًا وذات الأساسي الصفري). متابعة؟',
+          style: textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary(_isDark),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'إلغاء',
+              style: textTheme.labelLarge?.copyWith(
+                color: AppColors.textSecondary(_isDark),
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: _isDark ? AppColors.gold : AppColors.navy,
+              foregroundColor: _isDark ? AppColors.navy : Colors.white,
+            ),
+            child: const Text('حساب وحفظ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final run = await _service.createRun(month);
+      _snack(
+          'تم إنشاء كشف رواتب $month — العدد ${run['PayrollCount'] ?? 0} · الإجمالي ${_formatMoney(run['TotalNet'] ?? 0)} ج');
+      await _load();
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  Future<void> _approveRow(Map row) async {
+    final id = _payrollId(row);
+    if (id <= 0) return;
+    try {
+      await _service.approve(id);
+      _snack('تم اعتماد مرتب ${row['EmployeeName'] ?? ''}');
+      await _load();
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  Future<void> _payRow(Map row) async {
+    final id = _payrollId(row);
+    if (id <= 0) return;
+    List<dynamic> boxes = [];
+    try {
+      boxes = await CashboxService.getAllCashboxes();
+    } catch (_) {
+      boxes = [];
+    }
+    if (!mounted) return;
+    if (boxes.isEmpty) {
+      _snack('لا توجد خزائن متاحة للصرف', error: true);
+      return;
+    }
+    int? selected = (boxes.first['CashBoxID'] as num?)?.toInt();
+    final textTheme = Theme.of(context).textTheme;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface(_isDark),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          title: Text(
+            'صرف المرتب',
+            style: textTheme.titleMedium?.copyWith(
+              color: AppColors.text(_isDark),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${row['EmployeeName'] ?? ''} — الصافي ${_formatMoney(row['NetSalary'] ?? 0)} ج',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary(_isDark),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: selected,
+                decoration: InputDecoration(
+                  labelText: 'خزينة الصرف',
+                  filled: true,
+                  fillColor: AppColors.inputFill(_isDark),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                dropdownColor: AppColors.surface(_isDark),
+                items: boxes.map((b) {
+                  final m = Map<String, dynamic>.from(b as Map);
+                  return DropdownMenuItem<int>(
+                    value: (m['CashBoxID'] as num?)?.toInt(),
+                    child: Text('${m['CashBoxName'] ?? ''}'),
+                  );
+                }).toList(),
+                onChanged: (v) => setDialogState(() => selected = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                'إلغاء',
+                style: textTheme.labelLarge?.copyWith(
+                  color: AppColors.textSecondary(_isDark),
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: selected == null
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: _isDark ? AppColors.gold : AppColors.navy,
+                foregroundColor: _isDark ? AppColors.navy : Colors.white,
+              ),
+              child: const Text('صرف الآن'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || selected == null) return;
+    try {
+      await _service.pay(id, selected!);
+      _snack('تم صرف مرتب ${row['EmployeeName'] ?? ''} من الخزينة');
+      await _load();
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  void _openPayslip(Map row) {
+    final id = _payrollId(row);
+    if (id <= 0) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PayslipScreen(payrollId: id, username: widget.username),
+      ),
+    );
+  }
+
+  void _openOffPayroll() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            OffPayrollScreen(userId: widget.userId, username: widget.username),
+      ),
+    );
+  }
+
   List<dynamic> get _filtered {
     var list = _payrolls;
     final q = _searchCtrl.text.trim().toLowerCase();
@@ -106,7 +337,12 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
       }).toList();
     }
     if (_statusFilter != 'all') {
-      list = list.where((r) => '${r['Status'] ?? ''}'.toLowerCase() == _statusFilter).toList();
+      // المرشح والشارة من مصدر واحد: مفتاح الحالة المشتق من
+      // PaymentStatus العربي أولًا (كان المرشح يقرأ Status الإنجليزي
+      // وحده فتفلت منه الصفوف ذات الحالة العربية).
+      list = list
+          .where((r) => payrollStatusKey(r as Map) == _statusFilter)
+          .toList();
     }
     return list;
   }
@@ -114,476 +350,803 @@ class _PayrollListScreenState extends State<PayrollListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      drawer: buildAppDrawer(currentRoute: 'frm_PayrollList'),
+      backgroundColor: AppColors.background(_isDark),
+      appBar: AppBar(
+        leading: const AppDrawerMenuButton(),
+        title: Text(
+          'سجل المرتبات',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+        ),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+        ],
+      ),
       body: _loading
-          ? _buildLoading()
+          ? const AppLoading()
           : _error != null
-              ? _buildError()
-              : CustomScrollView(
-                  slivers: [
-                    _buildAppBar(),
-                    SliverToBoxAdapter(child: _buildSteps()),
-                    if (_stats.isNotEmpty) SliverToBoxAdapter(child: _buildStats()),
-                    SliverToBoxAdapter(child: _buildMonthChips()),
-                    SliverToBoxAdapter(child: _buildFilters()),
-                    SliverToBoxAdapter(child: _buildTable()),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ? AppError(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                    children: [
+                      _buildAnchorHeader(),
+                      if (_stats.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildStats(),
+                      ],
+                      if (_months.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildMonthChips(),
+                      ],
+                      const SizedBox(height: 12),
+                      _buildFilters(),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _createRun,
+                          style: FilledButton.styleFrom(
+                            backgroundColor:
+                                _isDark ? AppColors.gold : AppColors.navy,
+                            foregroundColor:
+                                _isDark ? AppColors.navy : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.pill),
+                            ),
+                          ),
+                          icon: const Icon(Icons.calculate_rounded, size: 18),
+                          label: Text(
+                            'حساب وحفظ رواتب الشهر للمراجعة',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color:
+                                      _isDark ? AppColors.navy : Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildCards(),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  /// المرساة الكحلية: العنوان وسياق الشهر، وخطوات الدورة ١-٤،
+  /// وإجراءا «معالجة جديدة» و«خارج الراتب» كحبوب ممتلئة.
+  Widget _buildAnchorHeader() {
+    final textTheme = Theme.of(context).textTheme;
+    final monthLabel = _selectedMonth == null
+        ? 'كل الشهور'
+        : _formatMonth(_selectedMonth!);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: AppGradients.identityHeader,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: const Icon(
+                  Icons.payments_rounded,
+                  color: AppColors.gold,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'سجل المرتبات',
+                      style: textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'مراجعة واعتماد وصرف المرتبات — $monthLabel',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.goldLight,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
-    );
-  }
-
-  Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: Color(0xFFDBBF74)));
-  }
-
-  Widget _buildError() {
-    return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.error_outline, color: Colors.red, size: 48),
-        const SizedBox(height: 12),
-        Text(_error!, style: GoogleFonts.cairo(color: Colors.white)),
-        const SizedBox(height: 12),
-        FilledButton(onPressed: _load, child: Text('إعادة المحاولة', style: GoogleFonts.cairo())),
-      ]),
-    );
-  }
-
-  // ── AppBar بريميوم مطابق للبلازور ──
-  Widget _buildAppBar() {
-    return SliverAppBar(
-      expandedHeight: 170,
-      pinned: true,
-      backgroundColor: const Color(0xFF1A2842),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(children: [
-          // gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1A2842), Color(0xFF2A3F6A), Color(0xFF1A2842)],
               ),
-            ),
+            ],
           ),
-          // orbs
-          Positioned(top: -20, right: -10, child: _orb(90, const Color(0xFFDBBF74).withOpacity(0.08))),
-          Positioned(bottom: -10, left: 20, child: _orb(120, Colors.white.withOpacity(0.04))),
-          Positioned(top: 40, left: 60, child: _orb(45, const Color(0xFFDBBF74).withOpacity(0.06))),
-          // grid pattern (dots)
-          Positioned.fill(child: Opacity(opacity: 0.03, child: CustomPaint(painter: _GridPainter()))),
-          // content
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-              child: Row(children: [
-                // icon
-                Stack(children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFFD4AF37), Color(0xFFF0D060)]),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [BoxShadow(color: const Color(0xFFD4AF37).withOpacity(0.3), blurRadius: 12)],
-                    ),
-                    child: const Icon(Icons.payments_rounded, color: Color(0xFF1A2842), size: 28),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: _createRun,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: AppColors.navy,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(color: const Color(0xFFD4AF37), borderRadius: BorderRadius.circular(8)),
-                      child: const Icon(Icons.auto_awesome_rounded, size: 10, color: Color(0xFF1A2842)),
-                    ),
-                  ),
-                ]).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Text('سجل المرتبات', style: GoogleFonts.cairo(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD4AF37).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.3)),
-                        ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.diamond_rounded, size: 10, color: Color(0xFFD4AF37)),
-                          const SizedBox(width: 4),
-                          Text('Premium', style: GoogleFonts.cairo(color: const Color(0xFFD4AF37), fontSize: 9, fontWeight: FontWeight.bold)),
-                        ]),
-                      ),
-                    ]),
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      const Icon(Icons.insights_rounded, size: 12, color: Color(0xFFD4AF37)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'مراجعة واعتماد وصرف المرتبات — ${DateFormat('EEEE yyyy/MM/dd', 'ar').format(DateTime.now())}',
-                          style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10),
-                        ),
-                      ),
-                    ]),
-                  ]),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
-                Column(children: [
-                  _appBarButton('معالجة جديدة', Icons.add_rounded, true, () {}),
-                  const SizedBox(height: 6),
-                  _appBarButton('خارج الراتب', Icons.card_giftcard_rounded, false, () {}),
-                ]),
-              ]),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: Text(
+                  'معالجة جديدة',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _openOffPayroll,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.45),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+                icon: const Icon(Icons.card_giftcard_rounded, size: 17),
+                label: Text(
+                  'خارج الراتب',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _step('1', 'معالجة'),
+              _stepArrow(),
+              _step('2', 'حفظ ومراجعة'),
+              _stepArrow(),
+              _step('3', 'اعتماد'),
+              _stepArrow(),
+              _step('4', 'صرف'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'الإضافات المنفصلة تُصرف كحركة مستقلة خارج الراتب',
+            style: textTheme.bodySmall?.copyWith(
+              color: AppColors.goldLight.withValues(alpha: 0.85),
+              fontSize: 11,
             ),
           ),
-        ]),
+        ],
       ),
-      leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white), onPressed: () => Navigator.pop(context)),
-      title: Text('المرتبات', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
-      centerTitle: true,
-    );
-  }
-
-  Widget _orb(double size, Color color) {
-    return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: color));
-  }
-
-  Widget _appBarButton(String label, IconData icon, bool primary, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: primary ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: primary ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.15)),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: primary ? const Color(0xFF1A2842) : Colors.white),
-          const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.cairo(color: primary ? const Color(0xFF1A2842) : Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildSteps() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF13273F),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Row(children: [
-        _step('1', 'معالجة'),
-        _stepArrow(),
-        _step('2', 'حفظ ومراجعة'),
-        _stepArrow(),
-        _step('3', 'اعتماد'),
-        _stepArrow(),
-        _step('4', 'صرف'),
-        const Spacer(),
-        const Icon(Icons.info_rounded, size: 12, color: Color(0xFFD4AF37)),
-        const SizedBox(width: 4),
-        Flexible(child: Text('الإضافات المنفصلة تُصرف كحركة مستقلة', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 8))),
-      ]),
     );
   }
 
   Widget _step(String num, String label) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 18,
-        height: 18,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: const Color(0xFFD4AF37).withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-        child: Text(num, style: GoogleFonts.cairo(color: const Color(0xFFD4AF37), fontSize: 10, fontWeight: FontWeight.bold)),
-      ),
-      const SizedBox(width: 4),
-      Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 9)),
-    ]);
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 19,
+          height: 19,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            num,
+            style: textTheme.labelSmall?.copyWith(
+              color: AppColors.gold,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: textTheme.bodySmall?.copyWith(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _stepArrow() => const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Icon(Icons.arrow_back_rounded, size: 10, color: Colors.white38));
+  Widget _stepArrow() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        child: Icon(
+          Icons.arrow_back_rounded,
+          size: 11,
+          color: Colors.white.withValues(alpha: 0.4),
+        ),
+      );
 
   Widget _buildStats() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.insights_rounded, size: 14, color: Color(0xFFD4AF37)),
-          const SizedBox(width: 6),
-          Text('إحصاء $_statsTitle', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-          if (_selectedMonth == null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: const Color(0xFFD4AF37).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-              child: Text('كل الشهور — المعروض للشهر الحالي فقط', style: GoogleFonts.cairo(color: const Color(0xFFD4AF37), fontSize: 8)),
-            ),
-          ],
-        ]),
-        const SizedBox(height: 8),
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionHeader(
+          title: 'إحصاء $_statsTitle',
+          icon: Icons.insights_rounded,
+          trailing: _selectedMonth == null
+              ? Text(
+                  'المعروض للشهر الحالي فقط',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary(_isDark),
+                    fontSize: 11,
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(height: 10),
         GridView.count(
           crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 2.6,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
+          childAspectRatio: 1.55,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
           children: [
-            _statCard('إجمالي الصافي', '${_formatMoney(_stats['TotalNetThisMonth'] ?? _stats['totalNet'] ?? 0)} جـ', Icons.payments_rounded, const Color(0xFF1E3A5F), const Color(0xFFD4AF37)),
-            _statCard('قيد المراجعة', '${_stats['ReviewCount'] ?? 0}', Icons.rate_review_rounded, const Color(0xFFFB923C).withOpacity(0.15), const Color(0xFFFB923C)),
-            _statCard('معتمد', '${_stats['ApprovedCount'] ?? 0}', Icons.verified_rounded, const Color(0xFF3B82F6).withOpacity(0.15), const Color(0xFF3B82F6)),
-            _statCard('مدفوع', '${_stats['PaidCount'] ?? 0}', Icons.paid_rounded, const Color(0xFF10B981).withOpacity(0.15), const Color(0xFF10B981)),
-            _statCard('إضافات منفصلة', '${_formatMoney(_stats['TotalSeparateBonuses'] ?? 0)} جـ', Icons.card_giftcard_rounded, const Color(0xFF8B5CF6).withOpacity(0.15), const Color(0xFF8B5CF6)),
-            _statCard('غير مدفوع', '${_stats['PendingCount'] ?? 0}', Icons.history_rounded, const Color(0xFFEF4444).withOpacity(0.15), const Color(0xFFEF4444)),
+            _statCard(
+              'إجمالي الصافي',
+              '${_formatMoney(_stats['TotalNetThisMonth'] ?? _stats['totalNet'] ?? 0)} جـ',
+              Icons.payments_rounded,
+              _isDark ? AppColors.gold : AppColors.navy,
+            ),
+            _statCard(
+              'قيد المراجعة',
+              '${_stats['ReviewCount'] ?? 0}',
+              Icons.rate_review_rounded,
+              _isDark ? AppColors.infoLight : AppColors.info,
+            ),
+            _statCard(
+              'معتمد',
+              '${_stats['ApprovedCount'] ?? 0}',
+              Icons.verified_rounded,
+              _isDark ? AppColors.gold : AppColors.goldDark,
+            ),
+            _statCard(
+              'مدفوع',
+              '${_stats['PaidCount'] ?? 0}',
+              Icons.paid_rounded,
+              _isDark ? AppColors.successLight : AppColors.success,
+            ),
+            _statCard(
+              'إضافات منفصلة',
+              '${_formatMoney(_stats['TotalSeparateBonuses'] ?? 0)} جـ',
+              Icons.card_giftcard_rounded,
+              _isDark ? AppColors.neutralLight : AppColors.neutral,
+            ),
+            _statCard(
+              'غير مدفوع',
+              '${_stats['PendingCount'] ?? 0}',
+              Icons.history_rounded,
+              _isDark ? AppColors.warningLight : AppColors.warning,
+            ),
           ],
         ),
-      ]),
+      ],
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color bg, Color iconColor) {
+  Widget _statCard(String label, String value, IconData icon, Color color) {
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A2342),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        color: AppColors.surface(_isDark),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.divider(_isDark)),
       ),
-      child: Row(children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 14, color: iconColor),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: GoogleFonts.cairo(color: Colors.white60, fontSize: 8)),
-            Text(value, style: GoogleFonts.cairo(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-          ]),
-        ),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: _isDark ? 0.2 : 0.12),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(icon, size: 13, color: color),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: AppColors.textSecondary(_isDark),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.titleSmall?.copyWith(
+              color: AppColors.text(_isDark),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildMonthChips() {
-    if (_months.isEmpty) return const SizedBox.shrink();
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xFF13273F), borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface(_isDark),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.divider(_isDark)),
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          Text('الشهر', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10)),
-          const SizedBox(width: 8),
-          ..._months.map((m) {
-            final monthStr = '${m['Month'] ?? m['PayrollMonth'] ?? ''}';
-            final count = m['PayrollCount'] ?? m['count'] ?? 0;
-            final total = m['TotalNet'] ?? m['totalNet'] ?? 0;
-            final active = _selectedMonth == monthStr;
-            return Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: GestureDetector(
-                onTap: () => _selectMonth(monthStr),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: active ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: active ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.08)),
-                  ),
-                  child: Column(children: [
-                    Text(_formatMonth(monthStr), style: GoogleFonts.cairo(color: active ? const Color(0xFF1A2842) : Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                    Text(count > 0 ? '$count مرتب · ${_formatMoney(total)}' : 'لا مرتبات', style: GoogleFonts.cairo(color: active ? const Color(0xFF1A2842).withOpacity(0.7) : Colors.white60, fontSize: 8)),
-                  ]),
-                ),
+        child: Row(
+          children: [
+            Text(
+              'الشهر',
+              style: textTheme.labelMedium?.copyWith(
+                color: AppColors.textSecondary(_isDark),
+                fontWeight: FontWeight.w700,
               ),
-            );
-          }),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: () => _selectMonth(null),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _selectedMonth == null ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text('كل الشهور', style: GoogleFonts.cairo(color: _selectedMonth == null ? const Color(0xFF1A2842) : Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
             ),
-          ),
-        ]),
+            const SizedBox(width: 8),
+            ..._months.map((m) {
+              final monthStr = '${m['Month'] ?? m['PayrollMonth'] ?? ''}';
+              final count = m['PayrollCount'] ?? m['count'] ?? 0;
+              final total = m['TotalNet'] ?? m['totalNet'] ?? 0;
+              final active = _selectedMonth == monthStr;
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: _monthChip(
+                  label: _formatMonth(monthStr),
+                  sub: count > 0
+                      ? '$count مرتب · ${_formatMoney(total)}'
+                      : 'لا مرتبات',
+                  active: active,
+                  onTap: () => _selectMonth(monthStr),
+                ),
+              );
+            }),
+            _monthChip(
+              label: 'كل الشهور',
+              sub: null,
+              active: _selectedMonth == null,
+              onTap: () => _selectMonth(null),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _monthChip({
+    required String label,
+    required String? sub,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final bg = active
+        ? (_isDark ? AppColors.gold : AppColors.navy)
+        : AppColors.inputFill(_isDark);
+    final fg = active
+        ? (_isDark ? AppColors.navy : Colors.white)
+        : AppColors.text(_isDark);
+    final subFg = active
+        ? fg.withValues(alpha: 0.75)
+        : AppColors.textSecondary(_isDark);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: textTheme.labelMedium?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (sub != null)
+              Text(
+                sub,
+                style: textTheme.labelSmall?.copyWith(color: subFg),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFilters() {
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(14)),
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (_) => setState(() {}),
-              style: GoogleFonts.cairo(color: Colors.white, fontSize: 12),
-              decoration: InputDecoration(
-                hintText: 'بحث باسم الموظف أو القسم',
-                hintStyle: GoogleFonts.cairo(color: Colors.white38, fontSize: 11),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFD4AF37), size: 18),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _statusFilter,
-                dropdownColor: const Color(0xFF1A1A1A),
-                style: GoogleFonts.cairo(color: Colors.white, fontSize: 11),
-                icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('الكل')),
-                  DropdownMenuItem(value: 'pending', child: Text('قيد المراجعة')),
-                  DropdownMenuItem(value: 'approved', child: Text('معتمد')),
-                  DropdownMenuItem(value: 'paid', child: Text('مدفوع')),
-                ],
-                onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
-              ),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          const Icon(Icons.info_outline_rounded, size: 12, color: Colors.white38),
-          const SizedBox(width: 6),
-          Text('عرض ${_filtered.length} من ${_payrolls.length} مرتب', style: GoogleFonts.cairo(color: Colors.white38, fontSize: 10)),
-          const Spacer(),
-          Text('Premium HR', style: GoogleFonts.cairo(color: const Color(0xFFD4AF37).withOpacity(0.5), fontSize: 9)),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _buildTable() {
-    final list = _filtered;
-    if (list.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(14)),
-        child: Center(
-          child: Column(children: [
-            Icon(Icons.payments_outlined, size: 48, color: Colors.white.withOpacity(0.2)),
-            const SizedBox(height: 12),
-            Text('لا توجد مرتبات', style: GoogleFonts.cairo(color: Colors.white60)),
-            Text('اختر شهراً آخر أو غيّر الفلتر', style: GoogleFonts.cairo(color: Colors.white38, fontSize: 11)),
-          ]),
-        ),
-      );
-    }
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(14)),
-      child: Column(children: [
-        // header
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-          child: Row(children: [
-            Expanded(flex: 3, child: Text('الموظف', style: GoogleFonts.cairo(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold))),
-            Expanded(child: Text('الشهر', style: GoogleFonts.cairo(color: Colors.white60, fontSize: 10))),
-            Expanded(child: Text('الصافي', style: GoogleFonts.cairo(color: Colors.white60, fontSize: 10))),
-            Expanded(child: Text('الحالة', style: GoogleFonts.cairo(color: Colors.white60, fontSize: 10))),
-            const SizedBox(width: 24),
-          ]),
-        ),
-        ...list.asMap().entries.map((e) {
-          final idx = e.key;
-          final row = e.value;
-          final status = '${row['Status'] ?? row['PayrollStatus'] ?? 'pending'}'.toLowerCase();
-          Color statusColor;
-          String statusText;
-          switch (status) {
-            case 'approved': statusColor = const Color(0xFF3B82F6); statusText = 'معتمد'; break;
-            case 'paid': statusColor = const Color(0xFF10B981); statusText = 'مدفوع'; break;
-            default: statusColor = const Color(0xFFFB923C); statusText = 'قيد المراجعة';
-          }
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withOpacity(0.04)))),
-            child: Row(children: [
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface(_isDark),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.divider(_isDark)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
               Expanded(
-                flex: 3,
-                child: Row(children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(color: const Color(0xFFD4AF37).withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text('${idx + 1}', style: GoogleFonts.cairo(color: const Color(0xFFD4AF37), fontSize: 11, fontWeight: FontWeight.bold))),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text(_isDark),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${row['EmployeeName'] ?? ''}', style: GoogleFonts.cairo(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                      Text('${row['Department'] ?? row['BranchName'] ?? ''}', style: GoogleFonts.cairo(color: Colors.white38, fontSize: 9)),
-                    ]),
+                  decoration: InputDecoration(
+                    hintText: 'بحث باسم الموظف أو القسم',
+                    hintStyle: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textHint(_isDark),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: AppColors.textSecondary(_isDark),
+                      size: 19,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.inputFill(_isDark),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      borderSide:
+                          BorderSide(color: ThemeService().accentColor),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
-                ]),
-              ),
-              Expanded(child: Text('${row['PayrollMonth'] ?? row['Month'] ?? ''}', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 10))),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
-                Text('${_formatMoney(row['GrossSalary'] ?? row['BasicSalary'] ?? 0)} ج', style: GoogleFonts.cairo(color: const Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
-                Text('خصم ${_formatMoney(row['TotalDeductions'] ?? 0)}', style: GoogleFonts.cairo(color: const Color(0xFFEF4444), fontSize: 8)),
-              ])),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-                  child: Text(statusText, style: GoogleFonts.cairo(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                 ),
               ),
-              Icon(Icons.chevron_left_rounded, size: 16, color: Colors.white38),
-            ]),
-          ).animate(delay: Duration(milliseconds: idx * 30)).fadeIn(duration: 300.ms).slideX(begin: 0.05, end: 0);
-        }),
-      ]),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill(_isDark),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _statusFilter,
+                    dropdownColor: AppColors.surface(_isDark),
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.text(_isDark),
+                    ),
+                    icon: Icon(
+                      Icons.arrow_drop_down_rounded,
+                      color: AppColors.textSecondary(_isDark),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('الكل')),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('قيد المراجعة'),
+                      ),
+                      DropdownMenuItem(value: 'approved', child: Text('معتمد')),
+                      DropdownMenuItem(value: 'paid', child: Text('مدفوع')),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _statusFilter = v ?? 'all'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                size: 13,
+                color: AppColors.textSecondary(_isDark),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'عرض ${_filtered.length} من ${_payrolls.length} مرتب',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary(_isDark),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
-}
 
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white..strokeWidth = 0.3;
-    const gap = 18.0;
-    for (double x = 0; x < size.width; x += gap) {
-      for (double y = 0; y < size.height; y += gap) {
-        canvas.drawCircle(Offset(x, y), 0.6, paint);
-      }
+  Widget _buildCards() {
+    final list = _filtered;
+    if (list.isEmpty) {
+      return const AppEmpty(
+        icon: Icons.payments_outlined,
+        message: 'لا توجد مرتبات',
+        hint: 'اختر شهراً آخر أو غيّر الفلتر',
+      );
     }
+    return Column(
+      children: [
+        for (var i = 0; i < list.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          _buildPayrollCard(Map<String, dynamic>.from(list[i] as Map), i),
+        ],
+      ],
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  /// بطاقة مرتب موظف: الاسم والقسم/الوظيفة، الأساسي والخصومات،
+  /// والصافي الحقيقي NetSalary بارزًا، وشارة الحالة، وإجراءا
+  /// الاعتماد/الصرف بحسب الحالة — والنقر يفتح القسيمة.
+  Widget _buildPayrollCard(Map<String, dynamic> row, int idx) {
+    final textTheme = Theme.of(context).textTheme;
+    final statusKey = payrollStatusKey(row);
+    final statusColor = payrollStatusColor(statusKey, _isDark);
+    final statusLabel =
+        payrollStatusLabel(statusKey, raw: '${row['PaymentStatus'] ?? ''}');
+    final name = '${row['EmployeeName'] ?? ''}';
+    final dept = '${row['Department'] ?? row['BranchName'] ?? ''}';
+    final job = '${row['JobTitle'] ?? ''}';
+    final subtitle = [job, dept].where((s) => s.isNotEmpty).join(' • ');
+    final monthRaw = '${row['PayrollMonth'] ?? row['Month'] ?? ''}';
+    final netColor = _isDark ? AppColors.gold : AppColors.navy;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface(_isDark),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.divider(_isDark)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openPayslip(row),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 19,
+                      backgroundColor: AppColors.gold
+                          .withValues(alpha: _isDark ? 0.2 : 0.14),
+                      child: Text(
+                        name.isNotEmpty ? name[0] : '؟',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: _isDark ? AppColors.gold : AppColors.navy,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: AppColors.text(_isDark),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary(_isDark),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    StatusBadge(
+                      label: statusLabel,
+                      color: statusColor,
+                      small: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputFill(_isDark),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      _miniStat('الشهر',
+                          monthRaw.isEmpty ? '—' : _formatMonth(monthRaw)),
+                      _miniStat(
+                          'الأساسي', '${_formatMoney(row['BasicSalary'])} جـ'),
+                      _miniStat(
+                        'الخصومات',
+                        '${_formatMoney(_deductionsOf(row))} جـ',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      'الصافي',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: AppColors.textSecondary(_isDark),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AmountText(
+                      // الصافي الحقيقي من NetSalary — لا GrossSalary
+                      value: '${_formatMoney(row['NetSalary'])} جـ',
+                      color: netColor,
+                      size: 19,
+                    ),
+                    const Spacer(),
+                    if (statusKey == 'pending')
+                      FilledButton.icon(
+                        onPressed: () => _approveRow(row),
+                        style: FilledButton.styleFrom(
+                          backgroundColor:
+                              _isDark ? AppColors.infoLight : AppColors.info,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.pill),
+                          ),
+                        ),
+                        icon: const Icon(Icons.verified_rounded, size: 15),
+                        label: const Text('اعتماد'),
+                      ),
+                    if (statusKey == 'approved')
+                      FilledButton.icon(
+                        onPressed: () => _payRow(row),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _isDark
+                              ? AppColors.successLight
+                              : AppColors.success,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.pill),
+                          ),
+                        ),
+                        icon: const Icon(Icons.payments_rounded, size: 15),
+                        label: const Text('صرف'),
+                      ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_left_rounded,
+                      size: 18,
+                      color: AppColors.textSecondary(_isDark),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate(delay: Duration(milliseconds: idx * 40))
+        .fadeIn(duration: 300.ms)
+        .slideY(begin: 0.04, end: 0);
+  }
+
+  Widget _miniStat(String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: textTheme.labelSmall?.copyWith(
+              color: AppColors.textSecondary(_isDark),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelLarge?.copyWith(
+              color: AppColors.text(_isDark),
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

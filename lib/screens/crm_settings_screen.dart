@@ -3,8 +3,11 @@ import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import '../services/permission_service.dart';
+import '../widgets/app_drawer.dart';
 import 'lookup_manage_screen.dart';
 
 class CrmSettingsScreen extends StatelessWidget {
@@ -55,20 +58,20 @@ class CrmSettingsScreen extends StatelessWidget {
   _SettingsSection(
     title: 'المصادر',
     icon: Icons.phone_in_talk_rounded,
-    color: const Color(0xFF2196F3),
+    color: AppColors.info,
     items: [
       if (permissions.canView(FormNames.contactSources))
         _SettingsItem(
           title: 'مصادر العملاء',
           subtitle: 'إدارة مصادر العملاء',
           icon: Icons.source_rounded,
-          color: const Color(0xFF2196F3),
+          color: AppColors.info,
           formName: FormNames.contactSources,
           lookupConfig: LookupConfig(
             title: 'مصادر العملاء',
             apiPath: 'sources',
             icon: Icons.source_rounded,
-            color: const Color(0xFF2196F3),
+            color: AppColors.info,
             formName: FormNames.contactSources,
             hasIcon: true,
             hasColor: false,
@@ -122,13 +125,13 @@ class CrmSettingsScreen extends StatelessWidget {
           title: 'فئات الاهتمام',
           subtitle: 'إدارة فئات اهتمام العملاء',
           icon: Icons.category_rounded,
-          color: const Color(0xFFFF9800),
+          color: AppColors.warning,
           formName: FormNames.interestCategories,
           lookupConfig: LookupConfig(
             title: 'فئات الاهتمام',
             apiPath: 'categories',
             icon: Icons.category_rounded,
-            color: const Color(0xFFFF9800),
+            color: AppColors.warning,
             formName: FormNames.interestCategories,
             hasIcon: false,
             hasColor: false,
@@ -187,6 +190,7 @@ class CrmSettingsScreen extends StatelessWidget {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frmAdCampain'),
         backgroundColor: AppColors.background(_isDark),
         appBar: _buildAppBar(context),
         body: visibleSections.isEmpty
@@ -206,11 +210,13 @@ class CrmSettingsScreen extends StatelessWidget {
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: _isDark ? AppColors.navy : Colors.white,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
-      iconTheme: IconThemeData(
-        color: _isDark ? Colors.white : AppColors.navy,
+      leading: const AppDrawerMenuButton(),
+      iconTheme: const IconThemeData(
+        color: Colors.white,
       ),
       title: Row(
         mainAxisSize: MainAxisSize.min,
@@ -222,7 +228,7 @@ class CrmSettingsScreen extends StatelessWidget {
             style: GoogleFonts.cairo(
               fontWeight: FontWeight.bold,
               fontSize: 20,
-              color: _isDark ? Colors.white : AppColors.navy,
+              color: Colors.white,
             ),
           ),
         ],
@@ -242,7 +248,7 @@ class CrmSettingsScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: section.color.withOpacity(_isDark ? 0.2 : 0.1),
+                  color: section.color.withValues(alpha: _isDark ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(section.icon, color: section.color, size: 20),
@@ -306,7 +312,7 @@ class CrmSettingsScreen extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: item.color.withOpacity(_isDark ? 0.3 : 0.1),
+                color: item.color.withValues(alpha: _isDark ? 0.3 : 0.1),
               ),
             ),
             child: Row(
@@ -316,7 +322,7 @@ class CrmSettingsScreen extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: item.color.withOpacity(_isDark ? 0.2 : 0.1),
+                    color: item.color.withValues(alpha: _isDark ? 0.2 : 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(item.icon, color: item.color, size: 24),
@@ -352,11 +358,11 @@ class CrmSettingsScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (permissions.canAdd(item.formName))
-                      _buildPermBadge('إضافة', Colors.green),
+                      _buildPermBadge('إضافة', AppColors.success),
                     if (permissions.canEdit(item.formName))
-                      _buildPermBadge('تعديل', Colors.blue),
+                      _buildPermBadge('تعديل', AppColors.info),
                     if (permissions.canDelete(item.formName))
-                      _buildPermBadge('حذف', Colors.red),
+                      _buildPermBadge('حذف', AppColors.error),
                   ],
                 ),
 
@@ -377,48 +383,17 @@ class CrmSettingsScreen extends StatelessWidget {
   }
 
   Widget _buildPermBadge(String label, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(_isDark ? 0.2 : 0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.cairo(
-          fontSize: 9,
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: StatusBadge(label: label, color: color, small: true),
     );
   }
 
   Widget _buildNoPermissionView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock_rounded, size: 80, color: AppColors.textHint(_isDark)),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد صلاحيات',
-            style: GoogleFonts.cairo(
-              fontSize: 18,
-              color: AppColors.textSecondary(_isDark),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'ليس لديك صلاحية للوصول لإعدادات CRM',
-            style: GoogleFonts.cairo(
-              fontSize: 13,
-              color: AppColors.textHint(_isDark),
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.lock_rounded,
+      message: 'لا توجد صلاحيات',
+      hint: 'ليس لديك صلاحية للوصول لإعدادات CRM',
     );
   }
 }

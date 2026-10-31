@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../constants.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../services/expense_service.dart';
 import '../services/permission_service.dart';
+import '../services/theme_service.dart';
+import '../core/network/api_client.dart';
+import '../widgets/design_kit.dart';
 
+/// نموذج المصروف (إضافة/تعديل) — الهيكل والحقول وسير العمل كما هو معتمد،
+/// بهوية واعية بالوضع (فاتح/داكن) عبر ThemeService وAppColors.
+/// - الخزائن من /api/expenses/cashboxes: نشطة فقط، مع اسم الفرع والرصيد
+///   الحالي والرصيد بعد العملية وتحذير عدم الكفاية (عرض فقط).
+/// - عند التعديل لا تُرسل حقول المقدم إطلاقًا، والحفظ يستخدم
+///   widget.expenseId ?? existingExpense — فلا تعطّل في مسار الإشعارات.
+/// - فشل تحميل المصروف للتعديل يظهر خطأً ويمنع الحفظ.
+/// - لا يُرسل createdBy: الخادم يشتقه من التوكن.
 class AddExpenseScreen extends StatefulWidget {
   final String username;
   final Map<String, dynamic>? existingExpense;
   final int? expenseId;
-  
 
   const AddExpenseScreen({
     Key? key,
@@ -29,181 +38,170 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   bool _isEditing = false;
   bool _loadingDropdowns = false;
   String _errorMessage = '';
+  String? _loadError; // فشل تحميل مصروف التعديل — يمنع الحفظ
 
-  // Controllers
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _recipientController = TextEditingController();
 
-  // Dropdowns
   List<Map<String, dynamic>> expenseGroups = [];
   List<Map<String, dynamic>> cashBoxes = [];
+  List<Map<String, dynamic>> _suggestions = [];
+  List<Map<String, dynamic>> _visibleSuggestions = [];
   int? selectedGroupId;
   int? selectedCashBoxId;
-  String? selectedGroupName;
-  String? selectedCashBoxName;
+  int? _branchId;
 
-  // التاريخ
   DateTime selectedDate = DateTime.now();
 
-  // مقدم
   bool isAdvance = false;
   final _advanceMonthsController = TextEditingController();
   final FocusNode _advanceMonthsFocus = FocusNode();
 
-   @override
+  bool get _isDark => ThemeService().isDarkMode;
+
+  Map<String, dynamic>? get _selectedBox {
+    for (final b in cashBoxes) {
+      if (b['CashBoxID'] == selectedCashBoxId) return b;
+    }
+    return null;
+  }
+
+  double get _amount =>
+      double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
+
+  @override
   void initState() {
     super.initState();
-    
-    // التعديل لو فيه كائن كامل أو ID جاي
     _isEditing = widget.existingExpense != null || widget.expenseId != null;
-    
-    print('🚀 بدء شاشة ${_isEditing ? 'تعديل' : 'إضافة'} مصروف');
-    
-    _fetchDropdownData(); // تحميل القوائم
-
+    _fetchDropdownData();
     if (widget.existingExpense != null) {
-      _populateFields(); // لو البيانات جاية كاملة (من القائمة)
+      _populateFields();
     } else if (widget.expenseId != null) {
-      _fetchExpenseById(widget.expenseId!); // لو جاي ID بس (من الإشعار)
-    } else {
-      // للإضافة فقط
-      selectedGroupId = null;
-      selectedCashBoxId = null;
+      _fetchExpenseById(widget.expenseId!);
     }
   }
-  
-    // جلب بيانات المصروف من السيرفر باستخدام الـ ID
+
   Future<void> _fetchExpenseById(int id) async {
-    print('🔄 Fetching ID: $id');
-  try {
-    final response = await http.get(Uri.parse('$baseUrl/api/expenses/$id'));
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print('DATA FROM SERVER: $data');
-      
+    try {
+      final data = await ExpenseService.getExpenseById(id);
+      if (!mounted) return;
       setState(() {
-        _nameController.text = data['ExpenseName'] ?? '';
-        _amountController.text = data['Amount'].toString();
-        _notesController.text = data['Notes'] ?? '';
-        _recipientController.text = data['Torecipient'] ?? '';
-        
-        selectedGroupId = data['ExpenseGroupID'];
-        selectedCashBoxId = data['CashBoxID'];
-        
+        _nameController.text = data['ExpenseName']?.toString() ?? '';
+        _amountController.text = (data['Amount'] ?? 0).toString();
+        _notesController.text = data['Notes']?.toString() ?? '';
+        _recipientController.text = data['Torecipient']?.toString() ?? '';
+        selectedGroupId = (data['ExpenseGroupID'] as num?)?.toInt();
+        selectedCashBoxId = (data['CashBoxID'] as num?)?.toInt();
+        _branchId = (data['BranchId'] as num?)?.toInt();
         if (data['ExpenseDate'] != null) {
-          selectedDate = DateTime.parse(data['ExpenseDate']);
+          selectedDate =
+              DateTime.tryParse(data['ExpenseDate'].toString()) ?? selectedDate;
         }
-        
-        isAdvance = data['IsAdvance'] ?? false;
-        if (isAdvance) {
-          _advanceMonthsController.text = (data['AdvanceMonths'] ?? 1).toString();
-        }
+        _loadError = null;
       });
-      
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('فشل تحميل بيانات المصروف'), backgroundColor: Colors.red),
-      );
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _loadError = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadError = 'فشل تحميل بيانات المصروف');
+      }
     }
-  } catch (e) {
-    print('Error fetching expense: $e');
   }
-}
-  
+
   void _populateFields() {
     final e = widget.existingExpense!;
-    
-    _nameController.text = e['ExpenseName'] ?? '';
+    _nameController.text = e['ExpenseName']?.toString() ?? '';
     _amountController.text = (e['Amount'] ?? 0).toString();
-    _notesController.text = e['Notes'] ?? '';
-    _recipientController.text = e['Torecipient'] ?? '';
-    selectedGroupId = e['ExpenseGroupID'];
-    selectedGroupName = e['ExpenseGroupName'];
-    selectedCashBoxId = e['CashBoxID'];
-    selectedCashBoxName = e['CashBoxName'];
-    isAdvance = e['IsAdvance'] == true;
-    _advanceMonthsController.text = (e['AdvanceMonths'] ?? '').toString();
-
+    _notesController.text = e['Notes']?.toString() ?? '';
+    _recipientController.text = e['Torecipient']?.toString() ?? '';
+    selectedGroupId = (e['ExpenseGroupID'] as num?)?.toInt();
+    selectedCashBoxId = (e['CashBoxID'] as num?)?.toInt();
+    _branchId = (e['BranchId'] as num?)?.toInt();
     if (e['ExpenseDate'] != null) {
-      final dateTime = DateTime.tryParse(e['ExpenseDate']);
+      final dateTime = DateTime.tryParse(e['ExpenseDate'].toString());
       if (dateTime != null) {
         selectedDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
       }
     }
   }
 
- Future<void> _fetchDropdownData() async {
-  setState(() {
-    _loadingDropdowns = true;
-    _errorMessage = '';
-  });
-  
-  try {
-    print('📥 جاري تحميل البيانات...');
-    
-    // 1. جلب التصنيفات
-    final groupsRes = await http.get(Uri.parse('$baseUrl/api/expenses/groups'));
-    
-    if (groupsRes.statusCode == 200) {
-      final List<dynamic> groupsData = jsonDecode(groupsRes.body);
-      print('✅ تم تحميل ${groupsData.length} تصنيف');
-      
+  Future<void> _fetchDropdownData() async {
+    setState(() {
+      _loadingDropdowns = true;
+      _errorMessage = '';
+    });
+    try {
+      final groups = await ExpenseService.getExpenseGroups();
+      final boxes = await ExpenseService.getCashBoxes();
+      List<Map<String, dynamic>> suggestions = [];
+      try {
+        suggestions = await ExpenseService.getNameSuggestions();
+      } catch (_) {
+        suggestions = []; // الاقتراحات تكميلية لا توقف النموذج
+      }
+      if (!mounted) return;
       setState(() {
-        expenseGroups = groupsData.map<Map<String, dynamic>>((item) {
-          return {
-            'ExpenseGroupID': item['ExpenseGroupID'] ?? 0,
-            'ExpenseGroupName': item['ExpenseGroupName'] ?? 'غير معروف',
-          };
-        }).toList();
+        expenseGroups = groups;
+        cashBoxes = boxes;
+        _suggestions = suggestions;
+        // قيم محفوظة غير موجودة في القوائم الحالية تُصفّى بدل تعطّل القائمة
+        if (selectedGroupId != null &&
+            !groups.any((g) => g['ExpenseGroupID'] == selectedGroupId)) {
+          selectedGroupId = null;
+        }
+        if (selectedCashBoxId != null &&
+            !boxes.any((b) => b['CashBoxID'] == selectedCashBoxId)) {
+          selectedCashBoxId = null;
+        }
       });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _errorMessage = 'خطأ في الاتصال');
+    } finally {
+      if (mounted) setState(() => _loadingDropdowns = false);
     }
-
-    // 2. جلب الخزائن
-    final cashBoxesRes = await http.get(Uri.parse('$baseUrl/api/cashbox'));
-    
-    if (cashBoxesRes.statusCode == 200) {
-      final List<dynamic> rawData = jsonDecode(cashBoxesRes.body);
-      print('📦 عدد الخزائن: ${rawData.length}');
-      
-      setState(() {
-        cashBoxes = rawData.map<Map<String, dynamic>>((item) {
-          return {
-            'CashBoxID': item['CashBoxID'] ?? 0,
-            'CashBoxName': item['CashBoxName'] ?? 'غير معروف',
-            'Description': item['Description'] ?? '',
-          };
-        }).toList();
-      });
-    }
-    
-  } catch (e) {
-    print('🔥 خطأ: $e');
-    setState(() => _errorMessage = 'خطأ في الاتصال');
-  } finally {
-    setState(() => _loadingDropdowns = false);
   }
-}
+
+  void _onNameChanged(String value) {
+    final q = value.trim();
+    setState(() {
+      if (q.isEmpty) {
+        _visibleSuggestions = [];
+      } else {
+        _visibleSuggestions = _suggestions
+            .where((s) =>
+                (s['ExpenseName']?.toString() ?? '').contains(q) &&
+                s['ExpenseName']?.toString() != q)
+            .take(5)
+            .toList();
+      }
+    });
+  }
+
+  void _applySuggestion(Map<String, dynamic> s) {
+    setState(() {
+      _nameController.text = s['ExpenseName']?.toString() ?? '';
+      // تعبئة المجموعة تلقائيًا عند اختيار اسم سابق (مطابقة بلازور)
+      final gid = (s['ExpenseGroupID'] as num?)?.toInt();
+      if (gid != null && expenseGroups.any((g) => g['ExpenseGroupID'] == gid)) {
+        selectedGroupId = gid;
+      }
+      _visibleSuggestions = [];
+    });
+  }
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 3),
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.success),
     );
   }
 
@@ -220,45 +218,59 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark;
     final permissions = PermissionService();
-    final canAdd = permissions.canAdd('frm_Expenses');
-    final canEdit = permissions.canEdit('frm_Expenses');
-    
-    if (_isEditing && !canEdit) {
-      return _buildPermissionDeniedScreen('تعديل المصروف', 'ليس لديك صلاحيات التعديل');
-    }
+    final canAdd = permissions.canAdd(FormNames.expensesAdd);
+    final canEdit = permissions.canEdit(FormNames.expensesAdd);
 
+    if (_isEditing && !canEdit) {
+      return _buildPermissionDeniedScreen(
+          'تعديل المصروف', 'ليس لديك صلاحيات التعديل', isDark);
+    }
     if (!_isEditing && !canAdd) {
-      return _buildPermissionDeniedScreen('إضافة مصروف', 'ليس لديك صلاحيات الإضافة');
+      return _buildPermissionDeniedScreen(
+          'إضافة مصروف', 'ليس لديك صلاحيات الإضافة', isDark);
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background(isDark),
       appBar: AppBar(
         title: Text(
           _isEditing ? 'تعديل المصروف' : 'إضافة مصروف',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.black),
+          style: const TextStyle(
+              fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: const Color(0xFFE8B923),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _loadingDropdowns
-          ? _buildLoadingWidget()
+          ? const AppLoading(message: 'جاري تحميل البيانات...')
           : _errorMessage.isNotEmpty
-              ? _buildErrorWidget()
-              : _buildFormWidget(),
+              ? AppError(message: _errorMessage, onRetry: _fetchDropdownData)
+              : _loadError != null
+                  ? AppError(
+                      message: _loadError!,
+                      onRetry: () => _fetchExpenseById(widget.expenseId!),
+                    )
+                  : _buildFormWidget(isDark),
     );
   }
 
-  Widget _buildPermissionDeniedScreen(String title, String message) {
+  Widget _buildPermissionDeniedScreen(
+      String title, String message, bool isDark) {
     return Scaffold(
-      backgroundColor: Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background(isDark),
       appBar: AppBar(
-        title: Text(title, style: GoogleFonts.cairo(color: Colors.black)),
-        backgroundColor: Color(0xFFE8B923),
+        title: Text(title,
+            style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -266,11 +278,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.block, size: 80, color: Colors.red),
-            SizedBox(height: 20),
+            Icon(Icons.block,
+                size: 80,
+                color: isDark ? AppColors.errorLight : AppColors.error),
+            const SizedBox(height: 20),
             Text(
               message,
-              style: GoogleFonts.cairo(fontSize: 18, color: Colors.white),
+              style: TextStyle(fontSize: 18, color: AppColors.text(isDark)),
             ),
           ],
         ),
@@ -278,51 +292,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildLoadingWidget() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Color(0xFFFFD700)),
-          SizedBox(height: 20),
-          Text(
-            'جاري تحميل البيانات...',
-            style: TextStyle(color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 80, color: Colors.red),
-          SizedBox(height: 20),
-          Text(
-            _errorMessage,
-            style: GoogleFonts.cairo(color: Colors.white, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _fetchDropdownData,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFFFD700),
-            ),
-            child: Text(
-              'إعادة المحاولة',
-              style: GoogleFonts.cairo(color: Colors.black),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormWidget() {
+  Widget _buildFormWidget(bool isDark) {
     return Form(
       key: _formKey,
       child: SingleChildScrollView(
@@ -330,37 +300,65 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // البيانات الأساسية
             _buildSection(
               'البيانات الأساسية',
               Icons.info_outline,
+              isDark,
               [
-                // حقل التصنيف - النسخة المعدلة
-                _buildExpenseGroupDropdown(),
+                _buildExpenseGroupDropdown(isDark),
                 const SizedBox(height: 16),
-                
-                // اسم المصروف
                 _buildTextField(
                   controller: _nameController,
                   label: 'اسم المصروف *',
                   icon: Icons.receipt,
-                  validator: (v) => v!.trim().isEmpty ? 'اسم المصروف مطلوب' : null,
-                  enabled: false,
-                  readOnly: true,
+                  validator: (v) =>
+                      v!.trim().isEmpty ? 'اسم المصروف مطلوب' : null,
+                  onChanged: _onNameChanged,
                 ),
+                if (_visibleSuggestions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.inputFill(isDark),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        for (final s in _visibleSuggestions)
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.history,
+                                size: 18, color: AppColors.gold),
+                            title: Text(
+                              s['ExpenseName']?.toString() ?? '',
+                              style: TextStyle(
+                                  color: AppColors.text(isDark),
+                                  fontSize: 13),
+                            ),
+                            subtitle: s['FullGroupPath'] != null
+                                ? Text(
+                                    s['FullGroupPath'].toString(),
+                                    style: TextStyle(
+                                        color:
+                                            AppColors.textSecondary(isDark),
+                                        fontSize: 11),
+                                  )
+                                : null,
+                            onTap: () => _applySuggestion(s),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
-                
-                // الخزينة
-                _buildCashboxDropdown(),
+                _buildCashboxDropdown(isDark),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // المبلغ والتاريخ
             _buildSection(
               'المبلغ والتاريخ',
               Icons.attach_money,
+              isDark,
               [
                 _buildTextField(
                   controller: _amountController,
@@ -370,29 +368,30 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   suffixText: 'ج.م',
                   validator: (v) {
                     if (v!.trim().isEmpty) return 'المبلغ مطلوب';
-                    final cleanValue = v.replaceAll(',', '');
-                    final amount = double.tryParse(cleanValue);
+                    final amount =
+                        double.tryParse(v.replaceAll(',', ''));
                     if (amount == null) return 'رقم غير صحيح';
                     if (amount <= 0) return 'يجب أن يكون أكبر من صفر';
                     return null;
                   },
                   onChanged: (value) {
-                    if (value.isNotEmpty) {
-                      _formatAmount(value);
-                    }
+                    if (value.isNotEmpty) _formatAmount(value);
+                    setState(() {}); // تحديث «الرصيد بعد العملية»
                   },
                 ),
+                if (_selectedBox != null) ...[
+                  const SizedBox(height: 10),
+                  _buildBalanceAfter(isDark),
+                ],
                 const SizedBox(height: 16),
-                _buildDatePicker(),
+                _buildDatePicker(isDark),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // المستلم والملاحظات
             _buildSection(
               'تفاصيل إضافية',
               Icons.notes,
+              isDark,
               [
                 _buildTextField(
                   controller: _recipientController,
@@ -408,17 +407,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // مصروف مقدم
-            if (!_isEditing) _buildAdvanceSection(),
-
+            if (!_isEditing) _buildAdvanceSection(isDark),
             const SizedBox(height: 40),
-
-            // زر الحفظ
-            _buildSaveButton(),
-
+            _buildSaveButton(isDark),
             const SizedBox(height: 30),
           ],
         ),
@@ -426,252 +418,196 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  // ====================== دالة التصنيفات المعدلة بشكل نهائي ======================
-  Widget _buildExpenseGroupDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'التصنيف *',
-          style: GoogleFonts.cairo(
-            color: Colors.grey,
-            fontSize: 14,
+  // الرصيد بعد العملية + تحذير عدم الكفاية — عرض فقط، حارس الخادم كما هو
+  Widget _buildBalanceAfter(bool isDark) {
+    final balance =
+        (_selectedBox!['CurrentBalance'] as num?)?.toDouble() ?? 0;
+    final after = balance - _amount;
+    final insufficient = after < 0;
+    final color = insufficient
+        ? (isDark ? AppColors.errorLight : AppColors.error)
+        : AppColors.textSecondary(isDark);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: insufficient
+            ? AppColors.error.withValues(alpha: 0.10)
+            : AppColors.inputFill(isDark),
+        borderRadius: BorderRadius.circular(10),
+        border: insufficient
+            ? Border.all(color: AppColors.error.withValues(alpha: 0.35))
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'رصيد الخزينة الحالي: ${NumberFormat('#,##0.00').format(balance)} ج.م'
+            ' — الرصيد بعد العملية: ${NumberFormat('#,##0.00').format(after)} ج.م',
+            style: TextStyle(fontSize: 12, color: color),
           ),
-        ),
-        const SizedBox(height: 8),
-        
-        Container(
-          height: 56,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: DropdownButton<int?>(
-            value: selectedGroupId,
-            isExpanded: true,
-            underline: Container(),
-            
-            // ⭐⭐ بناء العناصر بشكل مبسط ⭐⭐
-            items: _buildExpenseGroupItems(),
-            
-            onChanged: (newValue) {
-              print('🔘 تغيير التصنيف إلى: $newValue');
-              setState(() {
-                selectedGroupId = newValue;
-                if (newValue != null) {
-                  // البحث عن العنصر المحدد
-                  for (var item in expenseGroups) {
-                    if (item['ExpenseGroupID'] == newValue) {
-                      selectedGroupName = item['ExpenseGroupName'];
-                      _nameController.text = selectedGroupName ?? '';
-                      break;
-                    }
-                  }
-                } else {
-                  _nameController.text = '';
-                }
-              });
-            },
-            
-            dropdownColor: const Color(0xFF1A1A1A),
-            icon: const Icon(Icons.arrow_drop_down, 
-                   color: Color(0xFFFFD700), size: 24),
-            
-            // ⭐⭐ إزالة selectedItemBuilder نهائياً ⭐⭐
-            // سيستخدم DropdownButton العرض الافتراضي
-            
-            hint: Text(
-              'اختر التصنيف',
-              style: GoogleFonts.cairo(
-                color: Colors.grey,
-                fontSize: 16,
-              ),
+          if (insufficient) ...[
+            const SizedBox(height: 4),
+            Text(
+              'تحذير: الرصيد بعد العملية سالب — قد يرفض الخادم الحفظ لعدم كفاية الرصيد.',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.errorLight : AppColors.error),
             ),
-            
-            // ⭐⭐ هذه الخاصية مهمة لمنع الخطأ ⭐⭐
-            selectedItemBuilder: (BuildContext context) {
-              // نعيد قائمة بنفس طول العناصر
-              List<Widget> items = [];
-              
-              // العنصر الافتراضي
-              items.add(
-                Text(
-                  'اختر التصنيف',
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey,
-                    fontSize: 16,
-                  ),
-                )
-              );
-              
-              // العناصر الأخرى
-              for (var item in expenseGroups) {
-                items.add(
-                  Text(
-                    item['ExpenseGroupName'] ?? 'غير معروف',
-                    style: GoogleFonts.cairo(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                );
-              }
-              
-              return items;
-            },
-          ),
-        ),
-        
-        // رسالة الخطأ
-        if (selectedGroupId == null && _formKey.currentState != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, right: 8),
-            child: Text(
-              'التصنيف مطلوب',
-              style: GoogleFonts.cairo(color: Colors.red, fontSize: 12),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // ⭐⭐ دالة مساعدة لبناء عناصر التصنيف ⭐⭐
-  List<DropdownMenuItem<int?>> _buildExpenseGroupItems() {
-    final List<DropdownMenuItem<int?>> items = [];
-    
-    // أولاً: الخيار الافتراضي
-    items.add(
-      DropdownMenuItem<int?>(
-        value: null,
-        child: Text(
-          'اختر التصنيف',
-          style: GoogleFonts.cairo(
-            color: Colors.grey,
-            fontSize: 16,
-          ),
-        ),
+          ],
+        ],
       ),
     );
-    
-    // ثانياً: التصنيفات من البيانات
-    for (var item in expenseGroups) {
-      items.add(
-        DropdownMenuItem<int?>(
-          value: item['ExpenseGroupID'],
-          child: Text(
-            item['ExpenseGroupName'] ?? 'غير معروف',
-            style: GoogleFonts.cairo(
-              color: Colors.white,
-              fontSize: 16,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      );
-    }
-    
-    return items;
   }
 
-  // ====================== دالة الخزائن ======================
-  Widget _buildCashboxDropdown() {
+  Widget _buildExpenseGroupDropdown(bool isDark) {
+    final safeValue = expenseGroups.any((g) => g['ExpenseGroupID'] == selectedGroupId)
+        ? selectedGroupId
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'الخزينة *',
-          style: GoogleFonts.cairo(
-            color: Colors.grey,
-            fontSize: 14,
-          ),
-        ),
+        _fieldLabel('التصنيف *', isDark),
         const SizedBox(height: 8),
-        
         Container(
           height: 56,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
+            color: AppColors.inputFill(isDark),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: DropdownButton<int?>(
-            value: selectedCashBoxId,
+            value: safeValue,
             isExpanded: true,
             underline: Container(),
-            
             items: [
               DropdownMenuItem<int?>(
                 value: null,
-                child: Text(
-                  'اختر الخزينة',
-                  style: GoogleFonts.cairo(color: Colors.grey),
-                ),
+                child: Text('اختر التصنيف',
+                    style: TextStyle(color: AppColors.textHint(isDark))),
               ),
-              ...cashBoxes.map((item) {
-                return DropdownMenuItem<int?>(
-                  value: item['CashBoxID'],
-                  child: Text(
-                    item['CashBoxName'] ?? 'غير معروف',
-                    style: GoogleFonts.cairo(color: Colors.white),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
+              ...expenseGroups.map((item) => DropdownMenuItem<int?>(
+                    value: (item['ExpenseGroupID'] as num).toInt(),
+                    child: Text(
+                      item['ExpenseGroupName']?.toString() ?? 'غير معروف',
+                      style: TextStyle(color: AppColors.text(isDark)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )),
             ],
-            
             onChanged: (newValue) {
               setState(() {
-                selectedCashBoxId = newValue;
+                selectedGroupId = newValue;
                 if (newValue != null) {
-                  for (var item in cashBoxes) {
-                    if (item['CashBoxID'] == newValue) {
-                      selectedCashBoxName = item['CashBoxName'];
+                  for (var item in expenseGroups) {
+                    if (item['ExpenseGroupID'] == newValue) {
+                      // سير العمل المعتمد: اختيار التصنيف يملأ اسم المصروف
+                      _nameController.text =
+                          item['ExpenseGroupName']?.toString() ?? '';
                       break;
                     }
                   }
                 }
               });
             },
-            
-            dropdownColor: const Color(0xFF1A1A1A),
-            icon: const Icon(Icons.arrow_drop_down, 
-                   color: Color(0xFFFFD700), size: 24),
+            dropdownColor: AppColors.surface(isDark),
+            icon: const Icon(Icons.arrow_drop_down,
+                color: AppColors.gold, size: 24),
             hint: Text(
-              cashBoxes.isEmpty ? 'جاري التحميل...' : 'اختر الخزينة',
-              style: GoogleFonts.cairo(color: Colors.grey),
+              'اختر التصنيف',
+              style: TextStyle(color: AppColors.textHint(isDark), fontSize: 16),
             ),
           ),
         ),
-        
-        if (selectedCashBoxId == null && _formKey.currentState != null && cashBoxes.isNotEmpty)
+      ],
+    );
+  }
+
+  Widget _buildCashboxDropdown(bool isDark) {
+    final safeValue = cashBoxes.any((b) => b['CashBoxID'] == selectedCashBoxId)
+        ? selectedCashBoxId
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel('الخزينة *', isDark),
+        const SizedBox(height: 8),
+        Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: AppColors.inputFill(isDark),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: DropdownButton<int?>(
+            value: safeValue,
+            isExpanded: true,
+            underline: Container(),
+            items: [
+              DropdownMenuItem<int?>(
+                value: null,
+                child: Text('اختر الخزينة',
+                    style: TextStyle(color: AppColors.textHint(isDark))),
+              ),
+              ...cashBoxes.map((item) {
+                final balance =
+                    (item['CurrentBalance'] as num?)?.toDouble() ?? 0;
+                final branch = item['BranchName']?.toString();
+                return DropdownMenuItem<int?>(
+                  value: (item['CashBoxID'] as num).toInt(),
+                  child: Text(
+                    '${item['CashBoxName'] ?? 'غير معروف'}'
+                    '${branch != null ? ' — $branch' : ''}'
+                    ' (${NumberFormat('#,##0.00').format(balance)} ج.م)',
+                    style: TextStyle(color: AppColors.text(isDark)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }),
+            ],
+            onChanged: (newValue) {
+              setState(() {
+                selectedCashBoxId = newValue;
+                final box = _selectedBox;
+                _branchId = (box?['BranchId'] as num?)?.toInt();
+              });
+            },
+            dropdownColor: AppColors.surface(isDark),
+            icon: const Icon(Icons.arrow_drop_down,
+                color: AppColors.gold, size: 24),
+            hint: Text(
+              cashBoxes.isEmpty ? 'جاري التحميل...' : 'اختر الخزينة',
+              style: TextStyle(color: AppColors.textHint(isDark)),
+            ),
+          ),
+        ),
+        if (_selectedBox != null && _selectedBox!['BranchName'] != null)
           Padding(
-            padding: const EdgeInsets.only(top: 4, right: 8),
+            padding: const EdgeInsets.only(top: 6, right: 4),
             child: Text(
-              'الخزينة مطلوبة',
-              style: GoogleFonts.cairo(color: Colors.red, fontSize: 12),
+              'الفرع: ${_selectedBox!['BranchName']}',
+              style: TextStyle(
+                  color: AppColors.textSecondary(isDark), fontSize: 12),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildAdvanceSection() {
+  Widget _buildAdvanceSection(bool isDark) {
     return _buildSection(
       'مصروف مقدم',
       Icons.schedule,
+      isDark,
       [
         SwitchListTile(
           title: Text('مصروف مقدم؟',
-              style: GoogleFonts.cairo(color: Colors.white)),
+              style: TextStyle(color: AppColors.text(isDark))),
           value: isAdvance,
-          activeColor: const Color(0xFFFFD700),
+          activeColor: AppColors.gold,
           onChanged: (v) => setState(() => isAdvance = v),
         ),
         if (isAdvance) ...[
@@ -682,19 +618,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             icon: Icons.calendar_month,
             keyboardType: TextInputType.number,
             focusNode: _advanceMonthsFocus,
-            validator: isAdvance ? (v) {
-              if (v!.trim().isEmpty) return 'عدد الشهور مطلوب';
-              final months = int.tryParse(v);
-              if (months == null || months <= 0) return 'عدد أشهر صحيح مطلوب';
-              return null;
-            } : null,
+            validator: isAdvance
+                ? (v) {
+                    if (v!.trim().isEmpty) return 'عدد الشهور مطلوب';
+                    final months = int.tryParse(v);
+                    if (months == null || months < 1) {
+                      return 'عدد الشهور يجب أن يكون على الأقل 1';
+                    }
+                    if (months > 60) return 'الحد الأقصى لعدد الشهور هو 60 شهر';
+                    return null;
+                  }
+                : null,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Text(
               'ملاحظة: المصروف المقدم سيتم توزيعه على عدة أشهر',
-              style: GoogleFonts.cairo(
-                color: Colors.orange,
+              style: TextStyle(
+                color: isDark ? AppColors.warningLight : AppColors.warning,
                 fontSize: 12,
               ),
             ),
@@ -704,34 +645,29 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildSection(String title, IconData icon, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+  Widget _buildSection(
+      String title, IconData icon, bool isDark, List<Widget> children) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: const Color(0xFFFFD700), size: 22),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
+          AppSectionHeader(title: title, icon: icon),
           const SizedBox(height: 16),
           ...children,
         ],
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String label, bool isDark) {
+    return Text(
+      label,
+      style: TextStyle(
+        color: AppColors.textSecondary(isDark),
+        fontSize: 13.5,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -746,66 +682,46 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     String? Function(String?)? validator,
     void Function(String)? onChanged,
     FocusNode? focusNode,
-    bool enabled = true,
-    bool readOnly = false,
   }) {
+    final isDark = _isDark;
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
-      style: GoogleFonts.cairo(
-        color: enabled ? Colors.white : Colors.grey,
-      ),
+      style: TextStyle(color: AppColors.text(isDark)),
       validator: validator,
       onChanged: onChanged,
       focusNode: focusNode,
-      enabled: enabled,
-      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-        prefixIcon: Icon(icon, color: const Color(0xFFFFD700)),
+        labelStyle: TextStyle(color: AppColors.textSecondary(isDark)),
+        prefixIcon: Icon(icon, color: AppColors.gold),
         suffixText: suffixText,
-        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+        suffixStyle: TextStyle(color: AppColors.textSecondary(isDark)),
         filled: true,
-        fillColor: enabled 
-            ? Colors.white.withOpacity(0.08)
-            : Colors.white.withOpacity(0.03),
+        fillColor: AppColors.inputFill(isDark),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+          borderSide: BorderSide(color: ThemeService().accentColor),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+          borderSide: BorderSide(
+              color: isDark ? AppColors.errorLight : AppColors.error),
         ),
       ),
     );
   }
 
-  Widget _buildDatePicker() {
+  Widget _buildDatePicker(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'تاريخ المصروف',
-          style: GoogleFonts.cairo(
-            color: Colors.grey,
-            fontSize: 14,
-          ),
-        ),
+        _fieldLabel('تاريخ المصروف', isDark),
         const SizedBox(height: 8),
         InkWell(
           onTap: () async {
@@ -814,20 +730,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               initialDate: selectedDate,
               firstDate: DateTime(2020),
               lastDate: DateTime.now().add(const Duration(days: 365)),
-              builder: (context, child) {
-                return Theme(
-                  data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(
-                      primary: Color(0xFFFFD700),
-                      onPrimary: Colors.black,
-                      surface: Color(0xFF1A1A1A),
-                      onSurface: Colors.white,
-                    ),
-                    dialogBackgroundColor: const Color(0xFF1A1A1A),
-                  ),
-                  child: child!,
-                );
-              },
             );
             if (picked != null) {
               setState(() => selectedDate = picked);
@@ -837,24 +739,23 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             height: 56,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: AppColors.inputFill(isDark),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, color: Color(0xFFFFD700)),
+                const Icon(Icons.calendar_today, color: AppColors.gold),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     DateFormat('dd/MM/yyyy').format(selectedDate),
-                    style: GoogleFonts.cairo(color: Colors.white),
+                    style: TextStyle(color: AppColors.text(isDark)),
                   ),
                 ),
                 Text(
                   'تغيير',
-                  style: GoogleFonts.cairo(
-                    color: const Color(0xFFFFD700),
+                  style: TextStyle(
+                    color: isDark ? AppColors.gold : AppColors.goldDark,
                     fontSize: 12,
                   ),
                 ),
@@ -866,36 +767,44 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton(bool isDark) {
     return SizedBox(
       width: double.infinity,
       height: 56,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _saveExpense,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFE8B923),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          disabledBackgroundColor: Colors.grey,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: AppColors.buttonGradient(isDark)),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.black)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.save, color: Colors.black),
-                  const SizedBox(width: 10),
-                  Text(
-                    _isEditing ? 'حفظ التعديلات' : 'إضافة المصروف',
-                    style: GoogleFonts.cairo(
-                      color: Colors.black,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _saveExpense,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _isLoading
+              ? CircularProgressIndicator(
+                  color: isDark ? AppColors.navy : Colors.white)
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.save,
+                        color: isDark ? AppColors.navy : Colors.white),
+                    const SizedBox(width: 10),
+                    Text(
+                      _isEditing ? 'حفظ التعديلات' : 'إضافة المصروف',
+                      style: TextStyle(
+                        color: isDark ? AppColors.navy : Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -906,95 +815,93 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       try {
         final numValue = int.parse(cleanValue);
         final formatted = NumberFormat('#,##0').format(numValue);
-        
         if (_amountController.text != formatted) {
           _amountController.value = TextEditingValue(
             text: formatted,
             selection: TextSelection.collapsed(offset: formatted.length),
           );
         }
-      } catch (e) {
-        print('Error formatting amount: $e');
-      }
+      } catch (_) {}
     }
   }
 
   Future<void> _saveExpense() async {
+    if (_loadError != null) {
+      _showErrorSnackBar('تعذّر تحميل بيانات المصروف — لا يمكن الحفظ');
+      return;
+    }
     if (selectedGroupId == null) {
       _showErrorSnackBar('يرجى اختيار التصنيف');
       return;
     }
-    
     if (selectedCashBoxId == null) {
       _showErrorSnackBar('يرجى اختيار الخزينة');
       return;
     }
-    
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     if (isAdvance && !_isEditing) {
       final months = int.tryParse(_advanceMonthsController.text.trim());
-      if (months == null || months <= 0) {
-        _showErrorSnackBar('يرجى إدخال عدد أشهر صحيح للمصروف المقدم');
+      if (months == null || months < 1 || months > 60) {
+        _showErrorSnackBar('يرجى إدخال عدد أشهر صحيح للمصروف المقدم (1 إلى 60)');
         return;
       }
     }
 
     setState(() => _isLoading = true);
-
     try {
-      final expenseData = {
+      // الفرع من فرع الخزينة المختارة؛ وعند التعديل الفرع المحمّل إن غاب
+      final branchId = _branchId ??
+          (widget.existingExpense?['BranchId'] as num?)?.toInt();
+
+      final expenseData = <String, dynamic>{
         'expenseName': _nameController.text.trim(),
         'expenseGroupId': selectedGroupId,
         'cashBoxId': selectedCashBoxId,
+        'branchId': branchId,
         'amount': double.parse(_amountController.text.replaceAll(',', '')),
         'expenseDate': DateFormat('yyyy-MM-dd').format(selectedDate),
         'notes': _notesController.text.trim(),
         'toRecipient': _recipientController.text.trim(),
-        'isAdvance': isAdvance,
-        'advanceMonths': isAdvance ? int.parse(_advanceMonthsController.text.trim()) : null,
-        'createdBy': widget.username,
+        // لا createdBy: الخادم يشتق المنشئ من التوكن فقط
       };
 
-      http.Response res;
-
+      Map<String, dynamic> result;
       if (_isEditing) {
-        final expenseId = widget.existingExpense!['ExpenseID'];
-        res = await http.put(
-          Uri.parse('$baseUrl/api/expenses/$expenseId'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(expenseData),
-        );
+        // مسار الإشعارات (expenseId فقط) ومسار القائمة (كائن كامل) سواء
+        final expenseId = widget.expenseId ??
+            (widget.existingExpense?['ExpenseID'] as num?)?.toInt();
+        if (expenseId == null) {
+          throw const ApiException(
+              statusCode: 0, message: 'تعذّر تحديد المصروف المراد تعديله');
+        }
+        // عند التعديل لا تُرسل حقول المقدم إطلاقًا (الخادم يرفض تعديلها)
+        result = await ExpenseService.updateExpense(expenseId, expenseData);
       } else {
-        res = await http.post(
-          Uri.parse('$baseUrl/api/expenses'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(expenseData),
-        );
+        expenseData['isAdvance'] = isAdvance;
+        expenseData['advanceMonths'] = isAdvance
+            ? int.parse(_advanceMonthsController.text.trim())
+            : null;
+        result = await ExpenseService.createExpense(expenseData);
       }
 
-      if (res.statusCode == 200) {
-        final result = jsonDecode(res.body);
-        
-        if (result['success'] == true) {
-          final message = _isEditing ? 'تم تعديل المصروف بنجاح' : 'تم إضافة المصروف بنجاح';
-          _showSuccessSnackBar(message);
-          
-          await Future.delayed(const Duration(milliseconds: 800));
-          Navigator.pop(context, true);
-        } else {
-          throw Exception(result['message'] ?? 'فشل في الحفظ');
-        }
+      if (result['success'] == true || result['expenseId'] != null) {
+        _showSuccessSnackBar(
+            _isEditing ? 'تم تعديل المصروف بنجاح' : 'تم إضافة المصروف بنجاح');
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) Navigator.pop(context, true);
       } else {
-        throw Exception('خطأ في السيرفر: ${res.statusCode}');
+        throw ApiException(
+            statusCode: 200,
+            message: result['message']?.toString() ?? 'فشل في الحفظ');
       }
-    } catch (e) {
-      print('❌ خطأ في الحفظ: $e');
-      _showErrorSnackBar('فشل في الحفظ: $e');
+    } on ApiException catch (e) {
+      _showErrorSnackBar(e.message);
+    } catch (_) {
+      _showErrorSnackBar('فشل في الحفظ: تعذّر الاتصال بالخادم');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }

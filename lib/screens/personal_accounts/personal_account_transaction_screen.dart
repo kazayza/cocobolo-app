@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/cashbox_service.dart';
 import '../../services/personal_account_service.dart';
 
@@ -47,15 +50,20 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
   }
 
   Future<void> _loadCashboxes() async {
-    final boxes = await CashboxService.getAllCashboxes();
-    if (!mounted) return;
-    setState(() {
-      _cashboxes = boxes;
-      _loadingBoxes = false;
-      if (_cashBoxId == null && boxes.isNotEmpty) {
-        _cashBoxId = (boxes.first['CashBoxID'] as num?)?.toInt();
-      }
-    });
+    try {
+      final boxes = await CashboxService.getAllCashboxes();
+      if (!mounted) return;
+      setState(() {
+        _cashboxes = boxes;
+        _loadingBoxes = false;
+        if (_cashBoxId == null && boxes.isNotEmpty) {
+          _cashBoxId = (boxes.first['CashBoxID'] as num?)?.toInt();
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingBoxes = false);
+    }
   }
 
   String get _uname => widget.username ?? '';
@@ -84,7 +92,7 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(ok ? '✅ ${result['message']}' : (result['message']?.toString() ?? 'حدث خطأ'), style: GoogleFonts.cairo(fontSize: 13)),
-          backgroundColor: ok ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+          backgroundColor: ok ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -92,7 +100,7 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ: $e', style: GoogleFonts.cairo(fontSize: 13)), backgroundColor: const Color(0xFFC62828), behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text('خطأ: $e', style: GoogleFonts.cairo(fontSize: 13)), backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -108,17 +116,17 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isIn = _operationType == 'LoanIn';
-    final opColor = isIn ? const Color(0xFF3B82F6) : const Color(0xFF8B5CF6);
+    final opColor = isIn ? AppColors.info : AppStatus.editPending;
     final accountName = widget.account['AccountName']?.toString() ?? '';
     final afterBalance = _operationType == 'LoanIn'
         ? _currentBalance + (double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0)
         : _currentBalance - (double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFF4F7FB),
+      backgroundColor: isDark ? AppColors.navyDark : AppColors.lightBackground,
       appBar: AppBar(
         title: Text('حركة حساب', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 17)),
-        backgroundColor: HomeAccent.navyDark,
+        backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -144,8 +152,8 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
                   colors: isIn
-                      ? const [Color(0xFF1E3A8A), Color(0xFF3B82F6)]
-                      : const [Color(0xFF5B21B6), Color(0xFF8B5CF6)],
+                      ? const [AppColors.navy, AppColors.info]
+                      : const [AppColors.navy, AppStatus.editPending],
                 ),
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: [BoxShadow(color: opColor.withValues(alpha: 0.25), blurRadius: 20, offset: const Offset(0, 8))],
@@ -184,17 +192,13 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
             const SizedBox(height: 16),
 
             // ── نوع العملية ──
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              radius: AppRadius.lg,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('نوع العملية', style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  const AppSectionHeader(title: 'نوع العملية'),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -205,7 +209,7 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
                           icon: Icons.trending_up_rounded,
                           label: 'قرض دخل',
                           desc: 'فلوس دخلت للحساب',
-                          color: const Color(0xFF3B82F6),
+                          color: AppColors.info,
                           onTap: () => setState(() => _operationType = 'LoanIn'),
                         ),
                       ),
@@ -217,7 +221,7 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
                           icon: Icons.trending_down_rounded,
                           label: 'تسديد قرض',
                           desc: 'تسديد من الحساب',
-                          color: const Color(0xFF8B5CF6),
+                          color: AppStatus.editPending,
                           onTap: () => setState(() => _operationType = 'LoanRepayment'),
                         ),
                       ),
@@ -230,13 +234,9 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
             const SizedBox(height: 14),
 
             // ── المبلغ والخزينة ──
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              radius: AppRadius.lg,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -296,13 +296,9 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
             const SizedBox(height: 14),
 
             // ── ملاحظات + معاينة الرصيد ──
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              radius: AppRadius.lg,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -338,9 +334,10 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
                         Expanded(
                           child: Text('الرصيد بعد الحركة:', style: GoogleFonts.cairo(fontSize: 12.5, fontWeight: FontWeight.w700)),
                         ),
-                        Text(
-                          '${_fmt(afterBalance.abs())} ج.م',
-                          style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: opColor),
+                        AmountText(
+                          value: '${_fmt(afterBalance.abs())} ج.م',
+                          size: 14,
+                          color: opColor,
                         ),
                       ],
                     ),
@@ -358,11 +355,11 @@ class _PersonalAccountTransactionScreenState extends State<PersonalAccountTransa
                 onPressed: _saving ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: HomeAccent.gold,
-                  foregroundColor: const Color(0xFF0D1A2A),
+                  foregroundColor: AppColors.navy,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: _saving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0D1A2A)))
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy))
                     : const Icon(Icons.save_rounded, size: 20),
                 label: Text(_saving ? 'جاري الحفظ...' : 'حفظ الحركة', style: GoogleFonts.cairo(fontWeight: FontWeight.w800, fontSize: 15)),
               ),

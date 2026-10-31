@@ -12,7 +12,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import '../services/job_order_service.dart';
 import '../services/theme_service.dart';
 import 'invoice/invoice_details_screen.dart';
@@ -41,7 +45,6 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   String? _error;
 
   bool get _isDark => ThemeService().isDarkMode;
-  Color get _cardColor => AppColors.card(_isDark);
   Color get _textColor => AppColors.text(_isDark);
   Color get _secondaryTextColor => AppColors.textSecondary(_isDark);
   Map<String, dynamic> get _capabilities => _map(_order?['capabilities']);
@@ -104,6 +107,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             '${_order?['ReferenceNumber'] ?? 'أمر التشغيل'}',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800, fontSize: 16),
@@ -123,21 +127,10 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
           ],
         ),
         body: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.gold))
+            ? const AppLoading()
             : _error != null
-                ? _errorState()
+                ? AppError(message: _error!, onRetry: _load)
                 : _body(),
-      ),
-    );
-  }
-
-  Widget _errorState() {
-    return Center(
-      child: FilledButton.icon(
-        onPressed: _load,
-        icon: const Icon(Icons.refresh_rounded),
-        label: Text('إعادة المحاولة: $_error', style: GoogleFonts.cairo()),
       ),
     );
   }
@@ -234,16 +227,12 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
 
   Widget _hero(Map<String, dynamic> order, bool purchase) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: <Color>[
-            Color(0xFF0F172A),
-            Color(0xFF1E3A8A),
-            Color(0xFF3B82F6)
-          ],
+          colors: AppGradients.identityHeader,
         ),
-        borderRadius: BorderRadius.circular(21),
+        borderRadius: AppRadius.all(AppRadius.xxl),
       ),
       child: Row(
         children: <Widget>[
@@ -288,13 +277,14 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
               ],
             ),
           ),
-          _badge(
-            order['IsDelivered'] == true || order['IsDelivered'] == 1
+          StatusBadge(
+            label: order['IsDelivered'] == true || order['IsDelivered'] == 1
                 ? 'تم التسليم'
                 : 'غير مسلّم',
-            order['IsDelivered'] == true || order['IsDelivered'] == 1
-                ? Colors.green
-                : Colors.orange,
+            color: order['IsDelivered'] == true || order['IsDelivered'] == 1
+                ? AppColors.success
+                : AppColors.warning,
+            filled: true,
           ),
         ],
       ),
@@ -302,13 +292,9 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   }
 
   Widget _stat(String label, String value, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
       child: Column(
         children: <Widget>[
           Icon(icon, color: AppColors.goldDark, size: 19),
@@ -331,13 +317,9 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
 
   Widget _summary(Map<String, dynamic> order) {
     final purchase = '${order['TransactionType']}' == 'Purchase';
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.lg,
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -368,14 +350,11 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   Widget _itemCard(Map<String, dynamic> item, int index) {
     final imageUrl = _imageUrl(item);
     final hasAlternative = item['SelectedAlternativeID'] != null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.xl,
       child: Column(
         children: <Widget>[
           Row(
@@ -397,6 +376,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
                       ? const Icon(Icons.inventory_2_outlined)
                       : Image.network(
                           imageUrl,
+                          headers: _imageHeaders(imageUrl),
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) =>
                               const Icon(Icons.inventory_2_outlined),
@@ -434,14 +414,14 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
                       spacing: 6,
                       runSpacing: 5,
                       children: <Widget>[
-                        _badge(_tier('${item['PricingTier']}'), Colors.blue),
+                        _badge(_tier('${item['PricingTier']}'), AppColors.info),
                         _badge(
                           hasAlternative ? 'بديل مختار' : 'الأصلي الحالي',
-                          hasAlternative ? Colors.green : Colors.blueGrey,
+                          hasAlternative ? AppColors.success : AppColors.neutral,
                         ),
-                        _badge('${_num(item['Quantity'])} قطعة', Colors.purple),
+                        _badge('${_num(item['Quantity'])} قطعة', AppStatus.editPending),
                         if (_int(item['Period']) > 0)
-                          _badge('${_int(item['Period'])} يوم', Colors.orange),
+                          _badge('${_int(item['Period'])} يوم', AppColors.warning),
                       ],
                     ),
                     if (hasAlternative &&
@@ -451,7 +431,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
                       Text(
                         'المواصفة: ${item['AlternativeName']}',
                         style: GoogleFonts.cairo(
-                          color: Colors.green.shade700,
+                          color: AppColors.success,
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
                         ),
@@ -481,12 +461,13 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => _openProductPdf(item),
                 icon:
-                    const Icon(Icons.picture_as_pdf_rounded, color: Colors.red),
+                    const Icon(Icons.picture_as_pdf_rounded, color: AppColors.error),
                 label: Text('فتح PDF المنتج', style: GoogleFonts.cairo()),
               ),
             ),
           ],
         ],
+      ),
       ),
     );
   }
@@ -500,6 +481,12 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
     final imageId = _int(item['MainImageId']);
     return imageId > 0 ? '$baseUrl/api/product-image-by-id/$imageId' : null;
   }
+
+  /// ترويسات تحميل الصورة حسب مصدرها: التوكن يُرفق فقط عندما يكون
+  /// الرابط تابعًا لقاعدة الـ API نفسها؛ الروابط الخارجية المطلقة
+  /// (مسارات بدائل من بيانات خارجية) تُحمَّل بلا توكن أبدًا.
+  Map<String, String>? _imageHeaders(String url) =>
+      url.startsWith(baseUrl) ? SessionService.instance.authHeaders : null;
 
   Widget _noteBox(String title, String text) {
     return Container(
@@ -535,22 +522,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
   }
 
   Widget _badge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.cairo(
-          color: color,
-          fontSize: 8.5,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
+    return StatusBadge(label: label, color: color, small: true);
   }
 
   Widget _info(IconData icon, String text) {
@@ -614,7 +586,13 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
               ),
               Expanded(
                 child: InteractiveViewer(
-                  child: Center(child: Image.network(url, fit: BoxFit.contain)),
+                  child: Center(
+                    child: Image.network(
+                      url,
+                      headers: _imageHeaders(url),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -672,7 +650,10 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
       final url = _imageUrl(item);
       if (url == null) continue;
       try {
-        final response = await http.get(Uri.parse(url));
+        final response = await http.get(
+          Uri.parse(url),
+          headers: _imageHeaders(url),
+        );
         if (response.statusCode == 200) {
           imageMap[_int(item['ProductID'])] =
               pw.MemoryImage(response.bodyBytes);
@@ -827,7 +808,7 @@ class _JobOrderDetailsScreenState extends State<JobOrderDetailsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(text, style: GoogleFonts.cairo()),
-        backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor: error ? AppColors.error : AppColors.success,
       ),
     );
   }

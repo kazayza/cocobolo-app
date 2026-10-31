@@ -6,11 +6,16 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/permission_service.dart';
+import '../../widgets/design_kit.dart';
 import '../cashbox_transactions_screen.dart';
 import '../cashbox_manual_screen.dart';
 import 'cashbox_manage_screen.dart';
+import '../../core/auth/session_service.dart';
 
+import '../../widgets/app_drawer.dart';
 /// مُنسّق أرقام مشترك (مشترك بين كل الكروت — أسرع)
 final NumberFormat _fmtShared = NumberFormat('#,##0');
 
@@ -62,7 +67,7 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/cashbox/dashboard/full'),
-      ).timeout(const Duration(seconds: 15));
+       headers: SessionService.instance.authHeaders,).timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
@@ -169,8 +174,12 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frmCashBoxDashboard'),
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: const Text('لوحة الخزينة'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -180,7 +189,7 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
               ? _buildError(theme)
               : _buildBody(theme, isDark),
@@ -188,24 +197,7 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   Widget _buildBody(ThemeData theme, bool isDark) {
@@ -214,6 +206,7 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
     final last30 = (d['Last30Days'] as List?) ?? [];
     final breakdown = (d['TypeBreakdown'] as List?) ?? [];
     final recent = (d['RecentTransactions'] as List?) ?? [];
+    final topAccounts = (d['TopPersonalAccounts'] as List?) ?? [];
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -370,7 +363,7 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
                   child: _CreditorCard(
                     label: 'دائنون (لنا)',
                     value: d['TotalCreditors'],
-                    color: const Color(0xFF43A047),
+                    color: AppColors.success,
                     isDark: isDark,
                   ),
                 ),
@@ -379,12 +372,44 @@ class _CashBoxDashboardScreenState extends State<CashBoxDashboardScreen> {
                   child: _CreditorCard(
                     label: 'مدينون (علينا)',
                     value: d['TotalDebtors'],
-                    color: const Color(0xFFE53935),
+                    color: AppColors.error,
                     isDark: isDark,
                   ),
                 ),
               ],
             ),
+            // أعلى الحسابات الشخصية رصيدًا (Item 24 — TopPersonalAccounts)
+            if (topAccounts.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              for (final acc in topAccounts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: AppCard(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${(acc as Map)['AccountName'] ?? ''}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        AmountText(
+                          value: _fmt(acc['CurrentBalance']),
+                          size: 14,
+                          color: ((acc['CurrentBalance'] as num?) ?? 0) >= 0
+                              ? AppColors.success
+                              : AppColors.error,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ],
         ],
       ),
@@ -431,12 +456,10 @@ class _HeroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
-          colors: isDark
-              ? [const Color(0xFF0A1626), HomeAccent.navyLight]
-              : [const Color(0xFF0E2A47), const Color(0xFF1E4E7B)],
+          colors: AppGradients.identityCard,
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
@@ -480,13 +503,10 @@ class _HeroCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '${_fmt(totalBalance)} ج.م',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    AmountText(
+                      value: '${_fmt(totalBalance)} ج.م',
+                      size: 26,
+                      color: Colors.white,
                     ),
                   ],
                 ),
@@ -543,14 +563,7 @@ class _HeroCard extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            _fmt(value),
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          AmountText(value: _fmt(value), size: 15, color: color),
           const SizedBox(height: 2),
           Text(
             label,
@@ -620,25 +633,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 18,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(icon, size: 17, color: color),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
+    return AppSectionHeader(title: title, icon: icon, accent: color);
   }
 }
 
@@ -659,19 +654,14 @@ class _CashBoxCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final balance = box['CurrentBalance'] ?? 0;
     final isPositive = (balance is num ? balance : 0) >= 0;
-    final color = isPositive ? const Color(0xFF43A047) : const Color(0xFFE53935);
+    final color = isPositive ? AppColors.success : AppColors.error;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.md,
+        child: Row(
         children: [
           Container(
             width: 38,
@@ -715,14 +705,7 @@ class _CashBoxCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                _fmt(balance),
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                ),
-              ),
+              AmountText(value: _fmt(balance), size: 15, color: color),
               Text(
                 '${box['TransactionsCount'] ?? 0} حركة',
                 style: TextStyle(
@@ -733,6 +716,7 @@ class _CashBoxCard extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -940,16 +924,14 @@ class _RecentTxRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isIn = tx['TransactionType'] == 'قبض';
-    final color = isIn ? const Color(0xFF43A047) : const Color(0xFFE53935);
+    final color = isIn ? AppColors.success : AppColors.error;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        radius: AppRadius.xs,
+        child: Row(
         children: [
           Container(
             width: 8,
@@ -981,15 +963,13 @@ class _RecentTxRow extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            '${isIn ? '+' : '-'} ${fmt(tx['Amount'])}',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
+          AmountText(
+            value: '${isIn ? '+' : '-'} ${fmt(tx['Amount'])}',
+            size: 13,
+            color: color,
           ),
         ],
+        ),
       ),
     );
   }
@@ -1021,13 +1001,10 @@ class _CreditorCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            NumberFormat('#,##0').format(v),
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
+          AmountText(
+            value: NumberFormat('#,##0').format(v),
+            size: 17,
+            color: color,
           ),
           const SizedBox(height: 4),
           Text(

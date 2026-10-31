@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 class PriceHistoryScreen extends StatefulWidget {
   final int productId;
@@ -41,7 +45,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/history'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         setState(() {
@@ -66,14 +70,14 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Column(
           children: [
             Text(
               'تاريخ الأسعار',
               style: GoogleFonts.cairo(
-                color: Colors.black,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -81,14 +85,15 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             Text(
               widget.productName,
               style: GoogleFonts.cairo(
-                color: Colors.black54,
+                color: Colors.white70,
                 fontSize: 12,
               ),
             ),
           ],
         ),
-        backgroundColor: const Color(0xFFE8B923),
-        iconTheme: const IconThemeData(color: Colors.black),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(
@@ -105,7 +110,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
           // القائمة
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
+                ? const AppLoading()
                 : _filteredHistory.isEmpty
                     ? _buildEmptyState()
                     : _buildHistoryList(),
@@ -125,9 +130,9 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         border: Border(
-          bottom: BorderSide(color: const Color(0xFFFFD700).withOpacity(0.3)),
+          bottom: BorderSide(color: AppColors.gold.withValues(alpha: 0.3)),
         ),
       ),
       child: SingleChildScrollView(
@@ -139,7 +144,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             // ✅ القيم هنا لازم تكون زي اللي جاية من السيرفر بالظبط
             _buildFilterChip('شراء', 'تكلفة Premium', Icons.money_off, Colors.orangeAccent),
             const SizedBox(width: 8),
-            _buildFilterChip('بيع', 'بيع Premium', Icons.attach_money, const Color(0xFFFFD700)),
+            _buildFilterChip('بيع', 'بيع Premium', Icons.attach_money, AppColors.gold),
             const SizedBox(width: 8),
             _buildFilterChip('شراء Elite', 'تكلفة Elite', Icons.money_off, Colors.tealAccent),
             const SizedBox(width: 8),
@@ -159,10 +164,10 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+          color: isSelected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : Colors.white.withOpacity(0.1),
+            color: isSelected ? color : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: Row(
@@ -185,30 +190,17 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 60, color: Colors.grey[600]),
-          const SizedBox(height: 16),
-          Text(
-            'لا يوجد سجل تغييرات',
-            style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'لم يتم تعديل أسعار هذا المنتج بعد',
-            style: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 13),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      message: 'لا يوجد سجل تغييرات',
+      hint: 'لم يتم تعديل أسعار هذا المنتج بعد',
+      icon: Icons.history,
     );
   }
 
   Widget _buildHistoryList() {
     return RefreshIndicator(
       onRefresh: _fetchHistory,
-      color: const Color(0xFFE8B923),
+      color: AppColors.gold,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _filteredHistory.length,
@@ -240,7 +232,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
         typeIcon = Icons.money_off;
         break;
       case 'بيع':
-        typeColor = const Color(0xFFFFD700);
+        typeColor = AppColors.gold;
         typeLabel = 'بيع Premium';
         typeIcon = Icons.attach_money;
         break;
@@ -262,21 +254,20 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
 
     final isIncrease = (newPrice as num) > (oldPrice as num);
     final changeIcon = isIncrease ? Icons.arrow_upward : Icons.arrow_downward;
-    final changeColor = isIncrease ? Colors.red : Colors.green;
+    final changeColor = isIncrease ? AppColors.error : AppColors.success;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: typeColor.withOpacity(0.2)),
-      ),
-      child: Column(
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        radius: AppRadius.md,
+        color: Colors.white.withValues(alpha: 0.05),
+        child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: typeColor.withOpacity(0.08),
+              color: typeColor.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(14),
                 topRight: Radius.circular(14),
@@ -343,13 +334,10 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                           style: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${_formatNumber(newPrice)} ج.م',
-                          style: GoogleFonts.cairo(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        AmountText(
+                          value: '${_formatNumber(newPrice)} ج.م',
+                          size: 18,
+                          color: Colors.white,
                         ),
                       ],
                     ),
@@ -359,7 +347,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: changeColor.withOpacity(0.1),
+                    color: changeColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -397,7 +385,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.03),
+                      color: Colors.white.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -419,6 +407,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             ),
           ),
         ],
+        ),
       ),
     ).animate().fadeIn(
       delay: Duration(milliseconds: 50 * index),
@@ -454,7 +443,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/network/api_client.dart';
 import '../services/permission_service.dart';
 
+import '../widgets/app_drawer.dart';
 class PriceRequestsScreen extends StatefulWidget {
   final String username;
 
@@ -95,7 +99,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 24),
+            const Icon(Icons.check_circle, color: AppColors.success, size: 24),
             const SizedBox(width: 10),
             Text(
               'تأكيد الموافقة',
@@ -118,7 +122,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
               decoration: InputDecoration(
                 labelText: 'ملاحظات (اختياري)',
                 labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                prefixIcon: const Icon(Icons.note, color: Colors.green),
+                prefixIcon: const Icon(Icons.note, color: AppColors.success),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.08),
                 border: OutlineInputBorder(
@@ -127,7 +131,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.green),
+                  borderSide: const BorderSide(color: AppColors.success),
                 ),
               ),
             ),
@@ -141,7 +145,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.success,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text('موافقة', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -186,7 +190,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.cancel, color: Colors.red, size: 24),
+            const Icon(Icons.cancel, color: AppColors.error, size: 24),
             const SizedBox(width: 10),
             Text(
               'تأكيد الرفض',
@@ -209,7 +213,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
               decoration: InputDecoration(
                 labelText: 'سبب الرفض *',
                 labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                prefixIcon: const Icon(Icons.note, color: Colors.red),
+                prefixIcon: const Icon(Icons.note, color: AppColors.error),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.08),
                 border: OutlineInputBorder(
@@ -218,7 +222,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.red),
+                  borderSide: const BorderSide(color: AppColors.error),
                 ),
               ),
             ),
@@ -238,7 +242,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
               Navigator.pop(context, true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text('رفض', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -278,14 +282,16 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_PriceRequests'),
       backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: Text(
           perm.canRequestPriceChange ? 'طلباتي' : 'طلبات تعديل الأسعار',
-          style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold),
+          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFFE8B923),
-        iconTheme: const IconThemeData(color: Colors.black),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchData),
@@ -293,16 +299,16 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
         bottom: _getTabCount() > 1
             ? TabBar(
                 controller: _tabController,
-                indicatorColor: Colors.black,
-                labelColor: Colors.black,
-                unselectedLabelColor: Colors.black54,
+                indicatorColor: AppColors.gold,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white54,
                 labelStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                 tabs: _buildTabs(),
               )
             : null,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
+          ? const AppLoading()
           : _getTabCount() > 1
               ? TabBarView(
                   controller: _tabController,
@@ -358,24 +364,15 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
 
   Widget _buildRequestsList(List<dynamic> requests) {
     if (requests.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox, size: 60, color: Colors.grey[600]),
-            const SizedBox(height: 16),
-            Text(
-              'لا توجد طلبات',
-              style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 16),
-            ),
-          ],
-        ),
+      return const AppEmpty(
+        message: 'لا توجد طلبات',
+        icon: Icons.inbox,
       );
     }
 
     return RefreshIndicator(
       onRefresh: _fetchData,
-      color: const Color(0xFFE8B923),
+      color: AppColors.gold,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: requests.length,
@@ -406,32 +403,31 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
 
     switch (status) {
       case 'Approved':
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusIcon = Icons.check_circle;
         statusLabel = 'تمت الموافقة';
         break;
       case 'Rejected':
-        statusColor = Colors.red;
+        statusColor = AppColors.error;
         statusIcon = Icons.cancel;
         statusLabel = 'مرفوض';
         break;
       default:
-        statusColor = Colors.orangeAccent;
+        statusColor = AppColors.warning;
         statusIcon = Icons.pending;
         statusLabel = 'معلق';
     }
 
     // لون الباقة
-    final typeColor = priceType == 'Premium' ? const Color(0xFFFFD700) : Colors.greenAccent;
+    final typeColor = priceType == 'Premium' ? AppColors.gold : Colors.greenAccent;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        radius: AppRadius.lg,
         color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
-      ),
-      child: Column(
+        child: Column(
         children: [
           // الهيدر
           Container(
@@ -445,27 +441,16 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
             ),
             child: Row(
               children: [
-                Icon(statusIcon, color: statusColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  statusLabel,
-                  style: GoogleFonts.cairo(
-                    color: statusColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
+                StatusBadge(
+                  label: statusLabel,
+                  color: statusColor,
+                  icon: statusIcon,
                 ),
                 const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: typeColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    priceType,
-                    style: GoogleFonts.cairo(color: typeColor, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
+                StatusBadge(
+                  label: priceType,
+                  color: typeColor,
+                  small: true,
                 ),
               ],
             ),
@@ -517,7 +502,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                     child: Text(
                       'الفرق: ${_formatNumber((requestedPrice - currentPrice).abs())} ج.م',
                       style: GoogleFonts.cairo(
-                        color: requestedPrice > currentPrice ? Colors.red : Colors.green,
+                        color: requestedPrice > currentPrice ? AppColors.error : AppColors.success,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -537,7 +522,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.note, size: 16, color: Colors.orangeAccent),
+                      const Icon(Icons.note, size: 16, color: AppColors.warning),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -602,7 +587,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                           icon: const Icon(Icons.close, size: 18),
                           label: Text('رفض', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -616,7 +601,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
                           icon: const Icon(Icons.check, size: 18),
                           label: Text('موافقة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: AppColors.success,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -630,6 +615,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
             ),
           ),
         ],
+        ),
       ),
     ).animate().fadeIn(
       delay: Duration(milliseconds: 50 * index),
@@ -648,9 +634,10 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
         children: [
           Text(label, style: GoogleFonts.cairo(color: Colors.grey, fontSize: 10)),
           const SizedBox(height: 4),
-          Text(
-            '${_formatNumber(price)} ج.م',
-            style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+          AmountText(
+            value: '${_formatNumber(price)} ج.م',
+            size: 14,
+            color: Colors.white,
           ),
         ],
       ),
@@ -685,7 +672,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -700,7 +687,7 @@ class _PriceRequestsScreenState extends State<PriceRequestsScreen>
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

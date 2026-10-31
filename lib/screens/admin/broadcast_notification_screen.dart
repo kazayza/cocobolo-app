@@ -4,6 +4,10 @@ import 'dart:convert';
 
 import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
+import '../../core/auth/session_service.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 
 /// ─────────────────────────────────────────────────────────────
 ///  📢 إرسال إشعار عام (Broadcast) — خاص بالأدمن
@@ -50,7 +54,7 @@ class _BroadcastNotificationScreenState
       // جلب المستخدمين (لاختيار مستخدم محدد)
       final usersRes = await http.get(
         Uri.parse('$baseUrl/api/admin/users'),
-      ).timeout(const Duration(seconds: 15));
+       headers: SessionService.instance.authHeaders,).timeout(const Duration(seconds: 15));
       if (usersRes.statusCode == 200) {
         final body = jsonDecode(usersRes.body);
         final data = body is List
@@ -110,7 +114,7 @@ class _BroadcastNotificationScreenState
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
+              backgroundColor: AppColors.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('إرسال للجميع'),
@@ -126,7 +130,7 @@ class _BroadcastNotificationScreenState
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/notifications/broadcast'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'title': title,
           'message': message,
@@ -166,8 +170,8 @@ class _BroadcastNotificationScreenState
       SnackBar(
         content: Text(message),
         backgroundColor: isSuccess
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -180,20 +184,18 @@ class _BroadcastNotificationScreenState
     return Scaffold(
       appBar: AppBar(
         title: const Text('إرسال إشعار عام'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           // ── بطاقة توضيحية ─────────────────────────────
-          Container(
+          AppCard(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: HomeAccent.indigo.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: HomeAccent.indigo.withValues(alpha: 0.3),
-              ),
-            ),
+            radius: AppRadius.lg,
+            color: HomeAccent.indigo.withValues(alpha: 0.10),
             child: const Row(
               children: [
                 Icon(Icons.campaign_rounded, color: HomeAccent.indigo),
@@ -212,11 +214,8 @@ class _BroadcastNotificationScreenState
           const SizedBox(height: 20),
 
           // ── 🎯 اختيار المستلم ──────────────────────────
-          Text(
-            'إرسال إلى',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
+          AppSectionHeader(title: 'إرسال إلى'),
+          const SizedBox(height: AppSpacing.sm),
 
           // نوع المستلم (كل / صلاحية / مستخدم)
           SegmentedButton<String>(
@@ -242,7 +241,7 @@ class _BroadcastNotificationScreenState
               setState(() => _targetType = selection.first);
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
 
           // لو صلاحية → قائمة الأدوار
           if (_targetType == 'role') ...[
@@ -251,7 +250,7 @@ class _BroadcastNotificationScreenState
               decoration: const InputDecoration(
                 labelText: 'اختر الصلاحية',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderRadius: BorderRadius.all(Radius.circular(AppRadius.md)),
                 ),
               ),
               items: _roles
@@ -259,7 +258,7 @@ class _BroadcastNotificationScreenState
                   .toList(),
               onChanged: (v) => setState(() => _selectedRole = v),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
           ],
 
           // لو مستخدم → قائمة المستخدمين
@@ -269,7 +268,7 @@ class _BroadcastNotificationScreenState
               decoration: const InputDecoration(
                 labelText: 'اختر المستخدم',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderRadius: BorderRadius.all(Radius.circular(AppRadius.md)),
                 ),
               ),
               items: _users
@@ -284,7 +283,7 @@ class _BroadcastNotificationScreenState
                   .toList(),
               onChanged: (v) => setState(() => _selectedUser = v),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
           ],
 
           // ── العنوان ────────────────────────────────────
@@ -296,12 +295,12 @@ class _BroadcastNotificationScreenState
               hintText: 'مثال: إعلان هام — تحديث النظام الليلة',
               prefixIcon: const Icon(Icons.title_rounded),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
 
           // ── الرسالة ────────────────────────────────────
           TextField(
@@ -313,7 +312,7 @@ class _BroadcastNotificationScreenState
               hintText: 'اكتب نص الإشعار...',
               alignLabelWithHint: true,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
           ),
@@ -324,7 +323,7 @@ class _BroadcastNotificationScreenState
           FilledButton.icon(
             onPressed: _sending ? null : _send,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 15),
             ),
@@ -347,7 +346,7 @@ class _BroadcastNotificationScreenState
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
 
           // ── تنبيه ──────────────────────────────────────
           Center(

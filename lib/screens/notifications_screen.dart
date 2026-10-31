@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../core/network/api_client.dart';
 import '../features/home/widgets/home_accent.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../core/notifications/notification_navigator.dart';
 import '../core/notifications/blazor_form_routes.dart';
 import 'add_expense_screen.dart';
@@ -38,7 +41,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> fetchNotifications() async {
     try {
-      final res = await ApiClient.instance.get('/api/notifications');
+      // forceRefresh: بعد «تعليم كمقروء»/«قراءة الكل» يجب أن تعكس القائمة
+      // والإحصائيات حالة الخادم فورًا، لا كاش الـ٢٤ ساعة.
+      // (عند انقطاع الشبكة يرجع ApiClient للكاش كاحتياط تلقائيًا.)
+      final res = await ApiClient.instance.get(
+        '/api/notifications',
+        forceRefresh: true,
+      );
       final data = ApiClient.instance.decode(res);
       if (!mounted) return;
       setState(() {
@@ -90,7 +99,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('تم تحديد الكل كمقروء'),
-          backgroundColor: Color(0xFF43A047),
+          backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -113,6 +122,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: const Text('الإشعارات'),
         centerTitle: true,
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           if (unread > 0)
             TextButton.icon(
@@ -129,22 +141,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Row(
               children: [
-                _StatChip(
-                  label: 'الكل',
-                  value: total,
-                  color: HomeAccent.indigo,
+                Expanded(
+                  child: AppStatCard(
+                    label: 'الكل',
+                    value: '$total',
+                    color: HomeAccent.indigo,
+                    icon: Icons.notifications_rounded,
+                  ),
                 ),
                 const SizedBox(width: 8),
-                _StatChip(
-                  label: 'مقروء',
-                  value: read,
-                  color: const Color(0xFF43A047),
+                Expanded(
+                  child: AppStatCard(
+                    label: 'مقروء',
+                    value: '$read',
+                    color: AppColors.success,
+                    icon: Icons.done_all_rounded,
+                  ),
                 ),
                 const SizedBox(width: 8),
-                _StatChip(
-                  label: 'غير مقروء',
-                  value: unread,
-                  color: const Color(0xFFE53935),
+                Expanded(
+                  child: AppStatCard(
+                    label: 'غير مقروء',
+                    value: '$unread',
+                    color: AppColors.error,
+                    icon: Icons.notifications_active_rounded,
+                  ),
                 ),
               ],
             ),
@@ -171,9 +192,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: scheme.surfaceContainerHighest.withValues(
-                  alpha: 0.4,
-                ),
+                fillColor: AppColors.inputFill(isDark),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -203,12 +222,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: _showUnreadOnly
-                        ? const Color(0xFFE53935).withValues(alpha: 0.15)
-                        : scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                        ? AppColors.error.withValues(alpha: 0.15)
+                        : AppColors.inputFill(isDark),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: _showUnreadOnly
-                          ? const Color(0xFFE53935).withValues(alpha: 0.4)
+                          ? AppColors.error.withValues(alpha: 0.4)
                           : Colors.transparent,
                     ),
                   ),
@@ -221,7 +240,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             : Icons.filter_alt_outlined,
                         size: 14,
                         color: _showUnreadOnly
-                            ? const Color(0xFFE53935)
+                            ? AppColors.error
                             : scheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 4),
@@ -231,7 +250,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
                           color: _showUnreadOnly
-                              ? const Color(0xFFE53935)
+                              ? AppColors.error
                               : scheme.onSurfaceVariant,
                         ),
                       ),
@@ -245,12 +264,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           const SizedBox(height: 4),
           Expanded(
             child: loading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: isDark ? HomeAccent.gold : HomeAccent.navy,
-                    ),
-                  )
+                ? const AppLoading()
                 : _filtered.isEmpty
                 ? _buildEmptyState()
                 : _buildNotificationsList(),
@@ -261,41 +275,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState() {
-    final theme = Theme.of(context);
     final hasContent = notifications.isNotEmpty;
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            hasContent ? Icons.search_off_rounded : Icons.notifications_none,
-            size: 70,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            hasContent ? 'لا توجد نتائج مطابقة' : 'لا توجد إشعارات',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (hasContent) ...[
-            const SizedBox(height: 6),
-            Text(
-              'جرب كلمة بحث مختلفة',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.7,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+    return AppEmpty(
+      message: hasContent ? 'لا توجد نتائج مطابقة' : 'لا توجد إشعارات',
+      hint: hasContent ? 'جرب كلمة بحث مختلفة' : null,
+      icon: hasContent ? Icons.search_off_rounded : Icons.notifications_none,
     );
   }
 
@@ -304,7 +289,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return RefreshIndicator(
       onRefresh: fetchNotifications,
-      color: HomeAccent.gold,
+      color: AppColors.gold,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _filtered.length,
@@ -321,32 +306,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final scheme = theme.colorScheme;
     final isRead = notification['IsRead'] == true;
 
-    return Card(
-      elevation: 0,
-      color: isRead
-          ? scheme.surfaceContainerLow
-          : scheme.primaryContainer.withValues(alpha: 0.5),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: isRead
-            ? BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4))
-            : BorderSide(
-                color: scheme.primary.withValues(alpha: 0.4),
-                width: 1,
-              ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        radius: AppRadius.lg,
+        color: isRead ? null : AppColors.gold.withValues(alpha: 0.08),
         onTap: () {
           if (!isRead) {
             markAsRead(notification['NotificationID']);
           }
           _handleNavigation(notification);
         },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // الأيقونة
@@ -356,12 +328,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 decoration: BoxDecoration(
                   color: isRead
                       ? scheme.onSurfaceVariant.withValues(alpha: 0.1)
-                      : scheme.primary.withValues(alpha: 0.15),
+                      : AppColors.gold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   _getNotificationIcon(notification['RelatedTable']),
-                  color: isRead ? scheme.onSurfaceVariant : scheme.primary,
+                  color: isRead ? scheme.onSurfaceVariant : AppColors.gold,
                   size: 26,
                 ),
               ),
@@ -392,8 +364,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           Container(
                             width: 10,
                             height: 10,
-                            decoration: BoxDecoration(
-                              color: scheme.primary,
+                            decoration: const BoxDecoration(
+                              color: AppColors.gold,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -457,7 +429,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ],
           ),
         ),
-      ),
     ).animate().fadeIn(
       delay: Duration(milliseconds: 40 * index),
       duration: 350.ms,
@@ -517,53 +488,5 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       default:
         return Icons.notifications;
     }
-  }
-}
-
-/// شريحة إحصائية (الكل / مقروء / غير مقروء)
-class _StatChip extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color color;
-
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              '$value',
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

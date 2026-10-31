@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 /// CRM Leads API — parity with Blazor LeadsCrmService
 class LeadsService {
@@ -45,6 +46,8 @@ class LeadsService {
   static Map<String, String> get _jsonHeaders => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        if (SessionService.instance.hasToken)
+          'Authorization': 'Bearer ${SessionService.instance.accessToken}',
       };
 
   // ═════════════════════════════════════════════════════════
@@ -94,7 +97,7 @@ class LeadsService {
       if (dateFrom != null) q['dateFrom'] = dateFrom;
       if (dateTo != null) q['dateTo'] = dateTo;
 
-      final response = await http.get(_uri('/api/leads', q));
+      final response = await http.get(_uri('/api/leads', q), headers: SessionService.instance.authHeaders);
       if (response.statusCode != 200) {
         return LeadsListResult.empty();
       }
@@ -130,7 +133,7 @@ class LeadsService {
 
   static Future<Map<String, dynamic>> getFilterOptions() async {
     try {
-      final response = await http.get(_uri('/api/leads/filter-options'));
+      final response = await http.get(_uri('/api/leads/filter-options'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is Map<String, dynamic>) return data;
@@ -210,7 +213,7 @@ class LeadsService {
       if (dateTo != null) q['dateTo'] = dateTo;
 
       final response =
-          await http.get(_uri('/api/leads/stats', q.isEmpty ? null : q));
+          await http.get(_uri('/api/leads/stats', q.isEmpty ? null : q), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is Map<String, dynamic>) return data;
@@ -223,7 +226,7 @@ class LeadsService {
 
   static Future<List<dynamic>> getEmployees() async {
     try {
-      final response = await http.get(_uri('/api/leads/employees'));
+      final response = await http.get(_uri('/api/leads/employees'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data;
@@ -236,7 +239,7 @@ class LeadsService {
 
   static Future<Map<String, dynamic>?> getLeadById(int leadId) async {
     try {
-      final response = await http.get(_uri('/api/leads/$leadId'));
+      final response = await http.get(_uri('/api/leads/$leadId'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is Map<String, dynamic>) return data;
@@ -332,7 +335,7 @@ class LeadsService {
   /// مصادر التواصل (نفس قيم الفرص البيعية — من ContactSources)
   static Future<List<Map<String, dynamic>>> getSources() async {
     try {
-      final response = await http.get(_uri('/api/opportunities/sources'));
+      final response = await http.get(_uri('/api/opportunities/sources'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data.cast<Map<String, dynamic>>();
@@ -346,7 +349,7 @@ class LeadsService {
   /// الحملات الإعلانية (نفس قيم الفرص البيعية — من AdTypes)
   static Future<List<Map<String, dynamic>>> getAdTypes() async {
     try {
-      final response = await http.get(_uri('/api/opportunities/ad-types'));
+      final response = await http.get(_uri('/api/opportunities/ad-types'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data.cast<Map<String, dynamic>>();
@@ -446,7 +449,7 @@ class LeadsService {
 
   static Future<List<dynamic>> getInteractions(int leadId) async {
     try {
-      final response = await http.get(_uri('/api/leads/$leadId/interactions'));
+      final response = await http.get(_uri('/api/leads/$leadId/interactions'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data;
@@ -532,7 +535,7 @@ class LeadsService {
   static Future<Map<String, dynamic>?> getPendingReject(int leadId) async {
     try {
       final response =
-          await http.get(_uri('/api/leads/$leadId/reject-request'));
+          await http.get(_uri('/api/leads/$leadId/reject-request'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data == null) return null;
@@ -548,7 +551,7 @@ class LeadsService {
   static Future<List<dynamic>> getPendingRejectRequests() async {
     try {
       final response =
-          await http.get(_uri('/api/leads/reject-requests/pending'));
+          await http.get(_uri('/api/leads/reject-requests/pending'), headers: SessionService.instance.authHeaders);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data;

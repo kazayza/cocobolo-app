@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 
 import '../../features/home/widgets/home_accent.dart';
 import '../../services/admin_service.dart';
@@ -130,8 +133,8 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
       SnackBar(
         content: Text(result['message'] ?? 'تم الحفظ'),
         backgroundColor: result['success'] == true
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -140,23 +143,23 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
   Color _categoryColor(String? category) {
     switch (category) {
       case 'Administration':
-        return const Color(0xFFEF5350);
+        return AppColors.errorLight;
       case 'Forms':
-        return const Color(0xFF42A5F5);
+        return AppColors.infoLight;
       case 'Reports':
-        return const Color(0xFF66BB6A);
+        return AppColors.successLight;
       case 'Settings':
-        return const Color(0xFFFFA726);
+        return AppColors.warningLight;
       case 'CRM':
-        return const Color(0xFF5C6BC0);
+        return HomeAccent.indigo;
       case 'HR':
-        return const Color(0xFFAB47BC);
+        return HomeAccent.purple;
       case 'Finance':
-        return const Color(0xFF26A69A);
+        return HomeAccent.teal;
       case 'Inventory':
-        return const Color(0xFFFF9800);
+        return AppColors.warning;
       default:
-        return const Color(0xFF78909C);
+        return HomeAccent.blueGrey;
     }
   }
 
@@ -167,18 +170,21 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربط الصلاحيات'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           // تحديد الكل / إلغاء الكل
           IconButton(
             tooltip: 'تحديد الكل',
             icon: const Icon(Icons.select_all_rounded),
-            color: const Color(0xFF43A047),
+            color: AppColors.success,
             onPressed: _isLoading ? null : () => _setAll(true),
           ),
           IconButton(
             tooltip: 'إلغاء الكل',
             icon: const Icon(Icons.deselect_rounded),
-            color: const Color(0xFFE53935),
+            color: AppColors.error,
             onPressed: _isLoading ? null : () => _setAll(false),
           ),
         ],
@@ -187,16 +193,12 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
         children: [
           // ── بطاقة المستخدم ─────────────────────────────
           Container(
-            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
+            margin: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+            child: AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              radius: AppRadius.lg,
               color: HomeAccent.tintedSurface(context, HomeAccent.indigo),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: HomeAccent.border(context, HomeAccent.indigo),
-              ),
-            ),
-            child: Row(
+              child: Row(
               children: [
                 Container(
                   width: 40,
@@ -207,7 +209,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                       end: Alignment.bottomRight,
                       colors: [HomeAccent.indigo, Color(0xFF454E99)],
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Center(
                     child: Text(
@@ -246,31 +248,18 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: HomeAccent.gold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '$_enabledCount مفعلة',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: HomeAccent.gold,
-                    ),
-                  ),
+                StatusBadge(
+                  label: '$_enabledCount مفعلة',
+                  color: AppColors.gold,
                 ),
               ],
+            ),
             ),
           ),
 
           // ── بحث + فلتر فئات ────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: TextField(
               onChanged: (v) => setState(() => _searchText = v),
               decoration: InputDecoration(
@@ -281,7 +270,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                   alpha: 0.4,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -297,7 +286,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
             height: 44,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6),
               children: [
                 _CategoryChip(
                   label: 'الكل',
@@ -328,8 +317,8 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
           child: FilledButton.icon(
             onPressed: _isSaving || _isLoading ? null : _save,
             style: FilledButton.styleFrom(
-              backgroundColor: HomeAccent.gold,
-              foregroundColor: const Color(0xFF13273F),
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
               padding: const EdgeInsets.symmetric(vertical: 15),
             ),
             icon: _isSaving
@@ -338,7 +327,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Color(0xFF13273F),
+                      color: AppColors.navy,
                     ),
                   )
                 : const Icon(Icons.save_rounded),
@@ -354,30 +343,23 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
 
   Widget _buildList(ThemeData theme) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 3));
+      return const AppLoading();
     }
 
     if (_allPermissions.isEmpty) {
-      return Center(
-        child: Text(
-          'لا توجد صلاحيات في النظام',
-          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-        ),
-      );
+      return const AppEmpty(message: 'لا توجد صلاحيات في النظام');
     }
 
     final filtered = _filteredPermissions;
     if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          'لا توجد نتائج مطابقة',
-          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-        ),
+      return const AppEmpty(
+        message: 'لا توجد نتائج مطابقة',
+        icon: Icons.search_off_rounded,
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 20),
       itemCount: filtered.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
@@ -419,7 +401,7 @@ class _PermissionRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
           color: state.isAnyEnabled
               ? color.withValues(alpha: 0.35)
@@ -458,23 +440,10 @@ class _PermissionRow extends StatelessWidget {
               ),
               // شارة الفئة
               if (permission.category != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    permission.category!,
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
+                StatusBadge(
+                  label: permission.category!,
+                  color: color,
+                  small: true,
                 ),
             ],
           ),
@@ -485,7 +454,7 @@ class _PermissionRow extends StatelessWidget {
               _ActionCheckbox(
                 label: 'عرض',
                 value: state.canView,
-                color: const Color(0xFF42A5F5),
+                color: AppColors.infoLight,
                 onChanged: (v) {
                   state.canView = v;
                   onChanged();
@@ -495,7 +464,7 @@ class _PermissionRow extends StatelessWidget {
               _ActionCheckbox(
                 label: 'إضافة',
                 value: state.canAdd,
-                color: const Color(0xFF66BB6A),
+                color: AppColors.successLight,
                 onChanged: (v) {
                   state.canAdd = v;
                   onChanged();
@@ -505,7 +474,7 @@ class _PermissionRow extends StatelessWidget {
               _ActionCheckbox(
                 label: 'تعديل',
                 value: state.canEdit,
-                color: const Color(0xFFFFA726),
+                color: AppColors.warningLight,
                 onChanged: (v) {
                   state.canEdit = v;
                   onChanged();
@@ -515,7 +484,7 @@ class _PermissionRow extends StatelessWidget {
               _ActionCheckbox(
                 label: 'حذف',
                 value: state.canDelete,
-                color: const Color(0xFFEF5350),
+                color: AppColors.errorLight,
                 onChanged: (v) {
                   state.canDelete = v;
                   onChanged();
@@ -623,10 +592,10 @@ class _CategoryChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 5),
         decoration: BoxDecoration(
           color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(
             color: selected ? c.withValues(alpha: 0.4) : Colors.grey.shade400,
           ),

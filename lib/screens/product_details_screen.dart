@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +13,7 @@ import '../services/permission_service.dart';
 import '../screens/price_history_screen.dart';
 import '../screens/price_requests_screen.dart';
 import '../screens/pdf_viewer_screen.dart';
+import '../core/auth/session_service.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final int productId;
@@ -50,7 +54,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/products/${widget.productId}'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -83,9 +87,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       body: loading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFFD700)),
-            )
+          ? const AppLoading()
           : product == null
               ? _buildErrorState()
               : _buildContent(),
@@ -107,7 +109,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ElevatedButton(
             onPressed: fetchProductDetails,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
+              backgroundColor: AppColors.gold,
             ),
             child: Text('إعادة المحاولة', style: GoogleFonts.cairo(color: Colors.black)),
           ),
@@ -179,13 +181,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return SliverAppBar(
       expandedHeight: 350,
       pinned: true,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.navy,
+      elevation: 0,
       iconTheme: const IconThemeData(color: Colors.white),
       actions: [
         // زر تاريخ الأسعار (للكل ماعدا Account)
         if (perm.canSeeFullProductPricing)
           IconButton(
-            icon: const Icon(Icons.history, color: Color(0xFFFFD700)),
+            icon: const Icon(Icons.history, color: AppColors.gold),
             tooltip: 'تاريخ الأسعار',
             onPressed: () {
               Navigator.push(
@@ -203,7 +206,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         // زر التعديل (حسب الصلاحية)
         if (perm.canEdit(FormNames.productsAdd) || perm.isFactory)
           IconButton(
-            icon: const Icon(Icons.edit, color: Color(0xFFFFD700)),
+            icon: const Icon(Icons.edit, color: AppColors.gold),
             onPressed: () {
               Navigator.push(
                 context,
@@ -281,7 +284,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                   height: 28,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Color(0xFFFFD700),
+                                    color: AppColors.gold,
                                   ),
                                 ),
                               );
@@ -312,7 +315,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   height: 8,
                   decoration: BoxDecoration(
                     color: currentImageIndex == index
-                        ? const Color(0xFFFFD700)
+                        ? AppColors.gold
                         : Colors.white38,
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -337,8 +340,77 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             ),
           ),
         ),
+
+        // حذف الصورة الحالية (نقطة الحذف موجودة خادميًا DELETE /api/products/images/:id)
+        if (images[currentImageIndex] is Map &&
+            (images[currentImageIndex] as Map)['id'] != null)
+          Positioned(
+            top: 100,
+            left: 16,
+            child: IconButton(
+              style: IconButton.styleFrom(backgroundColor: Colors.black54),
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+              tooltip: 'حذف الصورة',
+              onPressed: () => _deleteCurrentImage(),
+            ),
+          ),
       ],
     );
+  }
+
+  Future<void> _deleteCurrentImage() async {
+    if (images.isEmpty || currentImageIndex >= images.length) return;
+    final image = images[currentImageIndex];
+    if (image is! Map || image['id'] == null) return;
+    final imageId = image['id'];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('حذف الصورة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        content: Text('سيتم حذف هذه الصورة من المنتج نهائيًا. متابعة؟', style: GoogleFonts.cairo()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('إلغاء', style: GoogleFonts.cairo()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('حذف', style: GoogleFonts.cairo(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/products/images/$imageId'),
+        headers: SessionService.instance.authHeaders,
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        String message = 'فشل حذف الصورة (${res.statusCode})';
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map && body['message'] != null) message = body['message'].toString();
+        } catch (_) {}
+        if (mounted) _showError(message);
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم حذف الصورة', style: GoogleFonts.cairo()),
+          backgroundColor: Colors.green,
+        ),
+      );
+      setState(() {
+        currentImageIndex = 0;
+        loading = true;
+      });
+      await fetchProductDetails();
+    } catch (e) {
+      if (mounted) _showError('فشل حذف الصورة: $e');
+    }
   }
 
   Widget _buildImagePlaceholder() {
@@ -462,26 +534,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         const SizedBox(height: 12),
 
         // المجموعة
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFD700).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.category, color: Color(0xFFFFD700), size: 18),
-              const SizedBox(width: 6),
-              Text(
-                product!['GroupName'] ?? '',
-                style: GoogleFonts.cairo(
-                  color: const Color(0xFFFFD700),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
+        StatusBadge(
+          label: product!['GroupName'] ?? '',
+          color: AppColors.gold,
+          icon: Icons.category,
         ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.1, end: 0),
 
         const SizedBox(height: 16),
@@ -529,7 +585,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           child: _buildActionButton(
             icon: Icons.edit_note,
             label: 'تعديل سعر البيع',
-            color: const Color(0xFFFFD700),
+            color: AppColors.gold,
             onTap: () => _showEditSalePriceDialog(),
           ),
         ),
@@ -622,7 +678,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             child: _buildTypeChip(
                               'Premium',
                               priceType == 'Premium',
-                              const Color(0xFFFFD700),
+                              AppColors.gold,
                               () => priceTypeController.value = 'Premium',
                             ),
                           ),
@@ -667,9 +723,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('السعر الحالي:', style: GoogleFonts.cairo(color: Colors.grey)),
-                        Text(
-                          '${_formatNumber(currentPrice)} ج.م',
-                          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+                        AmountText(
+                          value: '${_formatNumber(currentPrice)} ج.م',
+                          color: Colors.white,
+                          weight: FontWeight.bold,
                         ),
                       ],
                     ),
@@ -686,7 +743,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 decoration: InputDecoration(
                   labelText: 'السعر المطلوب *',
                   labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.attach_money, color: Color(0xFFFFD700)),
+                  prefixIcon: const Icon(Icons.attach_money, color: AppColors.gold),
                   suffixText: 'ج.م',
                   suffixStyle: GoogleFonts.cairo(color: Colors.grey),
                   filled: true,
@@ -697,7 +754,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                    borderSide: const BorderSide(color: AppColors.gold),
                   ),
                 ),
               ),
@@ -711,7 +768,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 decoration: InputDecoration(
                   labelText: 'سبب الطلب *',
                   labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.note, color: Color(0xFFFFD700)),
+                  prefixIcon: const Icon(Icons.note, color: AppColors.gold),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.08),
                   border: OutlineInputBorder(
@@ -720,7 +777,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                    borderSide: const BorderSide(color: AppColors.gold),
                   ),
                 ),
               ),
@@ -757,7 +814,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
+              backgroundColor: AppColors.gold,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text('إرسال الطلب', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -800,7 +857,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/price-request'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'priceType': priceType,
           'currentPrice': currentPrice,
@@ -834,7 +891,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.edit_note, color: Color(0xFFFFD700), size: 24),
+            const Icon(Icons.edit_note, color: AppColors.gold, size: 24),
             const SizedBox(width: 10),
             Text(
               'تعديل سعر البيع',
@@ -867,7 +924,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             child: _buildTypeChip(
                               'Premium',
                               priceType == 'Premium',
-                              const Color(0xFFFFD700),
+                              AppColors.gold,
                               () => priceTypeController.value = 'Premium',
                             ),
                           ),
@@ -912,9 +969,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('السعر الحالي:', style: GoogleFonts.cairo(color: Colors.grey)),
-                        Text(
-                          '${_formatNumber(currentPrice)} ج.م',
-                          style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+                        AmountText(
+                          value: '${_formatNumber(currentPrice)} ج.م',
+                          color: Colors.white,
+                          weight: FontWeight.bold,
                         ),
                       ],
                     ),
@@ -931,7 +989,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 decoration: InputDecoration(
                   labelText: 'السعر الجديد *',
                   labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.attach_money, color: Color(0xFFFFD700)),
+                  prefixIcon: const Icon(Icons.attach_money, color: AppColors.gold),
                   suffixText: 'ج.م',
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.08),
@@ -941,7 +999,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                    borderSide: const BorderSide(color: AppColors.gold),
                   ),
                 ),
               ),
@@ -955,7 +1013,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 decoration: InputDecoration(
                   labelText: 'سبب التعديل (اختياري)',
                   labelStyle: GoogleFonts.cairo(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.note, color: Color(0xFFFFD700)),
+                  prefixIcon: const Icon(Icons.note, color: AppColors.gold),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.08),
                   border: OutlineInputBorder(
@@ -964,7 +1022,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                    borderSide: const BorderSide(color: AppColors.gold),
                   ),
                 ),
               ),
@@ -992,7 +1050,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
+              backgroundColor: AppColors.gold,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text('تحديث السعر', style: GoogleFonts.cairo(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -1010,7 +1068,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/sale-price'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'priceType': priceType,
           'newSalePrice': newPrice,
@@ -1224,13 +1282,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            color: textColor,
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-          ),
+        AmountText(
+          value: value,
+          color: textColor,
+          size: 13,
         ),
         const SizedBox(height: 1),
         Text(
@@ -1245,13 +1300,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildInfoSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           _buildInfoRow(
@@ -1289,7 +1341,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFFFFD700), size: 22),
+          Icon(icon, color: AppColors.gold, size: 22),
           const SizedBox(width: 12),
           Text(
             label,
@@ -1354,14 +1406,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFD700).withOpacity(0.2),
+                    color: AppColors.gold.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
                     child: Text(
                       '${comp['Quantity']}',
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFFFFD700),
+                        color: AppColors.gold,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1386,7 +1438,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       children: [
         Row(
           children: [
-            Icon(icon, color: const Color(0xFFFFD700), size: 22),
+            Icon(icon, color: AppColors.gold, size: 22),
             const SizedBox(width: 8),
             Text(
               title,
@@ -1495,7 +1547,7 @@ class _PricingCarouselState extends State<_PricingCarousel> {
                   cost: widget.costPremium,
                   sale: widget.salePremium,
                   margin: widget.marginPremium,
-                  color: const Color(0xFFFFD700),
+                  color: AppColors.gold,
                 );
               } else {
                 card = _buildCarouselCard(
@@ -1532,7 +1584,7 @@ class _PricingCarouselState extends State<_PricingCarousel> {
                   height: 7,
                   decoration: BoxDecoration(
                     color: i == _currentPage
-                        ? const Color(0xFFFFD700)
+                        ? AppColors.gold
                         : Colors.white38,
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -1646,13 +1698,10 @@ class _PricingCarouselState extends State<_PricingCarousel> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '$mainValue ج.م',
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
+                child: AmountText(
+                  value: '$mainValue ج.م',
+                  color: color,
+                  size: 24,
                 ),
               ),
             ],
@@ -1681,13 +1730,11 @@ class _PricingCarouselState extends State<_PricingCarousel> {
               fontSize: 12,
             ),
           ),
-          Text(
-            label.contains('نسبة') ? '$value%' : '$value ج.م',
-            style: GoogleFonts.cairo(
-              color: textColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
+          AmountText(
+            value: label.contains('نسبة') ? '$value%' : '$value ج.م',
+            color: textColor,
+            size: 14,
+            weight: FontWeight.w800,
           ),
         ],
       ),

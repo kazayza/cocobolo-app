@@ -5,10 +5,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
+import '../../core/auth/session_service.dart';
 
+import '../../widgets/app_drawer.dart';
 class StockTransferScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -150,7 +154,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         'warehouseId': '$_sourceWarehouseId',
       },
     );
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: SessionService.instance.authHeaders);
     if (response.statusCode != 200) return const [];
     final decoded = jsonDecode(response.body);
     final rows = decoded is List
@@ -197,7 +201,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
               width: 44,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: AppColors.neutralLight,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -230,10 +234,10 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   return ListTile(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      side: const BorderSide(color: AppColors.lightDivider),
                     ),
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0x1513273F),
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.navy.withValues(alpha: 0.08),
                       child: Icon(Icons.chair_alt_rounded, color: AppColors.navy),
                     ),
                     title: Text(
@@ -328,7 +332,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/inventory/transfer'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'fromWarehouseId': _sourceWarehouseId,
           'toWarehouseId': _destinationWarehouseId,
@@ -370,7 +374,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(value, style: GoogleFonts.cairo()),
-        backgroundColor: error ? Colors.red.shade700 : const Color(0xFF059669),
+        backgroundColor: error ? AppColors.error : AppStatus.profit,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -405,11 +409,12 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(
+        drawer: buildAppDrawer(currentRoute: 'frm_StockTransfer'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             'تحويل مخزني',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
@@ -424,8 +429,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         ),
         body: Stack(
           children: [
-            if (_loading)
-              const Center(child: CircularProgressIndicator())
+            if (_loading) const AppLoading()
             else
               ListView(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
@@ -440,7 +444,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                         icon: Icons.outbox_rounded,
                         label: 'رصيد المصدر',
                         value: '$_sourceStock',
-                        color: const Color(0xFFFCA5A5),
+                        color: AppColors.errorLight,
                       ),
                       InventoryHeroStat(
                         icon: Icons.move_down_rounded,
@@ -452,7 +456,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                         icon: Icons.inbox_rounded,
                         label: 'رصيد الوجهة',
                         value: '$_destinationStock',
-                        color: const Color(0xFF6EE7B7),
+                        color: AppColors.successLight,
                       ),
                     ],
                   ),
@@ -527,7 +531,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
           _locationBlock(
             title: 'موقع المصدر',
             icon: Icons.outbox_rounded,
-            color: const Color(0xFFDC2626),
+            color: AppColors.error,
             branchValue: _sourceBranchId,
             warehouseValue: _sourceWarehouseId,
             warehouses: _sourceWarehouses,
@@ -553,7 +557,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
           _locationBlock(
             title: 'موقع الوجهة',
             icon: Icons.inbox_rounded,
-            color: const Color(0xFF059669),
+            color: AppStatus.profit,
             branchValue: _destinationBranchId,
             warehouseValue: _destinationWarehouseId,
             warehouses: _destinationWarehouses,
@@ -712,7 +716,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
               ? 'اختر منتجًا لمعاينة الأرصدة.'
               : _selectedProduct!['ProductName']?.toString(),
           icon: Icons.compare_arrows_rounded,
-          color: const Color(0xFF2563EB),
+          color: AppColors.info,
           child: Column(
             children: [
               Row(
@@ -722,7 +726,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                       icon: Icons.outbox_rounded,
                       label: 'المصدر بعد التحويل',
                       value: '$_sourceAfter',
-                      color: const Color(0xFFDC2626),
+                      color: AppColors.error,
                     ),
                   ),
                   const SizedBox(width: 9),
@@ -731,7 +735,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                       icon: Icons.inbox_rounded,
                       label: 'الوجهة بعد التحويل',
                       value: '$_destinationAfter',
-                      color: const Color(0xFF059669),
+                      color: AppStatus.profit,
                     ),
                   ),
                 ],
@@ -742,14 +746,14 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF059669).withValues(alpha: 0.08),
+                    color: AppStatus.profit.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.verified_rounded,
-                        color: Color(0xFF059669),
+                        color: AppStatus.profit,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -772,7 +776,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         InventorySection(
           title: 'ضوابط التحويل',
           icon: Icons.rule_rounded,
-          color: const Color(0xFFD97706),
+          color: AppStatus.overdue,
           child: Column(
             children: [
               _rule(
@@ -880,13 +884,13 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.08),
+        color: AppColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.20)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.20)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.red),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(child: Text(_error ?? 'حدث خطأ')),
           IconButton(

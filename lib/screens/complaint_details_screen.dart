@@ -11,7 +11,10 @@ import '../models/complaint_model.dart';
 import '../services/complaints_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'add_complaint_screen.dart';
+import '../core/auth/session_service.dart';
 
 class ComplaintDetailsScreen extends StatefulWidget {
   final int complaintId;
@@ -99,20 +102,21 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
   // ===================================
   PreferredSizeWidget _buildAppBar(bool isDark) {
     return AppBar(
-      backgroundColor: isDark ? AppColors.navy : Colors.white,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       elevation: 0,
       title: Text(
         'تفاصيل الشكوى',
         style: GoogleFonts.cairo(
           fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white : AppColors.navy,
+          color: Colors.white,
         ),
       ),
       centerTitle: true,
       leading: IconButton(
         icon: Icon(
           Icons.arrow_back_ios,
-          color: isDark ? Colors.white : AppColors.navy,
+          color: Colors.white,
         ),
         onPressed: () => Navigator.pop(context),
       ),
@@ -122,7 +126,7 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
           IconButton(
             icon: Icon(
               Icons.edit_outlined,
-              color: isDark ? AppColors.gold : AppColors.navy,
+              color: AppColors.gold,
             ),
             onPressed: _editComplaint,
           ),
@@ -130,7 +134,7 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
           IconButton(
             icon: Icon(
               Icons.delete_outline,
-              color: Colors.red.shade400,
+              color: AppColors.errorLight,
             ),
             onPressed: _deleteComplaint,
           ),
@@ -143,53 +147,14 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
   // Loading
   // ===================================
   Widget _buildLoading(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: AppColors.gold),
-          const SizedBox(height: 16),
-          Text(
-            'جاري تحميل البيانات...',
-            style: GoogleFonts.cairo(
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const AppLoading(message: 'جاري تحميل البيانات...');
   }
 
   // ===================================
   // Error
   // ===================================
   Widget _buildError(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: GoogleFonts.cairo(
-              fontSize: 16,
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-            label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.navy,
-            ),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _loadData);
   }
 
   // ===================================
@@ -249,16 +214,16 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getPriorityColor(_complaint!.priority).withOpacity(0.8),
+            _getPriorityColor(_complaint!.priority).withValues(alpha: 0.8),
             _getPriorityColor(_complaint!.priority),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
-            color: _getPriorityColor(_complaint!.priority).withOpacity(0.3),
+            color: _getPriorityColor(_complaint!.priority).withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -275,7 +240,7 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -361,43 +326,15 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
   // كارت بيانات العميل
   // ===================================
   Widget _buildClientCard(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(isDark),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // العنوان
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.person, color: AppColors.gold, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'بيانات العميل',
-                style: GoogleFonts.cairo(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text(isDark),
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'بيانات العميل',
+            icon: Icons.person,
+            accent: AppColors.gold,
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
@@ -452,43 +389,15 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
   // كارت تفاصيل الشكوى
   // ===================================
   Widget _buildDetailsCard(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(isDark),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // العنوان
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.description, color: Colors.blue, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'تفاصيل الشكوى',
-                style: GoogleFonts.cairo(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text(isDark),
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'تفاصيل الشكوى',
+            icon: Icons.description,
+            accent: AppColors.info,
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
@@ -538,10 +447,10 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
       Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: AppColors.success.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(Icons.check_circle, color: Colors.green, size: 20),
+        child: const Icon(Icons.check_circle, color: AppColors.success, size: 20),
       ),
       const SizedBox(width: 12),
       Text(
@@ -549,7 +458,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
         style: GoogleFonts.cairo(
           fontSize: 16,
           fontWeight: FontWeight.bold,
-          color: Colors.green,
+          color: AppColors.success,
         ),
       ),
     ],
@@ -567,13 +476,13 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
     const SizedBox(height: 8),
     Row(
       children: [
-        Icon(Icons.calendar_today, size: 14, color: Colors.green),
+        Icon(Icons.calendar_today, size: 14, color: AppColors.success),
         const SizedBox(width: 6),
         Text(
           'تاريخ الحل: ${_formatDate(_complaint!.solvedDate)}',
           style: GoogleFonts.cairo(
             fontSize: 12,
-            color: Colors.green,
+            color: AppColors.success,
           ),
         ),
       ],
@@ -583,13 +492,13 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
     const SizedBox(height: 8),
     Row(
       children: [
-        Icon(Icons.star, size: 14, color: Colors.amber),
+        Icon(Icons.star, size: 14, color: AppColors.warning),
         const SizedBox(width: 6),
         Text(
           'رضا العميل: ${_getSatisfactionText(_complaint!.satisfactionLevel!)}',
           style: GoogleFonts.cairo(
             fontSize: 12,
-            color: Colors.amber.shade700,
+            color: AppStatus.overdue,
           ),
         ),
       ],
@@ -608,9 +517,9 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.purple.withOpacity(0.1),
+        color: AppStatus.editPending.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purple.withOpacity(0.3)),
+        border: Border.all(color: AppStatus.editPending.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,10 +530,10 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.2),
+                  color: AppStatus.editPending.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.arrow_upward, color: Colors.purple, size: 20),
+                child: const Icon(Icons.arrow_upward, color: AppStatus.editPending, size: 20),
               ),
               const SizedBox(width: 12),
               Text(
@@ -632,7 +541,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                 style: GoogleFonts.cairo(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.purple,
+                  color: AppStatus.editPending,
                 ),
               ),
             ],
@@ -646,7 +555,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
               icon: Icons.person,
               label: 'مصعدة إلى',
               value: _complaint!.escalatedToName!,
-              valueColor: Colors.purple,
+              valueColor: AppStatus.editPending,
             ),
 
           // مصعدة بواسطة
@@ -702,19 +611,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
   // 📎 سكشن المرفقات (مطابق لبلازور)
   // ===================================
   Widget _buildAttachmentsSection(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(isDark),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -727,10 +624,10 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: AppColors.info.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.attach_file, color: Colors.blue, size: 20),
+                    child: const Icon(Icons.attach_file, color: AppColors.info, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -745,14 +642,14 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.2),
+                      color: AppColors.info.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '${_attachments.length}',
                       style: GoogleFonts.cairo(
                         fontSize: 12,
-                        color: Colors.blue,
+                        color: AppColors.info,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -770,7 +667,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                             height: 14,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.blue,
+                              color: AppColors.info,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -778,7 +675,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                             'رفع...',
                             style: GoogleFonts.cairo(
                               fontSize: 13,
-                              color: Colors.blue,
+                              color: AppColors.info,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -790,7 +687,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                       icon: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.blue,
+                          color: AppColors.info,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(Icons.upload, color: Colors.white, size: 18),
@@ -896,7 +793,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withOpacity(0.65)],
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
                     ),
                   ),
                   child: Row(
@@ -941,7 +838,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.divider(isDark)),
-          color: color.withOpacity(isDark ? 0.12 : 0.08),
+          color: color.withValues(alpha: isDark ? 0.12 : 0.08),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -962,7 +859,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                 // حذف
                 IconButton(
                   onPressed: () => _deleteAttachment(att),
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                  icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 16),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   visualDensity: VisualDensity.compact,
@@ -998,13 +895,13 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
   // أيقونة ولون حسب نوع المستند (زي بلازور)
   (IconData, Color) _docIcon(String mime) {
     final m = mime.toLowerCase();
-    if (m.contains('pdf')) return (Icons.picture_as_pdf, Colors.redAccent);
-    if (m.contains('word') || m.contains('doc')) return (Icons.description, Colors.blue);
+    if (m.contains('pdf')) return (Icons.picture_as_pdf, AppColors.error);
+    if (m.contains('word') || m.contains('doc')) return (Icons.description, AppColors.info);
     if (m.contains('excel') || m.contains('sheet') || m.contains('xls')) {
-      return (Icons.table_chart, Colors.green);
+      return (Icons.table_chart, AppColors.success);
     }
     if (m.contains('powerpoint') || m.contains('ppt')) {
-      return (Icons.slideshow, Colors.orange);
+      return (Icons.slideshow, AppColors.warning);
     }
     return (Icons.insert_drive_file, AppColors.textHint(true));
   }
@@ -1040,7 +937,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Expanded(
                     child: _pickerOption(
                       icon: Icons.photo_outlined,
-                      color: Colors.blue,
+                      color: AppColors.info,
                       label: 'صورة من المعرض',
                       onTap: () => Navigator.pop(context, 'image'),
                     ),
@@ -1049,7 +946,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Expanded(
                     child: _pickerOption(
                       icon: Icons.upload_file,
-                      color: Colors.orange,
+                      color: AppColors.warning,
                       label: 'ملف (PDF / Word / Excel)',
                       onTap: () => Navigator.pop(context, 'file'),
                     ),
@@ -1090,8 +987,8 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: color.withOpacity(0.1),
-          border: Border.all(color: color.withOpacity(0.3)),
+          color: color.withValues(alpha: 0.1),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -1253,6 +1150,12 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
 
       final client = HttpClient();
       final request = await client.getUrl(Uri.parse(url));
+      if (SessionService.instance.hasToken) {
+        request.headers.set(
+          'Authorization',
+          'Bearer ${SessionService.instance.accessToken}',
+        );
+      }
       final response = await request.close();
       final bytes = await consolidateHttpClientResponseBytes(response);
       await file.writeAsBytes(bytes);
@@ -1298,7 +1201,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               'حذف',
-              style: GoogleFonts.cairo(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              style: GoogleFonts.cairo(color: AppColors.error, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -1325,26 +1228,14 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.cairo()),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor: isError ? AppColors.error : AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   Widget _buildFollowUpsSection(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(isDark),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1357,10 +1248,10 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: AppColors.success.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.history, color: Colors.green, size: 20),
+                    child: const Icon(Icons.history, color: AppColors.success, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -1375,14 +1266,14 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
+                      color: AppColors.success.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '${_followUps.length}',
                       style: GoogleFonts.cairo(
                         fontSize: 12,
-                        color: Colors.green,
+                        color: AppColors.success,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1394,7 +1285,7 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
                 icon: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.green,
+                    color: AppColors.success,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.add, color: Colors.white, size: 18),
@@ -1498,20 +1389,20 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: AppColors.info.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
+                Icon(Icons.check_circle_outline, size: 16, color: AppColors.info),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     followUp.actionTaken!,
                     style: GoogleFonts.cairo(
                       fontSize: 13,
-                      color: Colors.blue,
+                      color: AppColors.info,
                     ),
                   ),
                 ),
@@ -1525,13 +1416,13 @@ if (_complaint!.status == 4 && _complaint!.solution != null) ...[
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.event, size: 14, color: Colors.orange),
+              Icon(Icons.event, size: 14, color: AppColors.warning),
               const SizedBox(width: 4),
               Text(
                 'المتابعة القادمة: ${_formatDate(followUp.nextFollowUpDate)}',
                 style: GoogleFonts.cairo(
                   fontSize: 12,
-                  color: Colors.orange,
+                  color: AppColors.warning,
                 ),
               ),
             ],
@@ -1554,11 +1445,11 @@ Widget _buildActionButtons(bool isDark) {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _complaint!.status == 4 
-            ? Colors.green.withOpacity(0.1)
-            : Colors.red.withOpacity(0.1),
+            ? AppColors.success.withValues(alpha: 0.1)
+            : AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _complaint!.status == 4 ? Colors.green : Colors.red,
+          color: _complaint!.status == 4 ? AppColors.success : AppColors.error,
         ),
       ),
       child: Row(
@@ -1566,13 +1457,13 @@ Widget _buildActionButtons(bool isDark) {
         children: [
           Icon(
             _complaint!.status == 4 ? Icons.check_circle : Icons.cancel,
-            color: _complaint!.status == 4 ? Colors.green : Colors.red,
+            color: _complaint!.status == 4 ? AppColors.success : AppColors.error,
           ),
           const SizedBox(width: 8),
           Text(
             _complaint!.status == 4 ? 'تم حل الشكوى' : 'تم رفض الشكوى',
             style: GoogleFonts.cairo(
-              color: _complaint!.status == 4 ? Colors.green : Colors.red,
+              color: _complaint!.status == 4 ? AppColors.success : AppColors.error,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1595,7 +1486,7 @@ Widget _buildActionButtons(bool isDark) {
                 style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: AppColors.info,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -1614,7 +1505,7 @@ Widget _buildActionButtons(bool isDark) {
                 style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
+                backgroundColor: AppStatus.editPending,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -1634,8 +1525,8 @@ Widget _buildActionButtons(bool isDark) {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _complaint!.escalated
-                    ? Colors.grey
-                    : Colors.purple,
+                    ? AppColors.neutral
+                    : AppStatus.editPending,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -1649,24 +1540,11 @@ Widget _buildActionButtons(bool isDark) {
       const SizedBox(height: 12),
       
       // الصف الثاني: حل الشكوى
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _showSolveSheet,
-          icon: const Icon(Icons.check_circle, size: 20),
-          label: Text(
-            'حل الشكوى',
-            style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
+      AppButton(
+        label: 'حل الشكوى',
+        icon: Icons.check_circle,
+        color: AppColors.success,
+        onTap: _showSolveSheet,
       ),
       // تقييم الرضا (لو محلولة ومفيش تقييم)
       if (_complaint!.status == 4 && _complaint!.satisfactionLevel == null) ...[
@@ -1675,16 +1553,16 @@ Widget _buildActionButtons(bool isDark) {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _showRateSheet,
-            icon: const Icon(Icons.star_rounded, size: 20, color: Colors.amber),
+            icon: const Icon(Icons.star_rounded, size: 20, color: AppColors.warning),
             label: Text(
               'تقييم رضا العميل',
               style: GoogleFonts.cairo(
                 fontWeight: FontWeight.bold,
-                color: Colors.amber,
+                color: AppColors.warning,
               ),
             ),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.amber),
+              side: const BorderSide(color: AppColors.warning),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1877,7 +1755,7 @@ Widget _buildActionButtons(bool isDark) {
                               'يرجى إدخال ملاحظات المتابعة',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                           ),
                         );
                         return;
@@ -1903,7 +1781,7 @@ Widget _buildActionButtons(bool isDark) {
                               'تم إضافة المتابعة بنجاح',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.green,
+                            backgroundColor: AppColors.success,
                           ),
                         );
                       } catch (e) {
@@ -1913,13 +1791,13 @@ Widget _buildActionButtons(bool isDark) {
                               'فشل في إضافة المتابعة',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                           ),
                         );
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -1949,12 +1827,12 @@ Widget _buildActionButtons(bool isDark) {
     int selectedStatus = _complaint!.status;
 
     final statuses = [
-      {'id': 1, 'name': 'جديدة', 'color': Colors.blue},
-      {'id': 2, 'name': 'قيد الحل', 'color': Colors.orange},
-      {'id': 3, 'name': 'انتظار العميل', 'color': Colors.amber},
-      {'id': 4, 'name': 'محلولة', 'color': Colors.green},
-      {'id': 5, 'name': 'مرفوضة', 'color': Colors.red},
-      {'id': 6, 'name': 'مصعدة', 'color': Colors.purple},
+      {'id': 1, 'name': 'جديدة', 'color': AppColors.info},
+      {'id': 2, 'name': 'قيد الحل', 'color': AppColors.warning},
+      {'id': 3, 'name': 'انتظار العميل', 'color': AppColors.warning},
+      {'id': 4, 'name': 'محلولة', 'color': AppColors.success},
+      {'id': 5, 'name': 'مرفوضة', 'color': AppColors.error},
+      {'id': 6, 'name': 'مصعدة', 'color': AppStatus.editPending},
     ];
 
     showModalBottomSheet(
@@ -2042,7 +1920,7 @@ Widget _buildActionButtons(bool isDark) {
                               ok ? 'تم تغيير الحالة بنجاح' : 'فشل تغيير الحالة',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.green,
+                            backgroundColor: AppColors.success,
                           ),
                         );
                       } catch (e) {
@@ -2052,7 +1930,7 @@ Widget _buildActionButtons(bool isDark) {
                               'فشل في تغيير الحالة',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                           ),
                         );
                       }
@@ -2124,7 +2002,7 @@ Widget _buildActionButtons(bool isDark) {
                 // العنوان
                 Row(
                   children: [
-                    Icon(Icons.warning_amber, color: Colors.purple, size: 28),
+                    Icon(Icons.warning_amber, color: AppStatus.editPending, size: 28),
                     const SizedBox(width: 12),
                     Text(
                       'تصعيد الشكوى',
@@ -2190,7 +2068,7 @@ Widget _buildActionButtons(bool isDark) {
                               'يرجى إدخال سبب التصعيد',
                               style: GoogleFonts.cairo(),
                             ),
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                           ),
                         );
                         return;
@@ -2208,7 +2086,7 @@ Widget _buildActionButtons(bool isDark) {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
+                      backgroundColor: AppStatus.editPending,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -2303,11 +2181,11 @@ void _showAssignSheet() {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: Colors.purple.withOpacity(0.1),
+                              color: AppStatus.editPending.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(Icons.person_rounded,
-                                color: Colors.purple, size: 20),
+                                color: AppStatus.editPending, size: 20),
                           ),
                           title: Text(
                             name,
@@ -2319,7 +2197,7 @@ void _showAssignSheet() {
                             ),
                           ),
                           trailing: selectedEmpId == id
-                              ? const Icon(Icons.check_circle, color: Colors.purple)
+                              ? const Icon(Icons.check_circle, color: AppStatus.editPending)
                               : null,
                         );
                       },
@@ -2347,7 +2225,7 @@ void _showAssignSheet() {
                                 ok ? 'تم إسناد الشكوى بنجاح' : 'فشل الإسناد',
                                 style: GoogleFonts.cairo(),
                               ),
-                              backgroundColor: ok ? Colors.green : Colors.red,
+                              backgroundColor: ok ? AppColors.success : AppColors.error,
                             ),
                           );
                           if (ok) _loadData();
@@ -2358,7 +2236,7 @@ void _showAssignSheet() {
                     style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
+                    backgroundColor: AppStatus.editPending,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -2380,11 +2258,11 @@ void _showRateSheet() {
   int selected = 3;
 
   final levels = [
-    {'id': 1, 'name': 'غير راضي', 'icon': Icons.sentiment_very_dissatisfied, 'color': Colors.red},
-    {'id': 2, 'name': 'راضي جزئياً', 'icon': Icons.sentiment_dissatisfied, 'color': Colors.orange},
-    {'id': 3, 'name': 'متوسط', 'icon': Icons.sentiment_neutral, 'color': Colors.amber},
+    {'id': 1, 'name': 'غير راضي', 'icon': Icons.sentiment_very_dissatisfied, 'color': AppColors.error},
+    {'id': 2, 'name': 'راضي جزئياً', 'icon': Icons.sentiment_dissatisfied, 'color': AppColors.warning},
+    {'id': 3, 'name': 'متوسط', 'icon': Icons.sentiment_neutral, 'color': AppColors.warning},
     {'id': 4, 'name': 'راضي', 'icon': Icons.sentiment_satisfied, 'color': Colors.lightGreen},
-    {'id': 5, 'name': 'راضي جداً', 'icon': Icons.sentiment_very_satisfied, 'color': Colors.green},
+    {'id': 5, 'name': 'راضي جداً', 'icon': Icons.sentiment_very_satisfied, 'color': AppColors.success},
   ];
 
   showModalBottomSheet(
@@ -2469,7 +2347,7 @@ void _showRateSheet() {
                           ok ? 'تم تسجيل التقييم بنجاح' : 'فشل تسجيل التقييم',
                           style: GoogleFonts.cairo(),
                         ),
-                        backgroundColor: ok ? Colors.green : Colors.red,
+                        backgroundColor: ok ? AppColors.success : AppColors.error,
                       ),
                     );
                     if (ok) _loadData();
@@ -2480,7 +2358,7 @@ void _showRateSheet() {
                     style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
+                    backgroundColor: AppColors.warning,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -2503,11 +2381,11 @@ void _showSolveSheet() {
   int selectedSatisfaction = 3; // افتراضي: متوسط
 
   final satisfactionLevels = [
-    {'id': 1, 'name': 'غير راضي', 'icon': Icons.sentiment_very_dissatisfied, 'color': Colors.red},
-    {'id': 2, 'name': 'راضي جزئياً', 'icon': Icons.sentiment_dissatisfied, 'color': Colors.orange},
-    {'id': 3, 'name': 'متوسط', 'icon': Icons.sentiment_neutral, 'color': Colors.amber},
+    {'id': 1, 'name': 'غير راضي', 'icon': Icons.sentiment_very_dissatisfied, 'color': AppColors.error},
+    {'id': 2, 'name': 'راضي جزئياً', 'icon': Icons.sentiment_dissatisfied, 'color': AppColors.warning},
+    {'id': 3, 'name': 'متوسط', 'icon': Icons.sentiment_neutral, 'color': AppColors.warning},
     {'id': 4, 'name': 'راضي', 'icon': Icons.sentiment_satisfied, 'color': Colors.lightGreen},
-    {'id': 5, 'name': 'راضي جداً', 'icon': Icons.sentiment_very_satisfied, 'color': Colors.green},
+    {'id': 5, 'name': 'راضي جداً', 'icon': Icons.sentiment_very_satisfied, 'color': AppColors.success},
   ];
 
   showModalBottomSheet(
@@ -2548,10 +2426,10 @@ void _showSolveSheet() {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
+                      color: AppColors.success.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                    child: const Icon(Icons.check_circle, color: AppColors.success, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -2617,7 +2495,7 @@ void _showSolveSheet() {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? (level['color'] as Color).withOpacity(0.2)
+                                ? (level['color'] as Color).withValues(alpha: 0.2)
                                 : Colors.transparent,
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -2663,7 +2541,7 @@ void _showSolveSheet() {
                             'يرجى كتابة الحل',
                             style: GoogleFonts.cairo(),
                           ),
-                          backgroundColor: Colors.red,
+                          backgroundColor: AppColors.error,
                         ),
                       );
                       return;
@@ -2695,7 +2573,7 @@ void _showSolveSheet() {
                             ok ? 'تم حل الشكوى بنجاح' : 'فشل في حفظ الحل',
                             style: GoogleFonts.cairo(),
                           ),
-                          backgroundColor: ok ? Colors.green : Colors.red,
+                          backgroundColor: ok ? AppColors.success : AppColors.error,
                         ),
                       );
                     } catch (e) {
@@ -2705,7 +2583,7 @@ void _showSolveSheet() {
                             'فشل في حفظ الحل',
                             style: GoogleFonts.cairo(),
                           ),
-                          backgroundColor: Colors.red,
+                          backgroundColor: AppColors.error,
                         ),
                       );
                     }
@@ -2719,7 +2597,7 @@ void _showSolveSheet() {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.success,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -2768,7 +2646,7 @@ void _showSolveSheet() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.warning_amber, color: Colors.red),
+            Icon(Icons.warning_amber, color: AppColors.error),
             const SizedBox(width: 12),
             Text(
               'حذف الشكوى',
@@ -2804,7 +2682,7 @@ void _showSolveSheet() {
                       'تم حذف الشكوى بنجاح',
                       style: GoogleFonts.cairo(),
                     ),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.success,
                   ),
                 );
               } catch (e) {
@@ -2815,13 +2693,13 @@ void _showSolveSheet() {
                       'فشل في حذف الشكوى',
                       style: GoogleFonts.cairo(),
                     ),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.error,
                   ),
                 );
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
             child: Text('حذف', style: GoogleFonts.cairo()),
@@ -2836,23 +2714,23 @@ void _showSolveSheet() {
   // ===================================
   Color _getStatusColor(int status) {
     switch (status) {
-      case 1: return Colors.blue;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber;
-      case 4: return Colors.green;
-      case 5: return Colors.red;
-      case 6: return Colors.purple;
-      default: return Colors.grey;
+      case 1: return AppColors.info;
+      case 2: return AppColors.warning;
+      case 3: return AppColors.warning;
+      case 4: return AppColors.success;
+      case 5: return AppColors.error;
+      case 6: return AppStatus.editPending;
+      default: return AppColors.neutral;
     }
   }
 
   Color _getPriorityColor(int priority) {
     switch (priority) {
-      case 1: return Colors.red.shade700;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber.shade700;
-      case 4: return Colors.green;
-      default: return Colors.grey;
+      case 1: return AppColors.error;
+      case 2: return AppColors.warning;
+      case 3: return AppStatus.overdue;
+      case 4: return AppColors.success;
+      default: return AppColors.neutral;
     }
   }
 
@@ -2927,6 +2805,12 @@ class _FullImageScreen extends StatelessWidget {
           maxScale: 5,
           child: Image.network(
             url,
+            headers: SessionService.instance.hasToken
+                ? {
+                    'Authorization':
+                        'Bearer ${SessionService.instance.accessToken}'
+                  }
+                : null,
             fit: BoxFit.contain,
             loadingBuilder: (context, child, progress) {
               if (progress == null) return child;
@@ -2939,7 +2823,7 @@ class _FullImageScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.broken_image_outlined,
-                      size: 64, color: Colors.white.withOpacity(0.5)),
+                      size: 64, color: Colors.white.withValues(alpha: 0.5)),
                   const SizedBox(height: 12),
                   Text(
                     'تعذر تحميل الصورة',

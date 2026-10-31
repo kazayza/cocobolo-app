@@ -14,6 +14,9 @@ import '../services/theme_service.dart';
 import 'lead_detail_screen.dart';
 import 'opportunity_detail_screen.dart';
 
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 /// متابعاتي — احترافي مطابق بلازور MyCalendar.razor + TaskService
 /// يدمج: متابعات الليدز + مهام العملاء/الفرص بدون تكرار
 /// تصميم: Premium header + Achievement tracker + Smart toggle + Agenda grouped by date
@@ -63,11 +66,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       _totalMonthTasks > 0 ? ((_completedMonthTasks / _totalMonthTasks) * 100).round() : 0;
 
   final _scopes = const [
-    ('overdue', 'متأخر', Color(0xFFEF4444), Icons.warning_amber_rounded),
-    ('today', 'اليوم', Color(0xFFF59E0B), Icons.today_rounded),
-    ('tomorrow', 'غداً', Color(0xFF3B82F6), Icons.event_rounded),
-    ('upcoming', 'قادم', Color(0xFF22C55E), Icons.upcoming_rounded),
-    ('all', 'الكل', Color(0xFF64748B), Icons.select_all_rounded),
+    ('overdue', 'متأخر', AppColors.error, Icons.warning_amber_rounded),
+    ('today', 'اليوم', AppColors.warning, Icons.today_rounded),
+    ('tomorrow', 'غداً', AppColors.info, Icons.event_rounded),
+    ('upcoming', 'قادم', AppColors.success, Icons.upcoming_rounded),
+    ('all', 'الكل', AppColors.neutral, Icons.select_all_rounded),
   ];
 
   @override
@@ -253,7 +256,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           ok ? 'تم إنهاء متابعة الـ Lead' : 'تعذّر الإنهاء',
           style: GoogleFonts.cairo(),
         ),
-        backgroundColor: ok ? Colors.green.shade700 : Colors.red,
+        backgroundColor: ok ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -333,16 +336,18 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
+        drawer: buildAppDrawer(currentRoute: 'frmDailyTasks'),
+        backgroundColor: _isDark ? AppColors.navyDark : AppColors.lightInputFill,
         body: Stack(
           children: [
             NestedScrollView(
               headerSliverBuilder: (ctx, inner) => [
-                SliverAppBar(
+                SliverAppBar( leading: const AppDrawerMenuButton(),
                   pinned: true,
                   expandedHeight: 310,
-                  backgroundColor: const Color(0xFF1E3A5F),
+                  backgroundColor: AppColors.navy,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   title: Text('متابعاتي', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
                   actions: [
                     IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loading ? null : _load),
@@ -353,7 +358,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 SliverToBoxAdapter(child: _buildFilterBar()),
               ],
               body: _loading
-                  ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+                  ? const AppLoading()
                   : _items.isEmpty
                       ? _emptyState()
                       : RefreshIndicator(
@@ -392,7 +397,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E3A5F), Color(0xFF1E40AF), Color(0xFF2563EB)],
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -400,8 +405,8 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       child: Stack(
         children: [
           // Orbs
-          Positioned(top: -40, right: -30, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), shape: BoxShape.circle))),
-          Positioned(bottom: -20, left: 20, child: Container(width: 80, height: 80, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.12), shape: BoxShape.circle))),
+          Positioned(top: -40, right: -30, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle))),
+          Positioned(bottom: -20, left: 20, child: Container(width: 80, height: 80, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.12), shape: BoxShape.circle))),
           SafeArea(
             bottom: false,
             child: Padding(
@@ -413,12 +418,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withOpacity(0.20))),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withValues(alpha: 0.20))),
                       child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 26),
                     ),
                     Positioned.fill(
                       child: Container(
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.gold.withOpacity(0.35), width: 1.5)),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.gold.withValues(alpha: 0.35), width: 1.5)),
                       ),
                     ),
                   ]),
@@ -426,7 +431,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Container(width: 8, height: 8, decoration: BoxDecoration(color: const Color(0xFF34D399), shape: BoxShape.circle, boxShadow: [BoxShadow(color: const Color(0xFF34D399).withOpacity(0.5), blurRadius: 6)]) ),
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.successLight, shape: BoxShape.circle, boxShadow: [BoxShadow(color: AppColors.successLight.withValues(alpha: 0.5), blurRadius: 6)]) ),
                         const SizedBox(width: 6),
                         Text('تقويم مبيعات متقدم', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
                       ]),
@@ -440,7 +445,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 // Month banner + smart toggle
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.18), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withOpacity(0.12))),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withValues(alpha: 0.12))),
                   child: Column(children: [
                     Row(children: [
                       Icon(Icons.event_note_rounded, color: AppColors.gold, size: 18),
@@ -479,7 +484,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       const SizedBox(height: 6),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(value: _monthProgressPercent / 100, minHeight: 6, backgroundColor: Colors.white.withOpacity(0.15), valueColor: AlwaysStoppedAnimation(_monthProgressPercent >= 100 ? const Color(0xFF34D399) : AppColors.gold)),
+                        child: LinearProgressIndicator(value: _monthProgressPercent / 100, minHeight: 6, backgroundColor: Colors.white.withValues(alpha: 0.15), valueColor: AlwaysStoppedAnimation(_monthProgressPercent >= 100 ? AppColors.successLight : AppColors.gold)),
                       ),
                     ],
                   ]),
@@ -488,11 +493,11 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 Row(children: [
                   _headerStat('ليدز', _kpi('leads'), const Color(0xFFF472B6)),
                   const SizedBox(width: 8),
-                  _headerStat('عملاء', _kpi('clients'), const Color(0xFF60A5FA)),
+                  _headerStat('عملاء', _kpi('clients'), AppColors.infoLight),
                   const SizedBox(width: 8),
                   _headerStat('الإجمالي', _kpi('total'), AppColors.gold),
                   const SizedBox(width: 8),
-                  _headerStat('متأخر', _kpi('overdue'), const Color(0xFFEF4444)),
+                  _headerStat('متأخر', _kpi('overdue'), AppColors.error),
                 ]),
               ]),
             ),
@@ -506,7 +511,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.10), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white24)),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white24)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('$n', style: GoogleFonts.cairo(color: c, fontSize: 14, fontWeight: FontWeight.w900)),
           Text(label, style: GoogleFonts.cairo(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w600)),
@@ -517,7 +522,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
 
   Widget _buildKpiStrip() {
     return Container(
-      color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
+      color: _isDark ? AppColors.navyDark : AppColors.lightInputFill,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -542,10 +547,10 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                   width: 110,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: sel ? color.withOpacity(_isDark ? 0.22 : 0.12) : (_isDark ? const Color(0xFF1E293B) : Colors.white),
+                    color: sel ? color.withValues(alpha: _isDark ? 0.22 : 0.12) : (_isDark ? AppColors.darkSurface : Colors.white),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: sel ? color : (_isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)), width: sel ? 1.6 : 1),
-                    boxShadow: sel ? [BoxShadow(color: color.withOpacity(0.20), blurRadius: 10, offset: const Offset(0, 4))] : null,
+                    border: Border.all(color: sel ? color : (_isDark ? AppColors.darkCard : AppColors.lightDivider), width: sel ? 1.6 : 1),
+                    boxShadow: sel ? [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 10, offset: const Offset(0, 4))] : null,
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
@@ -554,7 +559,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                       if (sel) Icon(Icons.check_circle_rounded, size: 14, color: color),
                     ]),
                     const SizedBox(height: 6),
-                    Text('$count', style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w900, color: _isDark ? Colors.white : const Color(0xFF0F172A))),
+                    Text('$count', style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w900, color: _isDark ? Colors.white : AppColors.navyDark)),
                     Text(label, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
                   ]),
                 ),
@@ -570,12 +575,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withOpacity(0.06)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))]),
+      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.06)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))]),
       child: Column(children: [
         // Smart toggle bar - مطابق بلازور smart-toggle-bar
         Container(
           padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.04), borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
             _smartToggleBtn(
               'all',
@@ -613,7 +618,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     : null,
                 isDense: true,
                 filled: true,
-                fillColor: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                fillColor: _isDark ? AppColors.darkSurface : AppColors.lightInputFill,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
@@ -628,12 +633,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(
-                  color: _employeeId != null ? const Color(0xFF059669).withOpacity(0.12) : (_isDark ? const Color(0xFF1E293B) : Colors.white),
+                  color: _employeeId != null ? AppStatus.profit.withValues(alpha: 0.12) : (_isDark ? AppColors.darkSurface : Colors.white),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _employeeId != null ? const Color(0xFF059669) : (_isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
+                  border: Border.all(color: _employeeId != null ? AppStatus.profit : (_isDark ? AppColors.darkCard : AppColors.lightDivider)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.badge_outlined, size: 18, color: _employeeId != null ? const Color(0xFF059669) : const Color(0xFF64748B)),
+                  Icon(Icons.badge_outlined, size: 18, color: _employeeId != null ? AppStatus.profit : AppColors.neutral),
                   const SizedBox(width: 6),
                   ConstrainedBox(constraints: const BoxConstraints(maxWidth: 90), child: Text(_empLabel(), maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w700))),
                 ]),
@@ -669,7 +674,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -716,12 +721,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
     if (!mounted) return;
     await showModalBottomSheet(
       context: context,
-      backgroundColor: _isDark ? const Color(0xFF1E293B) : Colors.white,
+      backgroundColor: _isDark ? AppColors.darkSurface : Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 10),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(4))),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.neutralLight, borderRadius: BorderRadius.circular(4))),
           const SizedBox(height: 12),
           Text('تقويم / فلتر الموظف', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
           ListTile(
@@ -745,7 +750,7 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                 return ListTile(
                   title: Text('${e['FullName']}', style: GoogleFonts.cairo(fontWeight: sel ? FontWeight.w800 : FontWeight.w600)),
                   subtitle: e['Department'] != null ? Text('${e['Department']}', style: GoogleFonts.cairo(fontSize: 11)) : null,
-                  leading: Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: sel ? AppColors.gold : Colors.grey),
+                  leading: Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: sel ? AppColors.gold : AppColors.neutral),
                   onTap: () {
                     Navigator.pop(ctx);
                     setState(() => _employeeId = idInt);
@@ -779,18 +784,18 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
           margin: const EdgeInsets.only(bottom: 18),
           decoration: BoxDecoration(
             color: AppColors.card(_isDark),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isToday ? const Color(0xFF3B82F6).withOpacity(0.35) : Colors.black.withOpacity(0.06)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDark ? 0.15 : 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+            border: Border.all(color: isToday ? AppColors.info.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.06)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDark ? 0.15 : 0.05), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: Column(children: [
             // Sticky header - مطابق بلازور agenda-sticky-header
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               decoration: BoxDecoration(
-                color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.06))),
+                color: _isDark ? AppColors.navyDark : AppColors.lightInputFill,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+                border: Border(bottom: BorderSide(color: Colors.black.withValues(alpha: 0.06))),
               ),
               child: Row(children: [
                 if (date != null) ...[
@@ -801,15 +806,15 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
                     Text(DateFormat('MMMM yyyy', 'ar').format(date), style: GoogleFonts.cairo(fontSize: 11, color: AppColors.textSecondary(_isDark))),
                   ]),
                 ] else ...[
-                  Icon(Icons.event_busy_rounded, color: Colors.grey, size: 20),
+                  Icon(Icons.event_busy_rounded, color: AppColors.neutral, size: 20),
                   const SizedBox(width: 8),
                   Text(dateKey, style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                 ],
                 const Spacer(),
                 if (isToday)
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: const Color(0xFF3B82F6), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.3), blurRadius: 6)]), child: Text('اليوم', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white))),
+                  const StatusBadge(label: 'اليوم', color: AppColors.info, filled: true),
                 const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black.withOpacity(0.06), borderRadius: BorderRadius.circular(10)), child: Text('${items.length}', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)), child: Text('${items.length}', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold))),
               ]),
             ),
             // Events
@@ -831,19 +836,12 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
       'upcoming' => 'لا توجد متابعات قادمة',
       _ => 'لا توجد متابعات',
     };
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 80, height: 80, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.12), shape: BoxShape.circle), child: Icon(Icons.event_available_rounded, size: 40, color: AppColors.gold)),
-          const SizedBox(height: 14),
-          Text(msg, textAlign: TextAlign.center, style: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Text('غيّر التبويب أو الفلتر لعرض المزيد', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.textSecondary(_isDark))),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(onPressed: _load, icon: Icon(Icons.refresh_rounded, color: AppColors.gold), label: Text('تحديث', style: GoogleFonts.cairo(color: AppColors.gold)), style: OutlinedButton.styleFrom(side: BorderSide(color: AppColors.gold), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))),
-        ]),
-      ),
+    return AppEmpty(
+      icon: Icons.event_available_rounded,
+      message: msg,
+      hint: 'غيّر التبويب أو الفلتر لعرض المزيد',
+      onRefresh: _load,
+      refreshLabel: 'تحديث',
     );
   }
 }
@@ -877,20 +875,20 @@ class _FollowUpCardPro extends StatelessWidget {
 
   Color get _accent {
     if (_isLead) return const Color(0xFFEC4899);
-    if (_type == 'opportunity') return const Color(0xFF2563EB);
-    return const Color(0xFF059669);
+    if (_type == 'opportunity') return AppColors.info;
+    return AppStatus.profit;
   }
 
   Color get _bucketColor {
     switch ('${item['bucket']}') {
       case 'overdue':
-        return const Color(0xFFEF4444);
+        return AppColors.error;
       case 'today':
-        return const Color(0xFFF59E0B);
+        return AppColors.warning;
       case 'tomorrow':
-        return const Color(0xFF3B82F6);
+        return AppColors.info;
       default:
-        return const Color(0xFF22C55E);
+        return AppColors.success;
     }
   }
 
@@ -944,10 +942,10 @@ class _FollowUpCardPro extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: overdue ? const Color(0xFFEF4444).withOpacity(0.30) : Colors.black.withOpacity(0.06)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.18 : 0.04), blurRadius: 10, offset: const Offset(0, 3))],
+        border: Border.all(color: overdue ? AppColors.error.withValues(alpha: 0.30) : Colors.black.withValues(alpha: 0.06)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -967,7 +965,7 @@ class _FollowUpCardPro extends StatelessWidget {
                     Row(children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: _accent.withOpacity(0.28), blurRadius: 6, offset: const Offset(0, 2))]),
+                        decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: _accent.withValues(alpha: 0.28), blurRadius: 6, offset: const Offset(0, 2))]),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(_isLead ? Icons.campaign_rounded : Icons.people_rounded, size: 11, color: Colors.white),
                           const SizedBox(width: 4),
@@ -996,34 +994,26 @@ class _FollowUpCardPro extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       if (timeText.isNotEmpty)
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.black.withOpacity(0.06), borderRadius: BorderRadius.circular(8)), child: Text(timeText, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)), child: Text(timeText, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold))),
                       const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: _bucketColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: _bucketColor.withOpacity(0.22))),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(_bucketIcon, size: 10, color: _bucketColor),
-                          const SizedBox(width: 3),
-                          Text(_bucketLabel, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.w800, color: _bucketColor)),
-                        ]),
-                      ),
+                      StatusBadge(label: _bucketLabel, color: _bucketColor, icon: _bucketIcon, small: true),
                     ]),
                     const SizedBox(height: 10),
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         width: 46,
                         height: 46,
-                        decoration: BoxDecoration(color: _accent.withOpacity(0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: _accent.withOpacity(0.20))),
+                        decoration: BoxDecoration(color: _accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: _accent.withValues(alpha: 0.20))),
                         child: Center(child: Text(initials, style: GoogleFonts.cairo(fontSize: 18, fontWeight: FontWeight.w900, color: _accent))),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(client, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A), height: 1.2)),
+                          Text(client, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: isDark ? Colors.white : AppColors.navyDark, height: 1.2)),
                           if (title.isNotEmpty && title != client)
-                            Padding(padding: const EdgeInsets.only(top: 2), child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w600, height: 1.3))),
+                            Padding(padding: const EdgeInsets.only(top: 2), child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral, fontWeight: FontWeight.w600, height: 1.3))),
                           const SizedBox(height: 6),
-                          Text(subType.isNotEmpty ? subType : 'متابعة', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : const Color(0xFF334155), height: 1.3)),
+                          Text(subType.isNotEmpty ? subType : 'متابعة', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : AppColors.darkCard, height: 1.3)),
                           const SizedBox(height: 6),
                           Row(children: [
                             if (emp.isNotEmpty)
@@ -1033,7 +1023,7 @@ class _FollowUpCardPro extends StatelessWidget {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
@@ -1042,7 +1032,7 @@ class _FollowUpCardPro extends StatelessWidget {
                                     const Icon(
                                       Icons.badge_outlined,
                                       size: 12,
-                                      color: Color(0xFF64748B),
+                                      color: AppColors.neutral,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
@@ -1050,7 +1040,7 @@ class _FollowUpCardPro extends StatelessWidget {
                                       style: GoogleFonts.cairo(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF64748B),
+                                        color: AppColors.neutral,
                                       ),
                                     ),
                                   ],
@@ -1073,30 +1063,30 @@ class _FollowUpCardPro extends StatelessWidget {
                     // Footer with WhatsApp + actions
                     Row(children: [
                       if (phone.isNotEmpty) ...[
-                        _iconBtn(Icons.phone_rounded, const Color(0xFF16A34A), onCall),
+                        _iconBtn(Icons.call_rounded, AppColors.success, onCall),
                         const SizedBox(width: 6),
-                        _iconBtn(FontAwesomeIcons.whatsapp, const Color(0xFF25D366), onWa),
+                        _iconBtn(FontAwesomeIcons.whatsapp, AppColors.whatsapp, onWa),
                         const SizedBox(width: 6),
                       ],
                       if (onCompleteLead != null) ...[
-                        _iconBtn(Icons.done_all_rounded, Colors.teal, onCompleteLead!),
+                        _iconBtn(Icons.done_all_rounded, AppColors.success, onCompleteLead!),
                         const SizedBox(width: 6),
                       ],
                       if (phone.isNotEmpty)
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFA7F3D0))),
+                            decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.success.withValues(alpha: 0.3))),
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const FaIcon(FontAwesomeIcons.whatsapp, size: 12, color: Color(0xFF25D366)),
+                              const FaIcon(FontAwesomeIcons.whatsapp, size: 12, color: AppColors.whatsapp),
                               const SizedBox(width: 6),
-                              Expanded(child: Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF047857)))),
+                              Expanded(child: Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success))),
                             ]),
                           ),
                         ),
                       const SizedBox(width: 8),
                       FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: _accent.withOpacity(0.12), foregroundColor: _accent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                        style: FilledButton.styleFrom(backgroundColor: _accent.withValues(alpha: 0.12), foregroundColor: _accent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                         onPressed: onOpen,
                         icon: const Icon(Icons.open_in_new_rounded, size: 14),
                         label: Text('فتح', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800)),
@@ -1117,14 +1107,14 @@ class _FollowUpCardPro extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 160),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFF2563EB).withOpacity(isDark ? 0.18 : 0.08) : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+        color: highlight ? AppColors.info.withValues(alpha: isDark ? 0.18 : 0.08) : (isDark ? AppColors.navyDark : AppColors.lightInputFill),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: highlight ? const Color(0xFF2563EB).withOpacity(0.30) : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
+        border: Border.all(color: highlight ? AppColors.info.withValues(alpha: 0.30) : (isDark ? AppColors.darkCard : AppColors.lightDivider)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 10, color: highlight ? const Color(0xFF2563EB) : const Color(0xFF94A3B8)),
+        Icon(icon, size: 10, color: highlight ? AppColors.info : AppColors.neutralLight),
         const SizedBox(width: 4),
-        Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10, fontWeight: highlight ? FontWeight.w800 : FontWeight.w600, color: highlight ? const Color(0xFF1D4ED8) : const Color(0xFF64748B)))),
+        Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10, fontWeight: highlight ? FontWeight.w800 : FontWeight.w600, color: highlight ? AppColors.info : AppColors.neutral))),
       ]),
     );
   }
@@ -1137,9 +1127,9 @@ class _FollowUpCardPro extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: c.withOpacity(0.12),
+          color: c.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.withOpacity(0.22)),
+          border: Border.all(color: c.withValues(alpha: 0.22)),
         ),
         child: compatIcon(icon, size: 16, color: c),
       ),

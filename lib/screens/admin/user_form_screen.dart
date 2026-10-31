@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 
 import '../../features/home/widgets/home_accent.dart';
 import '../../services/admin_service.dart';
@@ -133,8 +136,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
       SnackBar(
         content: Text(result['message'] ?? 'تمت العملية'),
         backgroundColor: success
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -162,7 +165,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: HomeAccent.accent,
-                  foregroundColor: const Color(0xFF13273F),
+                  foregroundColor: AppColors.navy,
                 ),
                 onPressed: () => Navigator.pop(dialogContext, true),
                 icon: const Icon(Icons.shield_rounded, size: 18),
@@ -209,18 +212,21 @@ class _UserFormScreenState extends State<UserFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
             // ── معلومات الحساب ────────────────────────────
             _SectionTitle(
               icon: Icons.account_circle_rounded,
               title: 'معلومات الحساب',
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextFormField(
               controller: _username,
               enabled: !_isEdit, // لا يمكن تعديل اسم المستخدم
@@ -326,11 +332,11 @@ class _UserFormScreenState extends State<UserFormScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // ── الصلاحيات والحالة ─────────────────────────
             _SectionTitle(icon: Icons.shield_rounded, title: 'الدور والحالة'),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
               initialValue: _role,
               decoration: _inputDecoration(
@@ -345,17 +351,9 @@ class _UserFormScreenState extends State<UserFormScreen> {
             ),
             const SizedBox(height: 14),
             // حالة الحساب
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(
-                    alpha: 0.5,
-                  ),
-                ),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              radius: AppRadius.md,
               child: Row(
                 children: [
                   Icon(
@@ -363,8 +361,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
                         ? Icons.check_circle_rounded
                         : Icons.cancel_rounded,
                     color: _isActive
-                        ? const Color(0xFF43A047)
-                        : const Color(0xFFE53935),
+                        ? AppColors.success
+                        : AppColors.error,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -386,7 +384,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
                         color: _isActive
-                            ? const Color(0xFF43A047)
+                            ? AppColors.success
                             : theme.colorScheme.outlineVariant,
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -409,7 +407,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: AppSpacing.xxl),
 
             // ── أزرار ─────────────────────────────────────
             Row(
@@ -432,7 +430,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     onPressed: _isSaving ? null : _save,
                     style: FilledButton.styleFrom(
                       backgroundColor: HomeAccent.accent,
-                      foregroundColor: const Color(0xFF13273F),
+                      foregroundColor: AppColors.navy,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     icon: _isSaving
@@ -441,7 +439,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFF13273F),
+                              color: AppColors.navy,
                             ),
                           )
                         : Icon(
@@ -467,7 +465,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
     );
   }
 }
@@ -480,28 +478,6 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 18,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [HomeAccent.gold, HomeAccent.goldDark],
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(icon, size: 18, color: HomeAccent.gold),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
+    return AppSectionHeader(title: title, icon: icon);
   }
 }

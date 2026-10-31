@@ -11,10 +11,14 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pipeline_service.dart';
 import '../services/app_colors.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import 'add_opportunity_screen.dart';
+import 'general_tasks_screen.dart';
+import '../core/auth/session_service.dart';
 
 
+import '../widgets/app_drawer.dart';
 class ClientCardScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -115,7 +119,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
       // ✅ 1. نسأل الباك اند: هل العميل ده عنده فرصة مفتوحة؟
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/check-open/$_currentPartyId'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -169,8 +173,9 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frmClientCard'),
         backgroundColor: AppColors.background(_isDark),
-        appBar: AppBar(
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: _isDark ? AppColors.navy : Colors.white,
           elevation: 0,
           centerTitle: true,
@@ -192,6 +197,29 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
               ),
             ],
           ),
+          actions: [
+            // إنشاء سريع: تكليف عام مربوط مسبقًا بهذا العميل (بلازور:
+            // زر «تكليف جديد» على ملف العميل من CreateGeneralTaskDialog)
+            if (_currentPartyId != null)
+              IconButton(
+                tooltip: 'تكليف جديد',
+                icon: Icon(Icons.add_task_rounded, color: AppColors.gold),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GeneralTasksScreen(
+                        userId: widget.userId,
+                        username: widget.username,
+                        presetLinkedType: 'Customer',
+                        presetLinkedId: _currentPartyId,
+                        autoOpenCreate: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
         body: Column(
           children: [
@@ -201,7 +229,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
             // 📋 المحتوى
             Expanded(
               child: _isLoading
-                  ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+                  ? const AppLoading()
                   : !_hasData && _currentPartyId == null
                       ? _buildEmptyState()
                       : !_hasData
@@ -323,10 +351,10 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.1),
+            color: Colors.black.withValues(alpha: _isDark ? 0.3 : 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -348,7 +376,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             leading: CircleAvatar(
-              backgroundColor: stageColor.withOpacity(_isDark ? 0.2 : 0.1),
+              backgroundColor: stageColor.withValues(alpha: _isDark ? 0.2 : 0.1),
               child: Text(
                 (client['PartyName'] ?? '?')[0],
                 style: GoogleFonts.cairo(
@@ -380,7 +408,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
                     margin: const EdgeInsets.only(top: 2),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
                     decoration: BoxDecoration(
-                      color: stageColor.withOpacity(_isDark ? 0.15 : 0.08),
+                      color: stageColor.withValues(alpha: _isDark ? 0.15 : 0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -517,9 +545,9 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
       headerWidget: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: stageColor.withOpacity(_isDark ? 0.2 : 0.1),
+          color: stageColor.withValues(alpha: _isDark ? 0.2 : 0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: stageColor.withOpacity(0.4)),
+          border: Border.all(color: stageColor.withValues(alpha: 0.4)),
         ),
         child: Text(
           stageNameAr,
@@ -560,19 +588,19 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
         final diff = dt.difference(DateTime(now.year, now.month, now.day)).inDays;
 
         if (diff < 0) {
-          taskColor = Colors.red;
+          taskColor = AppColors.error;
           taskStatus = 'متأخر ${diff.abs()} يوم';
           taskIcon = Icons.warning_amber_rounded;
         } else if (diff == 0) {
-          taskColor = Colors.orange;
+          taskColor = AppColors.warning;
           taskStatus = 'اليوم';
           taskIcon = Icons.today_rounded;
         } else if (diff == 1) {
-          taskColor = Colors.blue;
+          taskColor = AppColors.info;
           taskStatus = 'غداً';
           taskIcon = Icons.event_rounded;
         } else {
-          taskColor = Colors.green;
+          taskColor = AppColors.success;
           taskStatus = 'بعد $diff يوم';
           taskIcon = Icons.upcoming_rounded;
         }
@@ -584,10 +612,10 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: taskColor.withOpacity(_isDark ? 0.4 : 0.2)),
+        border: Border.all(color: taskColor.withValues(alpha: _isDark ? 0.4 : 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.04),
+            color: Colors.black.withValues(alpha: _isDark ? 0.3 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -598,7 +626,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: taskColor.withOpacity(_isDark ? 0.2 : 0.1),
+              color: taskColor.withValues(alpha: _isDark ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(taskIcon, color: taskColor, size: 24),
@@ -629,9 +657,9 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: taskColor.withOpacity(_isDark ? 0.2 : 0.1),
+              color: taskColor.withValues(alpha: _isDark ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: taskColor.withOpacity(0.4)),
+              border: Border.all(color: taskColor.withValues(alpha: 0.4)),
             ),
             child: Text(
               taskStatus,
@@ -747,7 +775,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.1),
+                    color: AppColors.gold.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -764,14 +792,14 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.swap_horiz_rounded, size: 12, color: Colors.orange),
+                  Icon(Icons.swap_horiz_rounded, size: 12, color: AppColors.warning),
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
                       '$stageBefore ← $stageAfter',
                       style: GoogleFonts.cairo(
                         fontSize: 10,
-                        color: Colors.orange,
+                        color: AppColors.warning,
                         fontWeight: FontWeight.bold,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -855,9 +883,9 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
             // اتصال
             Expanded(
               child: _buildSecondaryButton(
-                icon: Icons.phone_rounded,
+                icon: Icons.call_rounded,
                 label: 'اتصال',
-                color: const Color(0xFF27AE60),
+                color: AppColors.success,
                 onTap: () {
                   final phone = _opportunity?['Phone1'] ?? _opportunity?['Phone'] ?? '';
                   if (phone.isNotEmpty) _makeCall(phone);
@@ -870,7 +898,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
               child: _buildSecondaryButton(
                 icon: FontAwesomeIcons.whatsapp,
                 label: 'واتساب',
-                color: const Color(0xFF25D366),
+                color: AppColors.whatsapp,
                 onTap: () {
                   final phone = _opportunity?['Phone1'] ?? _opportunity?['Phone'] ?? '';
                   if (phone.isNotEmpty) _openWhatsApp(phone);
@@ -916,9 +944,9 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(_isDark ? 0.15 : 0.1),
+          color: color.withValues(alpha: _isDark ? 0.15 : 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -957,7 +985,7 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
         border: Border.all(color: AppColors.divider(_isDark)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.04),
+            color: Colors.black.withValues(alpha: _isDark ? 0.3 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -1003,29 +1031,14 @@ class _ClientCardScreenState extends State<ClientCardScreen> {
               style: GoogleFonts.cairo(fontSize: 13, color: AppColors.text(_isDark)),
             ),
           ),
-          GestureDetector(
+          AppIconChip(
+            icon: Icons.call_rounded,
+            color: AppColors.success,
+            tooltip: 'اتصال',
             onTap: () => _makeCall(phone),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF27AE60).withOpacity(_isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.phone_rounded, size: 16, color: Color(0xFF27AE60)),
-            ),
           ),
           const SizedBox(width: 6),
-          GestureDetector(
-            onTap: () => _openWhatsApp(phone),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF25D366).withOpacity(_isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
-            ),
-          ),
+          WhatsAppChip(onTap: () => _openWhatsApp(phone)),
         ],
       ),
     );

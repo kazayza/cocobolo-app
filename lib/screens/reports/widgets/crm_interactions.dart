@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -22,20 +24,9 @@ class CrmInteractions extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -77,12 +68,12 @@ class CrmInteractions extends StatelessWidget {
   // === الإحصائيات الرئيسية ===
   Widget _buildMainStats(InteractionsSummary summary) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -91,14 +82,14 @@ class CrmInteractions extends StatelessWidget {
             '💬',
             'إجمالي',
             '${summary.totalInteractions}',
-            const Color(0xFF42A5F5),
+            AppColors.infoLight,
           ),
           _buildStatDivider(),
           _buildStatItem(
             '🎯',
             'فرص فريدة',
             '${summary.uniqueOpportunities}',
-            const Color(0xFF66BB6A),
+            AppColors.successLight,
           ),
           _buildStatDivider(),
           _buildStatItem(
@@ -164,7 +155,7 @@ class CrmInteractions extends StatelessWidget {
         color: isDark
             ? Colors.white.withOpacity(0.03)
             : AppColors.lightBackground.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(color: AppColors.divider(isDark).withOpacity(0.5)),
       ),
       child: Column(
@@ -273,7 +264,7 @@ class CrmInteractions extends StatelessWidget {
         color: isDark
             ? Colors.white.withOpacity(0.03)
             : AppColors.lightBackground.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(color: AppColors.divider(isDark).withOpacity(0.5)),
       ),
       child: Column(

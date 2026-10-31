@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 class RequestPermissionScreen extends StatefulWidget {
   final int userId;
@@ -34,9 +38,9 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
   AnimationController? _typeAnimationController;
 
   final List<Map<String, dynamic>> types = [
-    {'value': 'LateIn', 'label': 'تأخير صباحي', 'icon': Icons.timer_off, 'color': Colors.orange},
-    {'value': 'EarlyOut', 'label': 'انصراف مبكر', 'icon': Icons.exit_to_app, 'color': Colors.blue},
-    {'value': 'Errands', 'label': 'مأمورية عمل', 'icon': Icons.work, 'color': Colors.purple},
+    {'value': 'LateIn', 'label': 'تأخير صباحي', 'icon': Icons.timer_off, 'color': AppColors.warning},
+    {'value': 'EarlyOut', 'label': 'انصراف مبكر', 'icon': Icons.exit_to_app, 'color': AppColors.info},
+    {'value': 'Errands', 'label': 'مأمورية عمل', 'icon': Icons.work, 'color': AppStatus.editPending},
   ];
 
   @override
@@ -107,7 +111,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
 
       final res = await http.post(
         Uri.parse('$baseUrl/api/permissions/request'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -126,7 +130,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
               Expanded(child: Text('فشل إرسال الطلب', style: GoogleFonts.cairo())),
             ],
           ),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -145,10 +149,10 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
           padding: const EdgeInsets.all(30),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF1E1E1E), Color(0xFF2A2A2A)],
+              colors: [AppColors.navyDark, AppColors.darkSurface],
             ),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.green.withOpacity(0.3)),
+            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -156,10 +160,10 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: AppColors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle, color: Colors.green, size: 50),
+                child: const Icon(Icons.check_circle, color: AppColors.success, size: 50),
               ),
               const SizedBox(height: 20),
               Text(
@@ -174,7 +178,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
               Text(
                 'سيتم مراجعة طلبك من قبل المدير',
                 style: GoogleFonts.cairo(
-                  color: Colors.grey[400],
+                  color: AppColors.neutralLight,
                   fontSize: 14,
                 ),
               ),
@@ -182,7 +186,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.success,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
@@ -213,11 +217,11 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFE8B923),
-            surface: Color(0xFF1E1E1E),
+            primary: AppColors.gold,
+            surface: AppColors.darkSurface,
             onSurface: Colors.white,
           ),
-          dialogBackgroundColor: const Color(0xFF1E1E1E),
+          dialogBackgroundColor: AppColors.darkSurface,
         ),
         child: child!,
       ),
@@ -232,16 +236,16 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFE8B923),
-            surface: Color(0xFF1E1E1E),
+            primary: AppColors.gold,
+            surface: AppColors.darkSurface,
             onSurface: Colors.white,
           ),
           timePickerTheme: TimePickerThemeData(
-            backgroundColor: const Color(0xFF1E1E1E),
-            dialBackgroundColor: Colors.grey[800],
+            backgroundColor: AppColors.darkSurface,
+            dialBackgroundColor: AppColors.darkCard,
             hourMinuteTextColor: Colors.white,
             dayPeriodTextColor: Colors.white,
-            entryModeIconColor: const Color(0xFFE8B923),
+            entryModeIconColor: AppColors.gold,
           ),
         ),
         child: child!,
@@ -266,17 +270,17 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
     final selectedTypeData = types.firstWhere((t) => t['value'] == selectedType);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8B923).withOpacity(0.1),
+                color: AppColors.gold.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(selectedTypeData['icon'], color: const Color(0xFFE8B923), size: 18),
+              child: Icon(selectedTypeData['icon'], color: AppColors.gold, size: 18),
             ),
             const SizedBox(width: 10),
             Text(
@@ -285,7 +289,9 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18),
@@ -355,19 +361,10 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFFE8B923), size: 16),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+    return AppSectionHeader(
+      title: title,
+      icon: icon,
+      accent: AppColors.gold,
     );
   }
 
@@ -375,8 +372,8 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.darkSurface,
+        borderRadius: AppRadius.all(AppRadius.lg),
       ),
       child: Row(
         children: types.map((type) {
@@ -391,7 +388,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? type['color'].withOpacity(0.2) : Colors.transparent,
+                  color: isSelected ? type['color'].withValues(alpha: 0.2) : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected ? type['color'] : Colors.transparent,
@@ -404,12 +401,12 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
                   ),
                   child: Column(
                     children: [
-                      Icon(type['icon'], color: isSelected ? type['color'] : Colors.grey, size: 22),
+                      Icon(type['icon'], color: isSelected ? type['color'] : AppColors.neutral, size: 22),
                       const SizedBox(height: 4),
                       Text(
                         type['label'],
                         style: GoogleFonts.cairo(
-                          color: isSelected ? Colors.white : Colors.grey,
+                          color: isSelected ? Colors.white : AppColors.neutral,
                           fontSize: 10,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
@@ -426,24 +423,18 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
   }
 
   Widget _buildDateCard() {
-    return GestureDetector(
+    return AppCard(
+      color: AppColors.darkSurface,
       onTap: _pickDate,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-        ),
-        child: Row(
+      child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8B923).withOpacity(0.1),
+                color: AppColors.gold.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.calendar_today, color: Color(0xFFE8B923), size: 18),
+              child: const Icon(Icons.calendar_today, color: AppColors.gold, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -452,7 +443,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
                 children: [
                   Text(
                     'التاريخ المحدد',
-                    style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 11),
+                    style: GoogleFonts.cairo(color: AppColors.neutralLight, fontSize: 11),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -466,21 +457,15 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 14),
+            const Icon(Icons.arrow_forward_ios, color: AppColors.neutral, size: 14),
           ],
-        ),
       ),
     );
   }
 
   Widget _buildTimeSelector() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+    return AppCard(
+      color: AppColors.darkSurface,
       child: Row(
         children: [
           Expanded(
@@ -488,7 +473,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
           ),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 8),
-            child: const Icon(Icons.arrow_forward, color: Color(0xFFE8B923), size: 18),
+            child: const Icon(Icons.arrow_forward, color: AppColors.gold, size: 18),
           ),
           Expanded(
             child: _buildTimePicker('إلى', toTime, false),
@@ -504,12 +489,12 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.02),
+          color: Colors.white.withValues(alpha: 0.02),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            Text(label, style: GoogleFonts.cairo(color: Colors.grey[500], fontSize: 10)),
+            Text(label, style: GoogleFonts.cairo(color: AppColors.neutralLight, fontSize: 10)),
             const SizedBox(height: 4),
             Text(
               time.format(context),
@@ -550,32 +535,29 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFE8B923).withOpacity(0.1),
+          color: AppColors.gold.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: const Color(0xFFE8B923).withOpacity(0.3)),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
         ),
         child: Text(
           label,
-          style: GoogleFonts.cairo(color: const Color(0xFFE8B923), fontSize: 11),
+          style: GoogleFonts.cairo(color: AppColors.gold, fontSize: 11),
         ),
       ),
     );
   }
 
   Widget _buildReasonField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      color: AppColors.darkSurface,
       child: TextFormField(
         controller: _reasonController,
         style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
         maxLines: 4,
         decoration: InputDecoration(
           hintText: 'اكتب سبب الإذن هنا...',
-          hintStyle: GoogleFonts.cairo(color: Colors.grey[600]),
+          hintStyle: GoogleFonts.cairo(color: AppColors.neutral),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
         ),
@@ -585,19 +567,16 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
   }
 
   Widget _buildDestinationField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      color: AppColors.darkSurface,
       child: TextFormField(
         controller: _destinationController,
         style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'اكتب وجهة المأمورية...',
-          hintStyle: GoogleFonts.cairo(color: Colors.grey[600]),
-          prefixIcon: const Icon(Icons.location_on, color: Color(0xFFE8B923), size: 18),
+          hintStyle: GoogleFonts.cairo(color: AppColors.neutral),
+          prefixIcon: const Icon(Icons.location_on, color: AppColors.gold, size: 18),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
         ),
@@ -611,28 +590,19 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            typeData['color'].withOpacity(0.15),
+            typeData['color'].withValues(alpha: 0.15),
             Colors.transparent,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: typeData['color'].withOpacity(0.3)),
+        border: Border.all(color: typeData['color'].withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Icon(Icons.summarize_rounded, color: typeData['color'], size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'ملخص الطلب',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'ملخص الطلب',
+            icon: Icons.summarize_rounded,
+            accent: typeData['color'],
           ),
           const SizedBox(height: 16),
           Row(
@@ -651,7 +621,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 10)),
+        Text(label, style: GoogleFonts.cairo(color: AppColors.neutralLight, fontSize: 10)),
         const SizedBox(height: 4),
         Text(value, style: GoogleFonts.cairo(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
       ],
@@ -665,10 +635,10 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
       child: ElevatedButton(
         onPressed: isSubmitting ? null : submitRequest,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFE8B923),
-          foregroundColor: Colors.black,
+          backgroundColor: AppColors.gold,
+          foregroundColor: AppColors.navy,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.all(AppRadius.lg),
           ),
           elevation: 0,
         ),
@@ -677,7 +647,7 @@ class _RequestPermissionScreenState extends State<RequestPermissionScreen> with 
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
-                  color: Colors.black,
+                  color: AppColors.navy,
                   strokeWidth: 2,
                 ),
               )

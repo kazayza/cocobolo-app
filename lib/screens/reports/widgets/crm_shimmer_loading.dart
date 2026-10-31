@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
 
 class CrmShimmerLoading extends StatelessWidget {
   final bool isDark;
@@ -11,12 +12,12 @@ class CrmShimmerLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         children: [
           // Period Chips shimmer
           _buildChipsShimmer(),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Story Cards shimmer
           _buildCardShimmer(height: 260),
@@ -24,15 +25,15 @@ class CrmShimmerLoading extends StatelessWidget {
 
           // Funnel shimmer
           _buildSectionShimmer(),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Trend shimmer
           _buildSectionShimmer(height: 280),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Sources shimmer
           _buildSectionShimmer(height: 250),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Leaderboard shimmer
           _buildSectionShimmer(height: 200),
@@ -54,7 +55,7 @@ class CrmShimmerLoading extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: _shimmerBase,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: AppRadius.all(AppRadius.pill),
             ),
           ).animate(
             onPlay: (controller) => controller.repeat(),
@@ -73,10 +74,10 @@ class CrmShimmerLoading extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: _shimmerBase,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: AppRadius.all(AppRadius.xxxl),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -90,7 +91,7 @@ class CrmShimmerLoading extends StatelessWidget {
                 _buildShimmerBox(30, 16, radius: 10),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // Big number
             Center(child: _buildShimmerBox(100, 40)),
@@ -104,7 +105,7 @@ class CrmShimmerLoading extends StatelessWidget {
               height: 50,
               decoration: BoxDecoration(
                 color: _shimmerBase,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.all(AppRadius.md),
               ),
             ),
           ],
@@ -122,10 +123,10 @@ class CrmShimmerLoading extends StatelessWidget {
   Widget _buildSectionShimmer({double height = 200}) {
     return Container(
       height: height,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: _shimmerBase,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +139,7 @@ class CrmShimmerLoading extends StatelessWidget {
               _buildShimmerBox(140, 16),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Lines
           ...List.generate(4, (index) {
@@ -186,11 +187,10 @@ class CrmShimmerLoading extends StatelessWidget {
   }
 
   // === Colors ===
-  Color get _shimmerBase => isDark
-      ? AppColors.darkCard.withOpacity(0.5)
-      : AppColors.lightCard;
+  Color get _shimmerBase =>
+      AppColors.card(isDark).withOpacity(isDark ? 0.5 : 1);
 
   Color get _shimmerHighlight => isDark
       ? Colors.white.withOpacity(0.08)
-      : Colors.grey.withOpacity(0.15);
+      : AppColors.neutralLight.withOpacity(0.35);
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// زر تحميل قابل لإعادة الاستخدام يعرض حالة التحميل
@@ -13,7 +14,7 @@ class LoadingButton extends StatelessWidget {
     required this.onPressed,
     required this.isLoading,
     required this.text,
-    this.color = const Color(0xFFFFD700),
+    this.color = AppColors.gold,
   });
 
   @override

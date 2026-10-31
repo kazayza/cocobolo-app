@@ -107,6 +107,42 @@ class AdditionalChargeService {
     return _map(_api.decode(response));
   }
 
+  /// اعتماد رسم تعديل تسليم معلّق بمبلغ نهائي (Item 13)
+  Future<Map<String, dynamic>> approveModification({
+    required int id,
+    required double amount,
+  }) async {
+    final response = await _api.post(
+      '/api/additional-charges/$id/approve-modification',
+      body: {'amount': amount},
+    );
+    return _map(_api.decode(response));
+  }
+
+  /// رفض رسم تعديل تسليم معلّق بسبب إلزامي
+  Future<Map<String, dynamic>> rejectModification({
+    required int id,
+    required String reason,
+  }) async {
+    final response = await _api.post(
+      '/api/additional-charges/$id/reject-modification',
+      body: {'reason': reason},
+    );
+    return _map(_api.decode(response));
+  }
+
+  /// تحصيل رسم تعديل معتمَد في خزينة
+  Future<Map<String, dynamic>> collectModification({
+    required int id,
+    int? cashBoxId,
+  }) async {
+    final response = await _api.post(
+      '/api/additional-charges/$id/collect-modification',
+      body: {'cashBoxId': cashBoxId},
+    );
+    return _map(_api.decode(response));
+  }
+
   Future<Map<String, dynamic>> markNonRefundable({
     required int id,
     required String reason,

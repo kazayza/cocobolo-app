@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/invoice_service.dart';
 import '../../services/permission_service.dart';
+import '../../widgets/design_kit.dart';
 
 class InvoiceEditHistorySheet extends StatefulWidget {
   final int transactionId;
@@ -86,7 +89,7 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(ctx, value);
@@ -116,14 +119,14 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('تم استرجاع النسخة وتحديث المخزون بنجاح'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -142,7 +145,8 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
       height: MediaQuery.sizeOf(context).height * 0.90,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(AppRadius.xxxl)),
       ),
       child: Stack(
         children: [
@@ -165,12 +169,12 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: HomeAccent.gold.withValues(alpha: 0.12),
+                        color: AppColors.gold.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(13),
                       ),
                       child: const Icon(
                         Icons.history_rounded,
-                        color: HomeAccent.gold,
+                        color: AppColors.gold,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -206,11 +210,11 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const AppLoading()
                     : _error != null
                         ? _errorState()
                         : entries.isEmpty
-                            ? const Center(child: Text('لا توجد تعديلات مسجلة'))
+                            ? const AppEmpty(message: 'لا توجد تعديلات مسجلة')
                             : ListView.builder(
                                 padding: const EdgeInsets.all(16),
                                 itemCount: entries.length + 1,
@@ -250,22 +254,7 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
     );
   }
 
-  Widget _errorState() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
-            const SizedBox(height: 10),
-            Text(_error ?? 'حدث خطأ'),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('إعادة المحاولة'),
-            ),
-          ],
-        ),
-      );
+  Widget _errorState() => AppError(message: _error!, onRetry: _load);
 
   Widget _entryCard(Map<String, dynamic> entry) {
     final theme = Theme.of(context);
@@ -357,13 +346,13 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
   Widget _createdCard() => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: HomeAccent.navy.withValues(alpha: 0.06),
+          color: AppColors.navy.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: HomeAccent.navy.withValues(alpha: 0.18)),
+          border: Border.all(color: AppColors.navy.withValues(alpha: 0.18)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.add_circle_outline_rounded, color: HomeAccent.navy),
+            const Icon(Icons.add_circle_outline_rounded, color: AppColors.navy),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -425,10 +414,10 @@ class _InvoiceEditHistorySheetState extends State<InvoiceEditHistorySheet> {
       };
 
   Color _actionColor(String action) => switch (action) {
-        'FullEdit' => HomeAccent.gold,
-        'EditRequest' => Colors.orange,
-        'EditApprove' => Colors.green,
-        'EditReject' => Colors.red,
+        'FullEdit' => AppColors.gold,
+        'EditRequest' => AppColors.warning,
+        'EditApprove' => AppColors.success,
+        'EditReject' => AppColors.error,
         _ => HomeAccent.indigo,
       };
 }

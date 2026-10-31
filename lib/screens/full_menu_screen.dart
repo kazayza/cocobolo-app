@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/permission_service.dart';
@@ -72,7 +74,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0A) : Colors.grey[50],
+      backgroundColor: AppColors.background(isDark),
       body: SafeArea(
         child: Column(
           children: [
@@ -116,8 +118,8 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey[200],
-                borderRadius: BorderRadius.circular(12),
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey[200],
+                borderRadius: AppRadius.all(AppRadius.sm),
               ),
               child: Icon(
                 _selectedSectionIndex != null ? Icons.arrow_back_ios_new : Icons.close,
@@ -149,7 +151,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
                     _getRoleTitle(),
                     style: GoogleFonts.cairo(
                       fontSize: 13,
-                      color: const Color(0xFFE8B923),
+                      color: AppColors.gold,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -164,12 +166,12 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
               height: 48,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFFFFD700), Color(0xFFE8B923)],
+                  colors: [AppColors.gold, AppColors.goldDark],
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.all(AppRadius.md),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                    color: AppColors.gold.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -201,7 +203,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[200]!,
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[200]!,
           ),
         ),
       ),
@@ -210,19 +212,19 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.red.withOpacity(0.15)),
+            color: AppColors.error.withValues(alpha: 0.08),
+            borderRadius: AppRadius.all(AppRadius.md),
+            border: Border.all(color: AppColors.error.withValues(alpha: 0.15)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.logout_rounded, color: Colors.red, size: 22),
+              const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
               const SizedBox(width: 10),
               Text(
                 'تسجيل الخروج',
                 style: GoogleFonts.cairo(
-                  color: Colors.red,
+                  color: AppColors.error,
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
@@ -238,11 +240,11 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.lg)),
         title: Row(
           children: [
-            const Icon(Icons.logout_rounded, color: Colors.red),
+            const Icon(Icons.logout_rounded, color: AppColors.error),
             const SizedBox(width: 10),
             Text(
               'تسجيل الخروج',
@@ -276,7 +278,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -347,14 +349,14 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
       onTap: () => setState(() => _selectedSectionIndex = index),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: AppRadius.all(AppRadius.xl),
           border: Border.all(
-            color: item.color.withOpacity(0.15),
+            color: item.color.withValues(alpha: 0.15),
           ),
           boxShadow: [
             BoxShadow(
-              color: item.color.withOpacity(0.05),
+              color: item.color.withValues(alpha: 0.05),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -372,11 +374,11 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    item.color.withOpacity(0.2),
-                    item.color.withOpacity(0.05),
+                    item.color.withValues(alpha: 0.2),
+                    item.color.withValues(alpha: 0.05),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.all(AppRadius.md),
               ),
               child: Icon(
                 item.icon,
@@ -409,7 +411,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: item.color.withOpacity(0.1),
+                color: item.color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -460,12 +462,12 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  section.color.withOpacity(0.15),
-                  section.color.withOpacity(0.05),
+                  section.color.withValues(alpha: 0.15),
+                  section.color.withValues(alpha: 0.05),
                 ],
               ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: section.color.withOpacity(0.2)),
+              borderRadius: AppRadius.all(AppRadius.md),
+              border: Border.all(color: section.color.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -519,14 +521,14 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: AppRadius.all(AppRadius.lg),
           border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey[200]!,
+            color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey[200]!,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -539,7 +541,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: sectionColor.withOpacity(0.1),
+                color: sectionColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(13),
               ),
               child: Icon(
@@ -622,7 +624,7 @@ class _FullMenuScreenState extends State<FullMenuScreen> {
             'هذه الشاشة قيد التطوير 🛠️',
             style: GoogleFonts.cairo(),
           ),
-          backgroundColor: const Color(0xFF1A1A1A),
+          backgroundColor: AppColors.darkSurface,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),

@@ -11,11 +11,14 @@ import 'package:share_plus/share_plus.dart';
 
 import '../services/app_colors.dart';
 import '../services/app_text_styles.dart';
+import '../services/design_tokens.dart';
 import '../services/quotation_service.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import 'quotation_details_screen.dart';
 import 'quotation_form_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class QuotationsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -216,13 +219,14 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   @override
   Widget build(BuildContext context) {
     final bgColor =
-        _isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9);
+        AppColors.background(_isDark);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frmQuotationsList'),
         backgroundColor: bgColor,
-        appBar: AppBar(
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
           elevation: 0,
@@ -230,13 +234,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
           title: Row(
             children: <Widget>[
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.35),
-                  ),
+                  color: AppColors.gold.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.request_quote_rounded,
@@ -252,7 +253,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                     'إدارة عروض الأسعار',
                     style: GoogleFonts.cairo(
                       fontWeight: FontWeight.w900,
-                      fontSize: 15.5,
+                      fontSize: 15,
                     ),
                   ),
                   Text(
@@ -309,11 +310,11 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         ),
         floatingActionButton: _can('canAdd')
             ? FloatingActionButton.extended(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.navy,
                 elevation: 6,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.all(AppRadius.lg),
                   side: BorderSide(
                     color: AppColors.gold.withValues(alpha: 0.6),
                     width: 1.2,
@@ -323,12 +324,12 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 icon: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.2),
+                    color: AppColors.navy.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
                     Icons.post_add_rounded,
-                    color: AppColors.gold,
+                    color: AppColors.navy,
                     size: 20,
                   ),
                 ),
@@ -360,37 +361,37 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     final masked = _can('isCostOnlyViewer');
     final cards = masked
         ? <_KpiSpec>[
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.all_inbox_rounded,
               label: 'العروض الجارية',
               color: AppColors.gold,
             ),
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.edit_note_rounded,
               label: 'قيد المسودة',
-              color: Colors.amberAccent,
+              color: AppColors.warning,
             ),
           ]
         : <_KpiSpec>[
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.payments_rounded,
               label: 'إجمالي القيمة',
               color: AppColors.gold,
             ),
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.groups_2_rounded,
               label: 'العملاء',
-              color: Color(0xFF38BDF8),
+              color: AppColors.info,
             ),
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.auto_graph_rounded,
               label: 'معدل التحويل',
-              color: Color(0xFF4ADE80),
+              color: AppColors.success,
             ),
-            const _KpiSpec(
+            _KpiSpec(
               icon: Icons.layers_rounded,
               label: 'إجمالي العروض',
-              color: Color(0xFFC084FC),
+              color: AppColors.neutral,
             ),
           ];
 
@@ -407,18 +408,15 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
           ];
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.md, AppSpacing.page, AppSpacing.xs),
+      padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[
-            AppColors.navy,
-            Color(0xFF1E293B),
-          ],
+        gradient: LinearGradient(
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadius.all(AppRadius.xxl),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: AppColors.navy.withValues(alpha: 0.22),
@@ -430,60 +428,16 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       child: Row(
         children: <Widget>[
           for (var i = 0; i < cards.length; i++) ...<Widget>[
-            if (i > 0) const SizedBox(width: 8),
-            Expanded(child: _buildGlassKpiTile(cards[i], values[i])),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGlassKpiTile(_KpiSpec spec, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: spec.color.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(spec.icon, size: 16, color: spec.color),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              value,
-              style: GoogleFonts.cairo(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: AppStatCard(
+                label: cards[i].label,
+                value: values[i],
+                color: cards[i].color,
+                icon: cards[i].icon,
               ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            spec.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.cairo(
-              color: Colors.white70,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -511,7 +465,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         'محوّل لفاتورة',
         _int(_stats['ConvertedCount']),
         Icons.price_check_rounded,
-        Colors.teal
+        AppStatus.profit
       ),
       (
         'pending',
@@ -532,29 +486,22 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         'منتهي الصلاحية',
         _int(_stats['ExpiredCount']),
         Icons.history_toggle_off_rounded,
-        Colors.deepOrange
+        AppStatus.overdue
       ),
     ];
 
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider(_isDark)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.sm, AppSpacing.page, AppSpacing.sm),
+      child: AppCard(
+        padding: EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.xxl,
+        child: Column(
         children: <Widget>[
+          AppSectionHeader(
+            title: 'البحث والتصفية',
+            icon: Icons.tune_rounded,
+          ),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: <Widget>[
               Expanded(
@@ -588,23 +535,21 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                             icon: const Icon(Icons.cancel_rounded, size: 18),
                           ),
                     filled: true,
-                    fillColor: _isDark
-                        ? Colors.white.withValues(alpha: 0.04)
-                        : const Color(0xFFF8FAFC),
+                    fillColor: AppColors.inputFill(_isDark),
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.all(AppRadius.md),
                       borderSide: BorderSide.none,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.all(AppRadius.md),
                       borderSide: BorderSide(color: AppColors.divider(_isDark)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.all(AppRadius.md),
                       borderSide:
-                          const BorderSide(color: AppColors.gold, width: 1.4),
+                          BorderSide(color: AppColors.gold, width: 1.4),
                     ),
                   ),
                 ),
@@ -674,7 +619,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
               }).toList(),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -709,9 +655,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         decoration: BoxDecoration(
           color: active
               ? effectiveColor.withValues(alpha: 0.14)
-              : (_isDark
-                  ? Colors.white.withValues(alpha: 0.03)
-                  : const Color(0xFFF8FAFC)),
+              : AppColors.inputFill(_isDark),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: active
@@ -743,7 +687,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
               decoration: BoxDecoration(
                 color: active
                     ? effectiveColor
-                    : Colors.grey.withValues(alpha: 0.18),
+                    : AppColors.neutral.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -763,8 +707,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
 
   Widget _body() {
     if (_loading) {
-      return const Center(
-          child: CircularProgressIndicator(color: AppColors.gold));
+      return const AppLoading();
     }
     if (_error != null) return _errorState();
     if (_rows.isEmpty) return _emptyState();
@@ -773,7 +716,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       onRefresh: _load,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
+        padding: EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.sm, AppSpacing.page, 100),
         itemCount: _rows.length + (_hasMore ? 1 : 0),
         itemBuilder: (BuildContext context, int index) {
           if (index == _rows.length) return _loadMoreButton();
@@ -784,93 +727,16 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   Widget _errorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.cloud_off_rounded,
-                  size: 46, color: AppColors.error),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'تعذر تحميل عروض الأسعار',
-              style: GoogleFonts.cairo(
-                color: _textColor,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style:
-                  GoogleFonts.cairo(color: _secondaryTextColor, fontSize: 11),
-            ),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-            ),
-          ],
-        ),
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   Widget _emptyState() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(30),
-      children: <Widget>[
-        const SizedBox(height: 60),
-        Center(
-          child: Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.request_quote_outlined,
-              size: 44,
-              color: AppColors.goldDark,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'لا توجد عروض أسعار مطابقة',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.cairo(
-            color: _textColor,
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          _hasFilters
-              ? 'جرّب مسح الفلاتر الحالية أو البحث بكلمات أخرى.'
-              : 'ابدأ الآن بإنشاء أول عرض سعر لعملائك.',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.cairo(color: _secondaryTextColor, fontSize: 12),
-        ),
-      ],
+    return AppEmpty(
+      icon: Icons.request_quote_outlined,
+      message: 'لا توجد عروض أسعار مطابقة',
+      hint: _hasFilters
+          ? 'جرّب مسح الفلاتر الحالية أو البحث بكلمات أخرى.'
+          : 'ابدأ الآن بإنشاء أول عرض سعر لعملائك.',
     );
   }
 
@@ -881,9 +747,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         child: OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.goldDark,
-            side: const BorderSide(color: AppColors.gold),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            side: BorderSide(color: AppColors.gold),
+            shape: RoundedRectangleBorder(
+                borderRadius: AppRadius.all(AppRadius.sm)),
           ),
           onPressed: _loadingMore ? null : () => _load(append: true),
           icon: _loadingMore
@@ -912,47 +778,15 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
     final effectiveStatus = converted ? 'Converted' : status;
     final statusColor = _statusColor(effectiveStatus);
     final date = DateTime.tryParse('${row['QuotationDate'] ?? ''}');
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: converted
-              ? Colors.teal.withValues(alpha: 0.35)
-              : AppColors.divider(_isDark),
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.15 : 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _openDetails(id),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  // الشريط الجانبي الملون المعبر عن حالة العرض
-                  Container(
-                    width: 5,
-                    color: statusColor,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.xxl,
+        onTap: () => _openDetails(id),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
                           // السطر العلوي: أيقونة فخمة + رقم المرجع والتاريخ + شارة الحالة
                           Row(
                             children: <Widget>[
@@ -1022,10 +856,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
-                              color: _isDark
-                                  ? Colors.white.withValues(alpha: 0.03)
-                                  : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(14),
+                              color: AppColors.inputFill(_isDark),
+                              borderRadius: AppRadius.all(AppRadius.md),
                               border:
                                   Border.all(color: AppColors.divider(_isDark)),
                             ),
@@ -1082,15 +914,13 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: <Widget>[
-                                      Text(
-                                        '${_money(row['GrandTotal'])} ج.م',
-                                        style: GoogleFonts.cairo(
-                                          color: _isDark
-                                              ? AppColors.gold
-                                              : AppColors.navy,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w900,
-                                        ),
+                                      AmountText(
+                                        value:
+                                            '${_money(row['GrandTotal'])} ج.م',
+                                        size: 15,
+                                        color: _isDark
+                                            ? AppColors.gold
+                                            : AppColors.navy,
                                       ),
                                       if (_can('canViewCost') &&
                                           row['TotalCost'] != null)
@@ -1154,7 +984,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                                 _infoChip(
                                   Icons.receipt_long_rounded,
                                   'فاتورة ${row['InvoiceReference']}',
-                                  highlightColor: Colors.teal,
+                                  highlightColor: AppStatus.profit,
                                 ),
                             ],
                           ),
@@ -1230,13 +1060,6 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     )
         .animate()
         .fadeIn(
@@ -1254,7 +1077,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         color: highlightColor != null
             ? highlightColor.withValues(alpha: 0.1)
             : AppColors.inputFill(_isDark),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.all(AppRadius.xs),
         border: Border.all(
           color: highlightColor != null
               ? highlightColor.withValues(alpha: 0.3)
@@ -1285,33 +1108,11 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
   }
 
   Widget _statusBadge(String status) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            _statusLabel(status),
-            style: GoogleFonts.cairo(
-              color: color,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+    return StatusBadge(
+      label: _statusLabel(status),
+      color: _statusColor(status),
+      icon: _statusIcon(status),
+      small: true,
     );
   }
 
@@ -1320,9 +1121,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
       'Sent' => AppColors.info,
       'Accepted' => AppColors.success,
       'Rejected' => AppColors.error,
-      'Converted' => Colors.teal,
-      'Expired' => Colors.deepOrange,
-      _ => AppColors.goldDark,
+      'Converted' => AppStatus.profit,
+      'Expired' => AppStatus.overdue,
+      _ => AppColors.neutral,
     };
   }
 

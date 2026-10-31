@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
 
 class CrmSectionHeader extends StatelessWidget {
   final String title;
@@ -23,11 +24,21 @@ class CrmSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         children: [
+          // شريط ذهبي/مميّز بلغة الكيت
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 4,
+            height: 28,
+            decoration: BoxDecoration(
+              color: iconColor ?? AppColors.gold,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
               color: (iconColor ?? AppColors.gold).withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),

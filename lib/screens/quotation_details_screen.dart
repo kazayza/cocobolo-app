@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' hide TextDirection;
@@ -14,10 +15,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import '../services/app_colors.dart';
 import '../services/app_text_styles.dart';
+import '../services/design_tokens.dart';
 import '../services/quotation_service.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import 'invoice/invoice_details_screen.dart';
 import 'quotation_form_screen.dart';
+import '../core/auth/session_service.dart';
 
 class QuotationDetailsScreen extends StatefulWidget {
   final int userId;
@@ -45,7 +49,6 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   bool get _isDark => ThemeService().isDarkMode;
   Color get _cardColor => AppColors.card(_isDark);
   Color get _textColor => AppColors.text(_isDark);
-  Color get _secondaryTextColor => AppColors.textSecondary(_isDark);
   Map<String, dynamic> get _capabilities => _map(_quotation?['capabilities']);
   bool _can(String key) => _capabilities[key] == true;
   List<Map<String, dynamic>> get _items =>
@@ -108,7 +111,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
       'Rejected' => AppColors.error,
       'Converted' => AppColors.successLight,
       'Expired' => AppColors.errorLight,
-      _ => AppColors.gold,
+      _ => AppColors.neutral,
     };
   }
 
@@ -142,8 +145,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor =
-        _isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9);
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -160,9 +162,9 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.request_quote_rounded,
                   color: AppColors.gold,
                   size: 20,
@@ -179,13 +181,14 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                           : '${_quotation!['ReferenceNumber'] ?? 'عرض السعر'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.w900, fontSize: 15),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          color: Colors.white),
                     ),
                     Text(
                       'استعراض البنود والإجراءات المالية',
-                      style: GoogleFonts.cairo(
-                          fontSize: 10, color: Colors.white70),
+                      style: TextStyle(fontSize: 10, color: Colors.white70),
                     ),
                   ],
                 ),
@@ -197,7 +200,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
               IconButton(
                 tooltip: 'مشاركة PDF',
                 onPressed: _busy ? null : _share,
-                icon: const Icon(Icons.picture_as_pdf_rounded,
+                icon: Icon(Icons.picture_as_pdf_rounded,
                     color: AppColors.gold),
               ),
             IconButton(
@@ -212,8 +215,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                 ? null
                 : _buildStickyBottomBar(),
         body: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.gold))
+            ? const AppLoading()
             : _error != null
                 ? _errorState()
                 : _body(),
@@ -222,34 +224,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   }
 
   Widget _errorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.error_outline_rounded,
-                size: 54, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(color: _secondaryTextColor),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-            ),
-          ],
-        ),
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   Widget _body() {
@@ -260,7 +235,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
           color: AppColors.gold,
           onRefresh: _load,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 40),
+            padding: EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.page, AppSpacing.page, 40),
             children: <Widget>[
               _hero(q),
               const SizedBox(height: 14),
@@ -302,11 +277,11 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
               color: Colors.black54,
               child: Center(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                  padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xl, vertical: AppSpacing.xl),
                   decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(20),
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: AppRadius.all(AppRadius.xxl),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.2),
@@ -317,12 +292,12 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const CircularProgressIndicator(color: AppColors.gold),
+                      CircularProgressIndicator(color: AppColors.gold),
                       const SizedBox(height: 12),
                       Text(
                         'جاري التنفيذ...',
-                        style: GoogleFonts.cairo(
-                          color: _textColor,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                         ),
@@ -343,21 +318,22 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     final color = _statusColor(status);
     final date = DateTime.tryParse('${q['QuotationDate'] ?? ''}');
     final valid = DateTime.tryParse('${q['ValidUntil'] ?? ''}');
+    final client = '${q['PartyName'] ?? 'عميل غير محدد'}';
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[AppColors.navy, Color(0xFF1E293B)],
+        gradient: LinearGradient(
+          colors: AppGradients.identityCard,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadius.all(AppRadius.xxl),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: AppColors.navy.withValues(alpha: 0.25),
             blurRadius: 18,
-            offset: const Offset(0, 8),
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -371,31 +347,44 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                 height: 48,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppRadius.all(AppRadius.md),
                   border:
                       Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
-                child: const Icon(Icons.description_rounded,
+                child: Icon(Icons.description_rounded,
                     color: AppColors.gold, size: 24),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       '${q['ReferenceNumber'] ?? 'عرض السعر'}',
-                      style: GoogleFonts.cairo(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      client,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       date == null
                           ? ''
                           : 'تاريخ الإصدار: ${DateFormat('yyyy/MM/dd').format(date.toLocal())}',
-                      style: GoogleFonts.cairo(
+                      style: TextStyle(
                         color: Colors.white70,
                         fontSize: 10.5,
                       ),
@@ -403,40 +392,14 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _statusLabel(status),
-                      style: GoogleFonts.cairo(
-                        color: Colors.white,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
+              StatusBadge(
+                label: _statusLabel(status),
+                color: color,
+                filled: true,
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: AppSpacing.lg),
           Row(
             children: <Widget>[
               Expanded(
@@ -446,7 +409,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                   _tierLabel('${q['PricingType'] ?? 'Premium'}'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _heroInfoPill(
                   Icons.event_available_rounded,
@@ -456,19 +419,42 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                       : DateFormat('yyyy/MM/dd').format(valid.toLocal()),
                 ),
               ),
-              if (!_masked) ...<Widget>[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _heroInfoPill(
-                    Icons.account_balance_wallet_rounded,
-                    'صافي العرض',
-                    '${_money(q['GrandTotal'])} ج',
-                    highlight: true,
-                  ),
-                ),
-              ],
             ],
           ),
+          if (!_masked) ...<Widget>[
+            SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.14),
+                borderRadius: AppRadius.all(AppRadius.md),
+                border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.account_balance_wallet_rounded,
+                      color: AppColors.gold, size: 18),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'الإجمالي النهائي للعرض',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Spacer(),
+                  AmountText(
+                    value: '${_money(q['GrandTotal'])} ج.م',
+                    size: 20,
+                    color: AppColors.gold,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -481,12 +467,13 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     bool highlight = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      padding: EdgeInsets.symmetric(
+          vertical: AppSpacing.sm + 2, horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: highlight
             ? AppColors.gold.withValues(alpha: 0.18)
             : Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.all(AppRadius.md),
         border: Border.all(
           color: highlight
               ? AppColors.gold.withValues(alpha: 0.45)
@@ -496,18 +483,18 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
       child: Column(
         children: <Widget>[
           Icon(icon, color: AppColors.gold, size: 18),
-          const SizedBox(height: 4),
+          SizedBox(height: AppSpacing.xs),
           Text(
             label,
-            style: GoogleFonts.cairo(color: Colors.white60, fontSize: 9),
+            style: TextStyle(color: Colors.white60, fontSize: 9),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             value,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.cairo(
+            style: TextStyle(
               color: highlight ? AppColors.gold : Colors.white,
               fontSize: 11.5,
               fontWeight: FontWeight.w900,
@@ -524,32 +511,33 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     required String title,
     required String text,
   }) {
+    final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppRadius.all(AppRadius.sm),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
                   title,
-                  style: GoogleFonts.cairo(
+                  style: TextStyle(
                     color: color,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
@@ -557,9 +545,8 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                 ),
                 Text(
                   text,
-                  style: GoogleFonts.cairo(
-                    color: _textColor,
-                    fontSize: 11,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -573,25 +560,21 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
 
   // 2️⃣ بطاقة العميل والربط الذكية (VIP Client Card)
   Widget _clientCard(Map<String, dynamic> q) {
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
+    final theme = Theme.of(context);
     final phone = '${q['PartyPhone'] ?? ''}'.trim();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          AppSectionHeader(
+            title: 'بيانات العميل',
+            icon: Icons.person_rounded,
+            accent: AppColors.gold,
+          ),
+          SizedBox(height: AppSpacing.md),
           Row(
             children: <Widget>[
               Container(
@@ -600,73 +583,62 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.navy,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.all(AppRadius.lg),
                 ),
                 child: Text(
                   _initial('${q['PartyName'] ?? ''}'),
-                  style: GoogleFonts.cairo(
+                  style: TextStyle(
                     color: AppColors.gold,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'بيانات العميل',
-                      style: GoogleFonts.cairo(
-                        color: _secondaryTextColor,
-                        fontSize: 10,
-                      ),
-                    ),
-                    Text(
                       '${q['PartyName'] ?? 'عميل غير محدد'}',
-                      style: GoogleFonts.cairo(
-                        color: _textColor,
-                        fontSize: 15,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
+                        fontSize: 15,
                       ),
                     ),
                     if (phone.isNotEmpty)
                       Text(
-                        '📞 $phone',
-                        style: GoogleFonts.cairo(
-                          color: _secondaryTextColor,
-                          fontSize: 11.5,
+                        phone,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
                         ),
                       ),
                   ],
                 ),
               ),
               if (phone.isNotEmpty) ...<Widget>[
-                _contactBtn(
-                  icon: Icons.phone_in_talk_rounded,
-                  color: Colors.blue.shade600,
+                AppIconChip(
+                  icon: Icons.call_rounded,
+                  color: AppColors.info,
                   tooltip: 'اتصال هاتفي',
                   onTap: () => _call(phone),
                 ),
-                const SizedBox(width: 8),
-                _contactBtn(
-                  icon: Icons.chat_rounded,
-                  color: Colors.green.shade600,
-                  tooltip: 'مراسلة واتساب',
-                  onTap: () => _whatsapp(phone),
-                ),
+                SizedBox(width: AppSpacing.sm),
+                WhatsAppChip(onTap: () => _whatsapp(phone)),
               ],
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
             child: Divider(height: 1),
           ),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: <Widget>[
               _chip(Icons.warehouse_rounded,
                   'المخزن: ${q['WarehouseName'] ?? 'غير محدد'}'),
@@ -685,104 +657,33 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     );
   }
 
-  Widget _contactBtn({
-    required IconData icon,
-    required Color color,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Tooltip(
-        message: tooltip,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.25)),
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-      ),
-    );
-  }
-
   // 3️⃣ قسم الأصناف العصري (Bento Quotation Items)
   Widget _itemsModernSection() {
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.inventory_2_rounded,
-                    color: AppColors.navy, size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      _masked ? 'تكلفة الأصناف المدرجة' : 'بنود وأصناف عرض السعر',
-                      style: GoogleFonts.cairo(
-                        color: _textColor,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      'إجمالي ${_items.length} قطعة مدرجة في هذا العرض',
-                      style: GoogleFonts.cairo(
-                        color: _secondaryTextColor,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: _masked ? 'تكلفة الأصناف المدرجة' : 'بنود وأصناف عرض السعر',
+            subtitle: 'إجمالي ${_items.length} قطعة مدرجة في هذا العرض',
+            icon: Icons.inventory_2_rounded,
+            accent: AppColors.goldDark,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: AppSpacing.md),
           if (_items.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  'لا توجد أصناف مسجلة في هذا العرض',
-                  style: GoogleFonts.cairo(color: _secondaryTextColor),
-                ),
-              ),
+            AppEmpty(
+              message: 'لا توجد أصناف مسجلة في هذا العرض',
+              icon: Icons.inventory_2_outlined,
+              onRefresh: _load,
             )
           else
             ListView.separated(
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: NeverScrollableScrollPhysics(),
               itemCount: _items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, __) => SizedBox(height: AppSpacing.sm + 2),
               itemBuilder: (_, int idx) =>
                   _buildBentoItemCard(_items[idx], idx),
             ),
@@ -792,6 +693,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   }
 
   Widget _buildBentoItemCard(Map<String, dynamic> item, int index) {
+    final theme = Theme.of(context);
     final cost = _num(item['UnitCost']);
     final quantity = _num(item['Quantity']);
     final price = _num(item['UnitPrice']);
@@ -800,13 +702,14 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     final desc = '${item['ProductDescription'] ?? ''}'.trim();
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: _isDark
-            ? Colors.white.withValues(alpha: 0.03)
-            : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider(_isDark)),
+        color: theme.colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius: AppRadius.all(AppRadius.lg),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,20 +724,23 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                     height: 64,
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      color: _cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider(_isDark)),
+                      color: theme.colorScheme.surface,
+                      borderRadius: AppRadius.all(AppRadius.sm),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.45),
+                      ),
                     ),
                     child: imageId > 0
                         ? Image.network(
                             '$baseUrl/api/product-image-by-id/$imageId',
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
+                            errorBuilder: (_, __, ___) => Icon(
                               Icons.inventory_2_outlined,
                               color: AppColors.gold,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.inventory_2_outlined,
                             color: AppColors.gold,
                           ),
@@ -843,18 +749,18 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                     top: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppColors.navy,
                         borderRadius: BorderRadius.only(
-                          topRight: Radius.circular(11),
-                          bottomLeft: Radius.circular(8),
+                          topRight: Radius.circular(AppRadius.sm - 1),
+                          bottomLeft: Radius.circular(AppRadius.xs),
                         ),
                       ),
                       child: Text(
                         '${index + 1}',
-                        style: GoogleFonts.cairo(
+                        style: TextStyle(
                           color: AppColors.gold,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
@@ -864,40 +770,47 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       '${item['ProductName'] ?? ''}',
-                      style: GoogleFonts.cairo(
-                        color: _textColor,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.xs),
                     Wrap(
                       spacing: 6,
-                      runSpacing: 4,
+                      runSpacing: AppSpacing.xs,
                       children: <Widget>[
-                        _miniBadge(
-                          _tierLabel('${item['PricingTier'] ?? 'Premium'}'),
-                          AppColors.navy,
+                        StatusBadge(
+                          label:
+                              _tierLabel('${item['PricingTier'] ?? 'Premium'}'),
+                          color: AppColors.navy,
+                          small: true,
                         ),
                         if (altName.isNotEmpty)
-                          _miniBadge('بديل: $altName', Colors.teal.shade700),
+                          StatusBadge(
+                            label: 'بديل: $altName',
+                            color: AppColors.success,
+                            small: true,
+                          ),
                       ],
                     ),
                     if (desc.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4),
+                      SizedBox(height: AppSpacing.xs),
                       Text(
                         desc,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.cairo(
-                          color: _secondaryTextColor,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontSize: 10.5,
                         ),
                       ),
@@ -907,36 +820,40 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: AppSpacing.sm + 2),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             decoration: BoxDecoration(
-              color: _isDark ? const Color(0xFF0F172A) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.divider(_isDark)),
+              color: theme.colorScheme.surface,
+              borderRadius: AppRadius.all(AppRadius.sm),
+              border: Border.all(
+                color:
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    const Icon(Icons.layers_outlined,
+                    Icon(Icons.layers_outlined,
                         size: 15, color: AppColors.goldDark),
-                    const SizedBox(width: 4),
+                    SizedBox(width: AppSpacing.xs),
                     Text(
                       'الكمية: ${_money(quantity)}',
-                      style: GoogleFonts.cairo(
-                        color: _textColor,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     if (!_masked) ...<Widget>[
-                      const SizedBox(width: 10),
+                      SizedBox(width: AppSpacing.sm + 2),
                       Text(
                         '× ${_money(price)} ج',
-                        style: GoogleFonts.cairo(
-                          color: _secondaryTextColor,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -945,22 +862,16 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                   ],
                 ),
                 if (!_masked)
-                  Text(
-                    '${_money(price * quantity)} ج.م',
-                    style: GoogleFonts.cairo(
-                      color: AppColors.goldDark,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  AmountText(
+                    value: '${_money(price * quantity)} ج.م',
+                    size: 13.5,
+                    color: AppColors.goldDark,
                   )
                 else
-                  Text(
-                    'التكلفة: ${_money(cost)} ج.م',
-                    style: GoogleFonts.cairo(
-                      color: AppColors.warning,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  AmountText(
+                    value: 'التكلفة: ${_money(cost)} ج.م',
+                    size: 12,
+                    color: AppColors.warning,
                   ),
               ],
             ),
@@ -970,62 +881,20 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     );
   }
 
-  Widget _miniBadge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: GoogleFonts.cairo(
-          fontSize: 9.5,
-          fontWeight: FontWeight.bold,
-          color: _isDark ? AppColors.gold : color,
-        ),
-      ),
-    );
-  }
-
   // 4️⃣ كارت الإيصال المالي (Receipt Financial Summary)
   Widget _totalsCard(Map<String, dynamic> q) {
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-            color: AppColors.gold.withValues(alpha: 0.35), width: 1.2),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Icon(Icons.calculate_rounded,
-                  color: AppColors.gold, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'الملخص المالي لعرض السعر',
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'الملخص المالي لعرض السعر',
+            icon: Icons.calculate_rounded,
+            accent: AppColors.gold,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: AppSpacing.md),
           _totalRow('إجمالي قيمة الأصناف', q['TotalAmount']),
           if (_num(q['DiscountAmount']) > 0)
             _totalRow(
@@ -1033,40 +902,37 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
               -_num(q['DiscountAmount']),
               color: AppColors.error,
             ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
             child: Divider(),
           ),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.navy,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadius.all(AppRadius.md),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 Text(
                   'الإجمالي النهائي للعرض',
-                  style: GoogleFonts.cairo(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  '${_money(q['GrandTotal'])} ج.م',
-                  style: GoogleFonts.cairo(
-                    color: AppColors.gold,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+                AmountText(
+                  value: '${_money(q['GrandTotal'])} ج.م',
+                  size: 18,
+                  color: AppColors.gold,
                 ),
               ],
             ),
           ),
           if (_can('canViewCost')) ...<Widget>[
-            const SizedBox(height: 10),
+            SizedBox(height: AppSpacing.sm + 2),
             _totalRow(
               'إجمالي التكلفة التقديرية',
               _items.fold<double>(0, (sum, item) {
@@ -1081,37 +947,23 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   }
 
   Widget _notesCard(String notes) {
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Icon(Icons.notes_rounded,
-                  color: AppColors.goldDark, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'ملاحظات وشروط إضافية',
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'ملاحظات وشروط إضافية',
+            icon: Icons.notes_rounded,
+            accent: AppColors.goldDark,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: AppSpacing.sm),
           Text(
             notes,
-            style: GoogleFonts.cairo(
-              color: _secondaryTextColor,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
               fontSize: 12,
               height: 1.6,
             ),
@@ -1123,99 +975,110 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
 
   // 5️⃣ مركز الإجراءات والتحكم الإداري (Actions Hub)
   Widget _actionsHubCard() {
-    final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
     final q = _quotation!;
+    final buttons = <Widget>[];
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    void addButton(Widget button) {
+      if (buttons.isNotEmpty) {
+        buttons.add(SizedBox(height: AppSpacing.sm));
+      }
+      buttons.add(button);
+    }
+
+    if (_can('canEdit') && !_converted) {
+      addButton(AppButton(
+        label: 'تعديل البيانات',
+        icon: Icons.edit_rounded,
+        color: AppColors.info,
+        onTap: () {
+          if (!_busy) _edit();
+        },
+      ));
+    }
+    if (_can('canEdit') && !_converted) {
+      addButton(AppButton(
+        label: 'تغيير الحالة',
+        icon: Icons.flag_rounded,
+        color: AppColors.navy,
+        onTap: () {
+          if (!_busy) _changeStatus();
+        },
+      ));
+    }
+    if (!_masked && !_converted) {
+      addButton(AppButton(
+        label: 'طلب تسعير مصنع',
+        icon: Icons.engineering_rounded,
+        color: AppColors.navyLight,
+        onTap: () {
+          if (!_busy) _requestPricing();
+        },
+      ));
+    }
+    if (_can('canEdit') && !_converted && !_masked) {
+      addButton(AppButton(
+        label: 'طلب موافقة خصم',
+        icon: Icons.discount_rounded,
+        color: AppColors.warning,
+        onTap: () {
+          if (!_busy) _requestDiscount();
+        },
+      ));
+    }
+    if (_can('canEditCost') && !_converted) {
+      addButton(AppButton(
+        label: 'تحديث التكاليف',
+        icon: Icons.precision_manufacturing_rounded,
+        color: AppColors.goldDark,
+        onTap: () {
+          if (!_busy) _editCosts();
+        },
+      ));
+    }
+    if (_converted && _can('canViewSalePrices')) {
+      addButton(AppButton(
+        label: 'عرض الفاتورة المصدرة',
+        icon: Icons.receipt_long_rounded,
+        color: AppColors.success,
+        onTap: () {
+          if (_busy) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => InvoiceDetailsScreen(
+                transactionId: _int(q['InvoiceID']),
+                username: widget.username,
+                invoiceType: 'Sale',
+              ),
+            ),
+          );
+        },
+      ));
+    }
+    if (_can('canDelete') && !_converted) {
+      addButton(AppButton(
+        label: 'حذف العرض',
+        icon: Icons.delete_outline_rounded,
+        color: AppColors.error,
+        onTap: () {
+          if (!_busy) _delete();
+        },
+      ));
+    }
+
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Icon(Icons.dashboard_customize_rounded,
-                  color: AppColors.goldDark, size: 19),
-              const SizedBox(width: 8),
-              Text(
-                'إجراءات التحكم والمتابعة',
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          AppSectionHeader(
+            title: 'إجراءات التحكم والمتابعة',
+            icon: Icons.dashboard_customize_rounded,
+            accent: AppColors.goldDark,
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              if (_can('canEdit') && !_converted)
-                _actionButton(
-                  label: 'تعديل البيانات',
-                  icon: Icons.edit_rounded,
-                  color: AppColors.warning,
-                  onTap: _edit,
-                ),
-              if (_can('canEdit') && !_converted)
-                _actionButton(
-                  label: 'تغيير الحالة',
-                  icon: Icons.flag_rounded,
-                  color: AppColors.info,
-                  onTap: _changeStatus,
-                ),
-              if (!_masked && !_converted)
-                _actionButton(
-                  label: 'طلب تسعير مصنع',
-                  icon: Icons.engineering_rounded,
-                  color: Colors.indigo,
-                  onTap: _requestPricing,
-                ),
-              if (_can('canEdit') && !_converted && !_masked)
-                _actionButton(
-                  label: 'طلب موافقة خصم',
-                  icon: Icons.discount_rounded,
-                  color: Colors.deepOrange,
-                  onTap: _requestDiscount,
-                ),
-              if (_can('canEditCost') && !_converted)
-                _actionButton(
-                  label: 'تحديث التكاليف',
-                  icon: Icons.precision_manufacturing_rounded,
-                  color: AppColors.goldDark,
-                  onTap: _editCosts,
-                ),
-              if (_converted && _can('canViewSalePrices'))
-                _actionButton(
-                  label: 'عرض الفاتورة المصدرة',
-                  icon: Icons.receipt_long_rounded,
-                  color: Colors.teal,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => InvoiceDetailsScreen(
-                        transactionId: _int(q['InvoiceID']),
-                        username: widget.username,
-                        invoiceType: 'Sale',
-                      ),
-                    ),
-                  ),
-                ),
-              if (_can('canDelete') && !_converted)
-                _actionButton(
-                  label: 'حذف العرض',
-                  icon: Icons.delete_outline_rounded,
-                  color: AppColors.error,
-                  onTap: _delete,
-                ),
-            ],
-          ),
+          SizedBox(height: AppSpacing.md),
+          ...buttons,
         ],
       ),
     );
@@ -1224,15 +1087,17 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   // 6️⃣ الشريط السفلي الثابت للإجراءات السريعة (Sticky Bottom Action Bar)
   Widget _buildStickyBottomBar() {
     final q = _quotation!;
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm + 2, AppSpacing.lg, AppSpacing.md),
       decoration: BoxDecoration(
-        color: _isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: theme.colorScheme.surface,
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -1242,61 +1107,32 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
           children: <Widget>[
             if (!_masked) ...<Widget>[
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.navy,
-                    side: const BorderSide(color: AppColors.gold, width: 1.4),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  onPressed: _busy ? null : _share,
-                  icon: const Icon(Icons.picture_as_pdf_rounded,
-                      color: AppColors.error, size: 20),
-                  label: Text(
-                    'PDF ومشاركة',
-                    style: GoogleFonts.cairo(
-                      color: _textColor,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                    ),
-                  ),
+                child: AppButton(
+                  label: 'PDF ومشاركة',
+                  icon: Icons.picture_as_pdf_rounded,
+                  color: AppColors.info,
+                  onTap: () {
+                    if (!_busy) _share();
+                  },
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: AppSpacing.sm + 2),
             ],
             if (_can('canConvert') && !_converted)
               Expanded(
                 flex: 2,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.navy,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
+                child: GoldButton(
+                  label: 'تحويل لفاتورة مبيعات',
+                  icon: Icons.assignment_turned_in_rounded,
                   onPressed: _busy ? null : _convert,
-                  icon: const Icon(Icons.assignment_turned_in_rounded,
-                      color: AppColors.gold, size: 20),
-                  label: Text(
-                    'تحويل لفاتورة مبيعات',
-                    style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.w900, fontSize: 13.5),
-                  ),
                 ),
               )
             else if (_converted && _can('canViewSalePrices'))
               Expanded(
                 flex: 2,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
+                child: PrimaryButton(
+                  label: 'فتح الفاتورة المرتبطة',
+                  icon: Icons.receipt_long_rounded,
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute<void>(
@@ -1306,12 +1142,6 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
                         invoiceType: 'Sale',
                       ),
                     ),
-                  ),
-                  icon: const Icon(Icons.receipt_long_rounded, size: 20),
-                  label: Text(
-                    'فتح الفاتورة المرتبطة',
-                    style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.w900, fontSize: 13.5),
                   ),
                 ),
               ),
@@ -1327,26 +1157,27 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
     Color? color,
     bool strong = false,
   }) {
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: <Widget>[
           Text(
             label,
-            style: GoogleFonts.cairo(
-              color: strong ? _textColor : _secondaryTextColor,
+            style: TextStyle(
+              color: strong
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
               fontSize: strong ? 13 : 12,
               fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
-          const Spacer(),
-          Text(
-            '${_money(value)} ج.م',
-            style: GoogleFonts.cairo(
-              color: color ?? _textColor,
-              fontSize: strong ? 15 : 13,
-              fontWeight: strong ? FontWeight.w900 : FontWeight.w800,
-            ),
+          Spacer(),
+          AmountText(
+            value: '${_money(value)} ج.م',
+            color: color ?? theme.colorScheme.onSurface,
+            size: strong ? 15 : 13,
+            weight: strong ? FontWeight.w900 : FontWeight.w800,
           ),
         ],
       ),
@@ -1354,64 +1185,32 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
   }
 
   Widget _chip(IconData icon, String text) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2, vertical: 6),
       decoration: BoxDecoration(
-        color: _isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider(_isDark)),
+        color: theme.colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius: AppRadius.all(AppRadius.sm),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Icon(icon, size: 14, color: AppColors.goldDark),
-          const SizedBox(width: 5),
+          SizedBox(width: 5),
           Text(
             text,
-            style: GoogleFonts.cairo(
-              color: _secondaryTextColor,
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _actionButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: _busy ? null : onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.cairo(
-                color: _isDark ? Colors.white : color,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1929,7 +1728,15 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
 
   Future<void> _share() async {
     await _run(() async {
-      final publicUrl = '${_quotation?['publicUrl'] ?? ''}'.trim();
+      // رابط جديد موقّع عند كل مشاركة؛ وعند فشل التوليد يُستخدم المخزّن
+      var publicUrl = '${_quotation?['publicUrl'] ?? ''}'.trim();
+      try {
+        final link = await _service.getShareLink(widget.quotationId);
+        final fresh = '${link['publicUrl'] ?? ''}'.trim();
+        if (fresh.isNotEmpty) publicUrl = fresh;
+      } catch (_) {
+        // يُكتفى بالرابط المخزّن الوارد من الخادم
+      }
       final file = await _buildPdf();
       final customer = '${_quotation?['PartyName'] ?? 'العميل'}'.trim();
       final reference =
@@ -2040,7 +1847,7 @@ class _QuotationDetailsScreenState extends State<QuotationDetailsScreen> {
       try {
         final response = await http.get(
           Uri.parse('$baseUrl/api/product-image-by-id/$imageId'),
-        );
+         headers: SessionService.instance.authHeaders,);
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
           result[productId] = pw.MemoryImage(response.bodyBytes);
         }

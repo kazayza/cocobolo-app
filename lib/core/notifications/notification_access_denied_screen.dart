@@ -22,13 +22,13 @@ class NotificationAccessDeniedScreen extends StatelessWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.12),
+                  color: AppColors.warning.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.lock_outline_rounded,
                   size: 36,
-                  color: Colors.orange,
+                  color: AppColors.warning,
                 ),
               ),
               const SizedBox(height: 18),

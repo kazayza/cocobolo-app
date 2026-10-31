@@ -5,10 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
+import '../../core/auth/session_service.dart';
 
+import '../../widgets/app_drawer.dart';
 class WarehousesScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -339,12 +342,12 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       final response = warehouse == null
           ? await http.post(
               Uri.parse('$baseUrl/api/inventory/warehouses'),
-              headers: {'Content-Type': 'application/json'},
+              headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
               body: body,
             )
           : await http.put(
               Uri.parse('$baseUrl/api/inventory/warehouses/$id'),
-              headers: {'Content-Type': 'application/json'},
+              headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
               body: body,
             );
       final decoded = jsonDecode(response.body);
@@ -398,11 +401,12 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(
+        drawer: buildAppDrawer(currentRoute: 'frm_Warehouses'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             'إدارة المخازن',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
@@ -515,17 +519,13 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.all(48),
-                  child: Center(child: CircularProgressIndicator()),
-                )
+              if (_loading) const AppLoading()
               else if (_error != null)
                 InventorySection(
                   title: 'تعذر تحميل المخازن',
                   subtitle: _error,
                   icon: Icons.error_outline_rounded,
-                  color: Colors.red,
+                  color: AppColors.error,
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
@@ -700,23 +700,10 @@ class _WarehouseCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: stateColor.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        active ? 'نشط' : 'متوقف',
-                        style: GoogleFonts.cairo(
-                          color: stateColor,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                    StatusBadge(
+                      label: active ? 'نشط' : 'متوقف',
+                      color: active ? AppColors.success : AppColors.error,
+                      small: true,
                     ),
                   ],
                 ),

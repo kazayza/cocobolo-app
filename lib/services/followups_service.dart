@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 /// Unified follow-ups API (Blazor TaskService merge model)
 class FollowUpsService {
@@ -28,7 +29,7 @@ class FollowUpsService {
       if (search != null && search.trim().isNotEmpty) {
         q['search'] = search.trim();
       }
-      final res = await http.get(_uri('/api/followups', q));
+      final res = await http.get(_uri('/api/followups', q), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic>) return data;
@@ -50,7 +51,7 @@ class FollowUpsService {
       final q = <String, String>{'source': source};
       if (employeeId != null) q['employeeId'] = '$employeeId';
       final res =
-          await http.get(_uri('/api/followups/summary', q));
+          await http.get(_uri('/api/followups/summary', q), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic>) return data;
@@ -68,7 +69,7 @@ class FollowUpsService {
     try {
       final res = await http.post(
         _uri('/api/followups/leads/$interactionId/complete'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({'userName': userName}),
       );
       final data = jsonDecode(res.body);

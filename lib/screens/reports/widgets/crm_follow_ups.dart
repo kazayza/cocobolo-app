@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -52,15 +54,15 @@ class CrmFollowUps extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: _buildSectionDecoration(),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
               title: 'المتابعات القادمة',
               icon: Icons.notifications_active_rounded,
-              iconColor: const Color(0xFFFF9800),
+              iconColor: AppColors.warning,
               subtitle:
                   '${followUps.length} متابعة${overdueCount > 0 ? ' • $overdueCount متأخرة' : ''}${todayCount > 0 ? ' • $todayCount اليوم' : ''}',
               isDark: isDark,
@@ -92,7 +94,7 @@ class CrmFollowUps extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       color: statusConfig.color.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                       border: Border.all(
                         color: statusConfig.color.withOpacity(0.3),
                       ),
@@ -128,26 +130,10 @@ class CrmFollowUps extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusConfig.color.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: statusConfig.color.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Text(
-                                statusConfig.label,
-                                style: GoogleFonts.cairo(
-                                  color: statusConfig.color,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            StatusBadge(
+                              label: statusConfig.label,
+                              color: statusConfig.color,
+                              small: true,
                             ),
                           ],
                         ),
@@ -282,11 +268,11 @@ class CrmFollowUps extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFF9800).withOpacity(0.3)),
+          borderRadius: AppRadius.all(AppRadius.lg),
+          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
@@ -300,7 +286,7 @@ class CrmFollowUps extends StatelessWidget {
             CrmSectionHeader(
               title: 'فرص راكدة',
               icon: Icons.hourglass_empty_rounded,
-              iconColor: const Color(0xFFFF9800),
+              iconColor: AppColors.warning,
               subtitle: '${stagnant.length} فرصة بدون تفاعل +7 أيام',
               isDark: isDark,
             ),
@@ -401,13 +387,11 @@ class CrmFollowUps extends StatelessWidget {
                                     color: AppColors.gold.withOpacity(0.3),
                                   ),
                                 ),
-                                child: Text(
-                                  '${_formatCurrency(item.expectedValue!)} ج.م',
-                                  style: GoogleFonts.cairo(
-                                    color: AppColors.gold,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                child: AmountText(
+                                  value:
+                                      '${_formatCurrency(item.expectedValue!)} ج.م',
+                                  size: 10,
+                                  color: AppColors.gold,
                                 ),
                               ),
                           ],
@@ -523,15 +507,15 @@ class CrmFollowUps extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF66BB6A).withOpacity(0.12),
+              color: AppColors.successLight.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: const Color(0xFF66BB6A).withOpacity(0.3),
+                color: AppColors.successLight.withOpacity(0.3),
               ),
             ),
-            child: const Icon(
-              Icons.phone_rounded,
-              color: Color(0xFF66BB6A),
+            child: Icon(
+              Icons.call_rounded,
+              color: AppColors.successLight,
               size: 18,
             ),
           ),
@@ -546,10 +530,10 @@ class CrmFollowUps extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF25D366).withOpacity(0.12),
+              color: AppColors.whatsapp.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: const Color(0xFF25D366).withOpacity(0.3),
+                color: AppColors.whatsapp.withOpacity(0.3),
               ),
             ),
             child: Center(
@@ -560,7 +544,7 @@ class CrmFollowUps extends StatelessWidget {
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     FontAwesomeIcons.whatsapp.data,
-                    color: const Color(0xFF25D366),
+                    color: AppColors.whatsapp,
                     size: 18,
                   );
                 },
@@ -575,21 +559,6 @@ class CrmFollowUps extends StatelessWidget {
   // ══════════════════════════════════════
   // Helpers
   // ══════════════════════════════════════
-
-  BoxDecoration _buildSectionDecoration() {
-    return BoxDecoration(
-      color: isDark ? AppColors.darkCard : AppColors.lightCard,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.divider(isDark)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    );
-  }
 
   Widget _buildInfoChip(Color color, String text) {
     return Container(

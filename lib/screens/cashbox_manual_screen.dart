@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/theme_service.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../services/cashbox_service.dart';
 import '../services/permission_service.dart';
+import '../widgets/design_kit.dart';
 
 class CashboxManualScreen extends StatefulWidget {
   final int? userId;
@@ -25,53 +27,132 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
   List<Map<String, dynamic>> cashboxes = [];
   bool loading = true;
   bool saving = false;
+  String? loadError;
+
+  // أسطح واعية بالوضع من AppColors/ThemeService (قاعدة الهوية)
+  bool get _isDark => ThemeService().isDarkMode;
+  Color get _textColor => AppColors.text(_isDark);
+  Color get _secondaryColor => AppColors.textSecondary(_isDark);
+  Color get _hintColor => AppColors.textHint(_isDark);
+  Color get _fillColor => AppColors.inputFill(_isDark);
+  Color get _borderColor => AppColors.divider(_isDark);
+  Color get _surfaceColor => AppColors.surface(_isDark);
 
   // الحقول
-  String selectedTransactionType = 'قبض';
+  String selectedOperationType = 'ManualReceipt';
   int? selectedCashboxFrom;
   int? selectedCashboxTo;
+  int? selectedPersonalAccountId;
+  List<Map<String, dynamic>> personalAccounts = [];
   double? currentBalance;
-  
+
   final TextEditingController amountController = TextEditingController();
   final TextEditingController notesController = TextEditingController();
+  final TextEditingController recipientController = TextEditingController();
   DateTime selectedDate = DateTime.now();
 
-  // أنواع العمليات
-  final List<Map<String, dynamic>> transactionTypes = [
-    {'value': 'قبض', 'label': 'قبض', 'icon': Icons.arrow_downward, 'color': Colors.green},
-    {'value': 'صرف', 'label': 'صرف', 'icon': Icons.arrow_upward, 'color': Colors.red},
-    {'value': 'تحويل', 'label': 'تحويل', 'icon': Icons.swap_horiz, 'color': Colors.purple},
+  // الأنواع الستة — DTOS/CashBoxDto.cs ManualOperationTypes (Item 25)
+  final List<Map<String, dynamic>> operationTypes = [
+    {'value': 'ManualReceipt', 'label': 'سند قبض يدوي', 'icon': Icons.arrow_downward, 'color': AppColors.success},
+    {'value': 'ManualPayment', 'label': 'سند صرف يدوي', 'icon': Icons.arrow_upward, 'color': AppColors.error},
+    {'value': 'LoanIn', 'label': 'قرض دخل من شخص', 'icon': Icons.handshake, 'color': AppColors.info},
+    {'value': 'LoanRepayment', 'label': 'تسديد قرض لشخص', 'icon': Icons.payments, 'color': AppColors.warning},
+    {'value': 'Transfer', 'label': 'تحويل بين خزن', 'icon': Icons.swap_horiz, 'color': AppColors.gold},
+    {'value': 'OpeningBalance', 'label': 'رصيد افتتاحي', 'icon': Icons.stars, 'color': AppColors.navyLight},
   ];
+
+  bool get _isLoan =>
+      selectedOperationType == 'LoanIn' ||
+      selectedOperationType == 'LoanRepayment';
+  bool get _isOut =>
+      selectedOperationType == 'ManualPayment' ||
+      selectedOperationType == 'LoanRepayment' ||
+      selectedOperationType == 'Transfer';
+  bool get _needsRecipient =>
+      selectedOperationType == 'ManualReceipt' ||
+      selectedOperationType == 'ManualPayment';
+
+  Color get _opColor {
+    for (final t in operationTypes) {
+      if (t['value'] == selectedOperationType) return t['color'] as Color;
+    }
+    return AppColors.success;
+  }
+
+  IconData get _opIcon {
+    for (final t in operationTypes) {
+      if (t['value'] == selectedOperationType) return t['icon'] as IconData;
+    }
+    return Icons.receipt_long;
+  }
+
+  String get _opLabel {
+    for (final t in operationTypes) {
+      if (t['value'] == selectedOperationType) return t['label'] as String;
+    }
+    return '';
+  }
 
   @override
   void initState() {
     super.initState();
     _loadCashboxes();
+    _loadPersonalAccounts();
+  }
+
+  Future<void> _loadPersonalAccounts() async {
+    try {
+      final data = await CashboxService.getPersonalAccounts();
+      if (!mounted) return;
+      setState(() => personalAccounts = data);
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString());
+    }
   }
 
   @override
   void dispose() {
     amountController.dispose();
     notesController.dispose();
+    recipientController.dispose();
     super.dispose();
   }
 
+  // الخزن النشطة فقط لقائمة الاختيار — مطابقة لبلازور (Item 3)
   Future<void> _loadCashboxes() async {
-    setState(() => loading = true);
-    
-    final data = await CashboxService.getAllCashboxes();
-    
     setState(() {
-      cashboxes = data;
-      loading = false;
+      loading = true;
+      loadError = null;
     });
+    try {
+      final data = await CashboxService.getActiveCashboxes();
+      if (!mounted) return;
+      setState(() {
+        cashboxes = data;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loadError = e.toString();
+        loading = false;
+      });
+    }
   }
 
   Future<void> _loadBalance(int cashboxId) async {
-    final balance = await CashboxService.getCashboxBalance(cashboxId);
-    setState(() {
-      currentBalance = balance;
-    });
+    try {
+      final balance = await CashboxService.getCashboxBalance(cashboxId);
+      if (!mounted) return;
+      setState(() {
+        currentBalance = balance;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => currentBalance = null);
+      _showError(e.toString());
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -80,17 +161,6 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       initialDate: selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFE8B923),
-            surface: Color(0xFF1E1E1E),
-            onSurface: Colors.white,
-          ),
-          dialogBackgroundColor: const Color(0xFF1E1E1E),
-        ),
-        child: child!,
-      ),
     );
     
     if (picked != null) {
@@ -100,15 +170,6 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
     }
   }
 
-  String _getCashboxName(int? id) {
-    if (id == null) return '';
-    final cashbox = cashboxes.firstWhere(
-      (c) => c['CashBoxID'] == id,
-      orElse: () => {},
-    );
-    return cashbox['CashBoxName'] ?? '';
-  }
-
   Future<void> _save() async {
     // التحقق من البيانات
     if (selectedCashboxFrom == null) {
@@ -116,13 +177,19 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       return;
     }
 
-    if (selectedTransactionType == 'تحويل' && selectedCashboxTo == null) {
+    if (selectedOperationType == 'Transfer' && selectedCashboxTo == null) {
       _showError('اختر الخزنة المستقبلة');
       return;
     }
 
-    if (selectedTransactionType == 'تحويل' && selectedCashboxFrom == selectedCashboxTo) {
+    if (selectedOperationType == 'Transfer' &&
+        selectedCashboxFrom == selectedCashboxTo) {
       _showError('الخزنة المصدر والمستقبلة يجب أن تكونا مختلفتين');
+      return;
+    }
+
+    if (_isLoan && selectedPersonalAccountId == null) {
+      _showError('يرجى اختيار الحساب الشخصي');
       return;
     }
 
@@ -132,8 +199,8 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       return;
     }
 
-    // التحقق من الرصيد للصرف والتحويل
-    if (selectedTransactionType != 'قبض' && currentBalance != null && amount > currentBalance!) {
+    // التحقق من الرصيد للعمليات الصادرة (الخادم يفرضه أيضًا)
+    if (_isOut && currentBalance != null && amount > currentBalance!) {
       _showError('المبلغ أكبر من الرصيد المتاح');
       return;
     }
@@ -141,41 +208,31 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
     setState(() => saving = true);
 
     try {
-      Map<String, dynamic> result;
-
-      if (selectedTransactionType == 'تحويل') {
-        // تحويل بين خزينتين
-        result = await CashboxService.transfer(
-          cashBoxIdFrom: selectedCashboxFrom!,
-          cashBoxIdTo: selectedCashboxTo!,
-          cashBoxFromName: _getCashboxName(selectedCashboxFrom),
-          cashBoxToName: _getCashboxName(selectedCashboxTo),
-          amount: amount,
-          notes: notesController.text,
-          createdBy: PermissionService().username ?? widget.username ?? 'System',
-        );
-      } else {
-        // قبض أو صرف
-        result = await CashboxService.createTransaction(
-          cashBoxId: selectedCashboxFrom!,
-          transactionType: selectedTransactionType,
-          amount: amount,
-          notes: notesController.text,
-          createdBy: PermissionService().username ?? widget.username ?? 'System',
-        );
-      }
+      final result = await CashboxService.createManualOperation(
+        operationType: selectedOperationType,
+        cashBoxId: selectedCashboxFrom!,
+        toCashBoxId:
+            selectedOperationType == 'Transfer' ? selectedCashboxTo : null,
+        personalAccountId: _isLoan ? selectedPersonalAccountId : null,
+        amount: amount,
+        notes: notesController.text,
+        recipient: _needsRecipient && recipientController.text.trim().isNotEmpty
+            ? recipientController.text.trim()
+            : null,
+        transactionDate: selectedDate,
+        createdBy: PermissionService().username ?? widget.username ?? 'System',
+      );
 
       setState(() => saving = false);
 
       if (result['success'] == true) {
-        _showSuccess('تم تسجيل الحركة بنجاح');
+        _showSuccess(result['message'] ?? 'تم تسجيل العملية بنجاح');
         _clearForm();
-        // تحديث الرصيد
         if (selectedCashboxFrom != null) {
           _loadBalance(selectedCashboxFrom!);
         }
       } else {
-        _showError(result['message'] ?? 'فشل تسجيل الحركة');
+        _showError(result['message'] ?? 'فشل تسجيل العملية');
       }
     } catch (e) {
       setState(() => saving = false);
@@ -187,7 +244,9 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
     setState(() {
       amountController.clear();
       notesController.clear();
+      recipientController.clear();
       selectedCashboxTo = null;
+      selectedPersonalAccountId = null;
       selectedDate = DateTime.now();
     });
   }
@@ -202,12 +261,12 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.cairo(),
+                style: TextStyle(),
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.red[700],
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -224,12 +283,12 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.cairo(),
+                style: TextStyle(),
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.green[700],
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -239,11 +298,13 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background(_isDark),
       appBar: _buildAppBar(),
       body: loading
           ? _buildLoadingState()
-          : SingleChildScrollView(
+          : (loadError != null && cashboxes.isEmpty)
+              ? AppError(message: loadError!, onRetry: _loadCashboxes)
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,8 +313,16 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
                   const SizedBox(height: 20),
                   _buildCashboxFromDropdown(),
                   const SizedBox(height: 16),
-                  if (selectedTransactionType == 'تحويل') ...[
+                  if (selectedOperationType == 'Transfer') ...[
                     _buildCashboxToDropdown(),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_isLoan) ...[
+                    _buildPersonalAccountDropdown(),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_needsRecipient) ...[
+                    _buildRecipientField(),
                     const SizedBox(height: 16),
                   ],
                   _buildBalanceCard(),
@@ -278,15 +347,15 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8B923).withOpacity(0.1),
+              color: AppColors.gold.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.receipt_long, color: Color(0xFFE8B923), size: 18),
+            child: const Icon(Icons.receipt_long, color: AppColors.gold, size: 18),
           ),
           const SizedBox(width: 10),
           Text(
-            'سند قبض / صرف',
-            style: GoogleFonts.cairo(
+            'حركة خزينة يدوية',
+            style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.white,
               fontSize: 16,
@@ -294,7 +363,8 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
           ),
         ],
       ),
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       centerTitle: false,
       iconTheme: const IconThemeData(color: Colors.white),
       elevation: 0,
@@ -311,56 +381,71 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       children: [
         Text(
           'نوع العملية',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
         const SizedBox(height: 10),
-        Row(
-          children: transactionTypes.map((type) {
-            final isSelected = selectedTransactionType == type['value'];
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 1.35,
+          children: operationTypes.map((type) {
+            final isSelected = selectedOperationType == type['value'];
             final Color color = type['color'];
-            
-            return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    selectedTransactionType = type['value'];
-                    if (type['value'] != 'تحويل') {
-                      selectedCashboxTo = null;
-                    }
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isSelected ? color.withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? color : Colors.white.withOpacity(0.1),
-                      width: isSelected ? 2 : 1,
+            // الذهبي الصافي لا يُقرأ نصًا على سطح فاتح — يُستبدل بدرجته الداكنة نهارًا
+            final Color selectedColor = isSelected &&
+                    !_isDark &&
+                    color == AppColors.gold
+                ? AppColors.goldDark
+                : color;
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedOperationType = type['value'];
+                  if (type['value'] != 'Transfer') {
+                    selectedCashboxTo = null;
+                  }
+                  if (type['value'] != 'LoanIn' &&
+                      type['value'] != 'LoanRepayment') {
+                    selectedPersonalAccountId = null;
+                  }
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isSelected ? color.withOpacity(0.15) : _fillColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? color : _borderColor,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      type['icon'],
+                      color: isSelected ? selectedColor : _secondaryColor,
+                      size: 22,
                     ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        type['icon'],
-                        color: isSelected ? color : Colors.grey[500],
-                        size: 22,
+                    const SizedBox(height: 6),
+                    Text(
+                      type['label'],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: isSelected ? selectedColor : _secondaryColor,
+                        fontSize: 11.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        type['label'],
-                        style: GoogleFonts.cairo(
-                          color: isSelected ? color : Colors.grey[400],
-                          fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -370,14 +455,14 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
     ).animate().fadeIn().slideY(begin: -0.1);
   }
 
-  Widget _buildCashboxFromDropdown() {
+  Widget _buildPersonalAccountDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          selectedTransactionType == 'تحويل' ? 'من خزنة' : 'الخزنة',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          'الحساب الشخصي',
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
@@ -385,25 +470,106 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: _fillColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: _borderColor),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<int?>(
+              value: selectedPersonalAccountId,
+              hint: Text(
+                'اختر الحساب الشخصي',
+                style: TextStyle(color: _secondaryColor, fontSize: 14),
+              ),
+              dropdownColor: _surfaceColor,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.gold),
+              items: personalAccounts.map((a) => DropdownMenuItem<int?>(
+                value: (a['PersonalAccountId'] as num?)?.toInt(),
+                child: Text(
+                  a['AccountName'] ?? '',
+                  style: TextStyle(color: _textColor, fontSize: 14),
+                ),
+              )).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedPersonalAccountId = value;
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    ).animate().fadeIn(delay: 150.ms).slideY(begin: -0.1);
+  }
+
+  Widget _buildRecipientField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'المستلم (اختياري)',
+          style: TextStyle(
+            color: _secondaryColor,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: _fillColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: TextField(
+            controller: recipientController,
+            style: TextStyle(color: _textColor, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'اسم المستلم...',
+              hintStyle: TextStyle(color: _hintColor, fontSize: 14),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    ).animate().fadeIn(delay: 175.ms).slideY(begin: -0.1);
+  }
+
+  Widget _buildCashboxFromDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          selectedOperationType == 'Transfer' ? 'من خزنة' : 'الخزنة',
+          style: TextStyle(
+            color: _secondaryColor,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: _fillColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<int?>(
               value: selectedCashboxFrom,
               hint: Text(
                 'اختر الخزنة',
-                style: GoogleFonts.cairo(color: Colors.grey[500], fontSize: 14),
+                style: TextStyle(color: _secondaryColor, fontSize: 14),
               ),
-              dropdownColor: const Color(0xFF2A2A2A),
+              dropdownColor: _surfaceColor,
               isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFE8B923)),
+              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.gold),
               items: cashboxes.map((c) => DropdownMenuItem<int?>(
                 value: c['CashBoxID'],
                 child: Text(
                   c['CashBoxName'] ?? '',
-                  style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: _textColor, fontSize: 14),
                 ),
               )).toList(),
               onChanged: (value) {
@@ -428,8 +594,8 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       children: [
         Text(
           'إلى خزنة',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
@@ -437,27 +603,27 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: _fillColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.purple.withOpacity(0.3)),
+            border: Border.all(color: _borderColor),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<int?>(
               value: selectedCashboxTo,
               hint: Text(
                 'اختر الخزنة المستقبلة',
-                style: GoogleFonts.cairo(color: Colors.grey[500], fontSize: 14),
+                style: TextStyle(color: _secondaryColor, fontSize: 14),
               ),
-              dropdownColor: const Color(0xFF2A2A2A),
+              dropdownColor: _surfaceColor,
               isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.purple),
+              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.gold),
               items: cashboxes
                   .where((c) => c['CashBoxID'] != selectedCashboxFrom)
                   .map((c) => DropdownMenuItem<int?>(
                     value: c['CashBoxID'],
                     child: Text(
                       c['CashBoxName'] ?? '',
-                      style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: _textColor, fontSize: 14),
                     ),
                   )).toList(),
               onChanged: (value) {
@@ -477,7 +643,7 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       return const SizedBox.shrink();
     }
 
-    final Color balanceColor = (currentBalance ?? 0) >= 0 ? Colors.green : Colors.red;
+    final Color balanceColor = (currentBalance ?? 0) >= 0 ? AppColors.success : AppColors.error;
 
     return Container(
       width: double.infinity,
@@ -496,20 +662,18 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             children: [
               Text(
                 'الرصيد الحالي',
-                style: GoogleFonts.cairo(
-                  color: Colors.grey[400],
+                style: TextStyle(
+                  color: _secondaryColor,
                   fontSize: 11,
                 ),
               ),
-              Text(
-                currentBalance != null
+              AmountText(
+                value: currentBalance != null
                     ? NumberFormat('#,##0.00', 'en').format(currentBalance)
                     : 'جاري التحميل...',
-                style: GoogleFonts.cairo(
-                  color: balanceColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                size: 18,
+                color: balanceColor,
+                weight: FontWeight.bold,
               ),
             ],
           ),
@@ -519,26 +683,22 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
   }
 
   Widget _buildAmountField() {
-    final Color typeColor = selectedTransactionType == 'قبض'
-        ? Colors.green
-        : selectedTransactionType == 'صرف'
-            ? Colors.red
-            : Colors.purple;
+    final Color typeColor = _opColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'المبلغ',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: _fillColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: typeColor.withOpacity(0.3)),
           ),
@@ -548,27 +708,23 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
             ],
-            style: GoogleFonts.cairo(
-              color: Colors.white,
+            style: TextStyle(
+              color: _textColor,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               hintText: '0.00',
-              hintStyle: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 20),
+              hintStyle: TextStyle(color: _hintColor, fontSize: 20),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               prefixIcon: Icon(
-                selectedTransactionType == 'قبض'
-                    ? Icons.add
-                    : selectedTransactionType == 'صرف'
-                        ? Icons.remove
-                        : Icons.swap_horiz,
+                _isOut ? Icons.remove : Icons.add,
                 color: typeColor,
               ),
               suffixText: 'ج.م',
-              suffixStyle: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 14),
+              suffixStyle: TextStyle(color: _secondaryColor, fontSize: 14),
             ),
           ),
         ),
@@ -582,8 +738,8 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       children: [
         Text(
           'التاريخ',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
@@ -595,23 +751,23 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: _fillColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(color: _borderColor),
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, color: Color(0xFFE8B923), size: 18),
+                const Icon(Icons.calendar_today, color: AppColors.gold, size: 18),
                 const SizedBox(width: 12),
                 Text(
                   DateFormat('yyyy/MM/dd', 'ar').format(selectedDate),
-                  style: GoogleFonts.cairo(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: _textColor,
                     fontSize: 14,
                   ),
                 ),
                 const Spacer(),
-                Icon(Icons.keyboard_arrow_down, color: Colors.grey[500]),
+                Icon(Icons.keyboard_arrow_down, color: _secondaryColor),
               ],
             ),
           ),
@@ -626,25 +782,25 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
       children: [
         Text(
           'ملاحظات (اختياري)',
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+          style: TextStyle(
+            color: _secondaryColor,
             fontSize: 13,
           ),
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: _fillColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: _borderColor),
           ),
           child: TextField(
             controller: notesController,
             maxLines: 3,
-            style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+            style: TextStyle(color: _textColor, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'أدخل ملاحظات...',
-              hintStyle: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 14),
+              hintStyle: TextStyle(color: _hintColor, fontSize: 14),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.all(16),
             ),
@@ -655,11 +811,7 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
   }
 
   Widget _buildSaveButton() {
-    final Color typeColor = selectedTransactionType == 'قبض'
-        ? Colors.green
-        : selectedTransactionType == 'صرف'
-            ? Colors.red
-            : Colors.purple;
+    final Color typeColor = _opColor;
 
     return SizedBox(
       width: double.infinity,
@@ -686,20 +838,11 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    selectedTransactionType == 'قبض'
-                        ? Icons.arrow_downward
-                        : selectedTransactionType == 'صرف'
-                            ? Icons.arrow_upward
-                            : Icons.swap_horiz,
-                    color: Colors.white,
-                  ),
+                  Icon(_opIcon, color: Colors.white),
                   const SizedBox(width: 10),
                   Text(
-                    selectedTransactionType == 'تحويل'
-                        ? 'تأكيد التحويل'
-                        : 'تسجيل ${selectedTransactionType}',
-                    style: GoogleFonts.cairo(
+                    'تسجيل $_opLabel',
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -712,21 +855,6 @@ class _CashboxManualScreenState extends State<CashboxManualScreen> {
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(
-            color: Color(0xFFE8B923),
-            strokeWidth: 2,
-          ).animate().fadeIn().scale(),
-          const SizedBox(height: 16),
-          Text(
-            'جاري التحميل...',
-            style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 13),
-          ).animate().fadeIn(delay: 300.ms),
-        ],
-      ),
-    );
+    return const AppLoading(message: 'جاري التحميل...');
   }
 }

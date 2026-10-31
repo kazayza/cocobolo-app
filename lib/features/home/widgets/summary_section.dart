@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/app_colors.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
@@ -63,7 +64,7 @@ class SummarySection extends StatelessWidget {
           accent: accent,
           trend: parseTrend(summary['leadsTrend7']),
           chipText: overdue > 0 ? '${_fmt.format(overdue)} متأخرة' : null,
-          chipColor: overdue > 0 ? const Color(0xFFE53935) : null,
+          chipColor: overdue > 0 ? AppColors.error : null,
         );
 
       case HomeDashboardCardType.opportunities:
@@ -118,7 +119,7 @@ class SummarySection extends StatelessWidget {
           accent: accent,
           trend: parseTrend(summary['tasksTrend7']),
           chipText: urgent > 0 ? '${_fmt.format(urgent)} عاجلة' : null,
-          chipColor: urgent > 0 ? const Color(0xFFE53935) : null,
+          chipColor: urgent > 0 ? AppColors.error : null,
         );
 
       // هذه الأنواع تُعرض في الوحدات أو قسم CRM

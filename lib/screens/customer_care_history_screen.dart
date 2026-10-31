@@ -11,8 +11,10 @@ import 'package:share_plus/share_plus.dart';
 import '../services/app_colors.dart';
 import '../services/customer_care_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/app_states.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 
+import '../widgets/app_drawer.dart';
 class CustomerCareHistoryScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -291,8 +293,12 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_CustomerCare_History'),
       backgroundColor: AppColors.background(_isDark),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('سجل خدمة العملاء',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -372,11 +378,11 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.navyDark, AppColors.navy, AppColors.navyLight],
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -403,7 +409,7 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
                 Icons.phone_missed_rounded),
             _stat('غير مهتم', _outcomeCount('NotInterested'), AppColors.neutral,
                 Icons.block_rounded),
-            _stat('اتصال لاحق', _outcomeCount('CallbackLater'), Colors.purple,
+            _stat('اتصال لاحق', _outcomeCount('CallbackLater'), AppStatus.editPending,
                 Icons.event_repeat_rounded),
           ]),
         ),
@@ -597,11 +603,11 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
             margin: const EdgeInsets.only(top: 6),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.purple.withValues(alpha: 0.07),
+              color: AppStatus.editPending.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(children: [
-              const Icon(Icons.badge_outlined, color: Colors.purple, size: 15),
+              const Icon(Icons.badge_outlined, color: AppStatus.editPending, size: 15),
               const SizedBox(width: 6),
               Expanded(
                 child: Text('${row['EmployeeNotes']}',
@@ -622,7 +628,7 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
           if (row['NextCallDate'] != null)
             _chip(Icons.event_repeat_rounded,
                 'موعد: ${_date(row['NextCallDate'])}',
-                color: Colors.purple),
+                color: AppStatus.editPending),
         ]),
         if (_can('canHide'))
           Align(
@@ -689,7 +695,7 @@ class _CustomerCareHistoryScreenState extends State<CustomerCareHistoryScreen> {
         'Negative' => AppColors.error,
         'NoAnswer' => AppColors.warning,
         'NotInterested' => AppColors.neutral,
-        'CallbackLater' => Colors.purple,
+        'CallbackLater' => AppStatus.editPending,
         _ => AppColors.navy,
       };
 

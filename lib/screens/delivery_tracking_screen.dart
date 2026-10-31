@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:path_provider/path_provider.dart';
@@ -12,12 +13,16 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/delivery_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/app_states.dart';
+import '../widgets/record_delivery_dialog.dart';
 import 'delivery_details_screen.dart';
 import 'purchase_receipts_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class DeliveryTrackingScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -149,117 +154,42 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
   }
 
   Future<void> _confirm(Map<String, dynamic> row) async {
+    // Item 4 (Pkg0): no amount figure is printed in this flow for any
+    // user — the coverage banner inside the record dialog is the only
+    // money surface, and the server nulls its figures for users without
+    // amount permission (Blazor state-only text rule).
     final id = _int(row['TransactionID']);
-    final remaining = _num(row['RemainingAmount']);
-    final pending = row['HasPendingPermissionRequest'] == true;
-    final canOverride = _can('canOverrideRemaining');
-
-    if (remaining > 0.005 && !canOverride && pending) {
-      _message('طلب إذن التسليم معلّق لدى الإدارة', error: true);
+    if (row['HasPendingPermissionRequest'] == true &&
+        !_can('canOverrideRemaining')) {
+      // Keep the dialog openable: the record dialog itself shows the
+      // pending state and the coverage gate; do not block here.
+    }
+    Map<String, dynamic> details;
+    try {
+      details = await _service.getDelivery(id);
+    } catch (error) {
+      if (mounted) _message(error.toString(), error: true);
       return;
     }
-    if (remaining > 0.005 && !canOverride && !pending) {
-      final request = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('مبلغ متبقٍ على الفاتورة',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
-          content: Text(
-            'يوجد مبلغ متبقٍ بقيمة ${_money(remaining)}. يجب الحصول على إذن من الإدارة أو مدير الحسابات قبل التسليم.',
-            style: GoogleFonts.cairo(height: 1.5),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('إلغاء', style: GoogleFonts.cairo()),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.approval_rounded, size: 18),
-              label: Text('طلب إذن', style: GoogleFonts.cairo()),
-            ),
-          ],
-        ),
-      );
-      if (request == true) await _requestPermission(id);
-      return;
-    }
-
-    int? employeeId = row['DeliveryEmployeeId'] is num
-        ? (row['DeliveryEmployeeId'] as num).toInt()
-        : null;
-    final notesController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (_, setDialogState) => AlertDialog(
-          title: Text('تأكيد التسليم',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(
-                'تأكيد تسليم ${row['ReferenceNumber'] ?? '#$id'} إلى ${row['ClientName'] ?? ''}${remaining > 0 ? ' مع وجود مبلغ متبقٍ' : ''}.',
-                style: GoogleFonts.cairo(height: 1.5),
-              ),
-              if (_can('canEditFull') && _employees.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                DropdownButtonFormField<int?>(
-                  initialValue: employeeId,
-                  decoration: InputDecoration(
-                    labelText: 'مندوب التسليم',
-                    labelStyle: GoogleFonts.cairo(),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  items: [
-                    DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('المستخدم الحالي',
-                            style: GoogleFonts.cairo())),
-                    ..._employees.map((employee) => DropdownMenuItem<int?>(
-                          value: _int(employee['EmployeeID']),
-                          child: Text('${employee['FullName'] ?? ''}',
-                              style: GoogleFonts.cairo()),
-                        )),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => employeeId = value),
-                ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: notesController,
-                maxLines: 3,
-                style: GoogleFonts.cairo(),
-                decoration: InputDecoration(
-                  labelText: 'ملاحظات التسليم',
-                  labelStyle: GoogleFonts.cairo(),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('إلغاء', style: GoogleFonts.cairo()),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.check_circle_rounded, size: 18),
-              label: Text('تم التسليم', style: GoogleFonts.cairo()),
-            ),
-          ],
-        ),
-      ),
+    if (!mounted) return;
+    final products = ((details['Products'] as List?) ?? const [])
+        .map<Map<String, dynamic>>(_map)
+        .toList();
+    final saved = await showRecordDeliveryDialog(
+      context,
+      transactionId: id,
+      products: products,
+      employees: _employees,
+      canSeeAmounts: _can('canSeeAmounts'),
+      canEditFull: _can('canEditFull'),
+      canOverrideRemaining: _can('canOverrideRemaining'),
+      permissionGranted:
+          details['LastPermissionAction'] == 'DeliveryPermissionGranted',
+      initialEmployeeId: row['DeliveryEmployeeId'] is num
+          ? (row['DeliveryEmployeeId'] as num).toInt()
+          : null,
     );
-    if (confirmed != true || !mounted) return;
-    await _run(() => _service.confirmDelivery(
-          id: id,
-          deliveryEmployeeId: employeeId,
-          notes: notesController.text.trim(),
-        ));
+    if (saved && mounted) await _load();
   }
 
   Future<void> _requestPermission(int id) async {
@@ -381,6 +311,7 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
               'الهاتف',
               'العنوان',
               'موعد التسليم',
+              'البنود المستحقة',
               'الحالة',
               'المندوب'
             ],
@@ -393,6 +324,7 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
                 '${row['Phone'] ?? '—'}',
                 '${row['Address'] ?? '—'}',
                 _date(row['DueDate']),
+                '${row['DueLinesSummary'] ?? ''}',
                 _statusLabel('${row['DeliveryStatus'] ?? ''}'),
                 '${row['DeliveryEmployeeName'] ?? '—'}',
               ];
@@ -437,8 +369,13 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frmInvoiceDeliveryStatus'),
       backgroundColor: AppColors.background(_isDark),
       appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: const AppDrawerMenuButton(),
         title: Text('متابعة التسليمات',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -493,9 +430,9 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(12, 2, 12, 24),
                   sliver: SliverList.builder(
-                    itemCount: _rows.length + (_hasMore ? 1 : 0),
+                    itemCount: _expandedRows().length + (_hasMore ? 1 : 0),
                     itemBuilder: (_, index) {
-                      if (index == _rows.length) {
+                      if (index == _expandedRows().length) {
                         return Center(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -510,7 +447,7 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
                           ),
                         );
                       }
-                      return _card(_rows[index]);
+                      return _displayCard(_expandedRows()[index]);
                     },
                   ),
                 ),
@@ -530,14 +467,14 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
   Widget _hero() {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.navyDark, AppColors.navy, AppColors.navyLight],
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadius.all(AppRadius.xxl),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.32)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -645,25 +582,18 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
 
   Widget _amount(String label, dynamic value) => Expanded(
         child: Column(children: [
-          Text(_money(value),
-              style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12)),
+          AmountText(value: _money(value), color: Colors.white, size: 12),
           Text(label,
               style: GoogleFonts.cairo(color: Colors.white54, fontSize: 9)),
         ]),
       );
 
   Widget _filters() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.xl,
       child: Column(children: [
         TextField(
           controller: _searchController,
@@ -747,6 +677,7 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
             ),
         ]),
       ]),
+      ),
     );
   }
 
@@ -763,6 +694,65 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
+
+  // Item 8 (Pkg1): the tracking list renders one card per
+  // (invoice x appointment) using row.Schedule.Groups — mirroring Blazor
+  // SalesDeliveryStatus rows: a «موعد X من N» chip and the next
+  // appointment line. Invoices with a single group render as before.
+  List<Map<String, dynamic>> _expandedRows() {
+    final out = <Map<String, dynamic>>[];
+    for (final row in _rows) {
+      final schedule = _map(row['Schedule']);
+      final groups = ((schedule['Groups'] as List?) ?? const [])
+          .map<Map<String, dynamic>>(_map)
+          .toList();
+      if (groups.length <= 1) {
+        out.add({'row': row, 'group': groups.isEmpty ? null : groups.first, 'index': 1, 'count': groups.isEmpty ? 1 : groups.length, 'next': null});
+      } else {
+        for (var i = 0; i < groups.length; i++) {
+          out.add({
+            'row': row,
+            'group': groups[i],
+            'index': i + 1,
+            'count': groups.length,
+            'next': i + 1 < groups.length ? groups[i + 1] : null,
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  Widget _displayCard(Map<String, dynamic> entry) {
+    final row = _map(entry['row']);
+    final group = entry['group'] == null ? null : _map(entry['group']);
+    final count = _int(entry['count']);
+    final index = _int(entry['index']);
+    final next = entry['next'] == null ? null : _map(entry['next']);
+    // Render the base card, then wrap appointment info above it.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (count > 1 || row['HasPendingScheduleChangeRequest'] == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4, right: 4),
+            child: Wrap(spacing: 6, runSpacing: 4, children: [
+              if (count > 1)
+                _chip(Icons.event_rounded, 'موعد $index من $count'),
+              if (group != null)
+                _chip(Icons.event_rounded, _date(group['DisplayDate'])),
+              if (next != null)
+                _chip(Icons.next_plan_rounded,
+                    'الموعد التالي: ${_date(next['DisplayDate'])}'),
+              if (row['HasPendingScheduleChangeRequest'] == true)
+                _chip(Icons.schedule_rounded, 'طلب تعديل موعد قيد الانتظار',
+                    color: AppColors.warning),
+            ]),
+          ),
+        _card(row),
+      ],
+    );
+  }
 
   Widget _card(Map<String, dynamic> row) {
     final status = '${row['DeliveryStatus'] ?? 'upcoming'}';
@@ -845,7 +835,10 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
             ),
             IconButton(
               onPressed: () => _whatsapp('${row['Phone']}'),
-              icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              icon: const FaIcon(
+                FontAwesomeIcons.whatsapp,
+                color: AppColors.whatsapp,
+              ),
               tooltip: 'واتساب',
             ),
           ],
@@ -874,15 +867,8 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20)),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color) =>
+      StatusBadge(label: text, color: color, small: true);
 
   Widget _chip(IconData icon, String text, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -905,7 +891,7 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
         'overdue' => AppColors.error,
         'today' => AppColors.warning,
         'soon' => AppColors.info,
-        'returned' => Colors.purple,
+        'returned' => AppStatus.editPending,
         _ => AppColors.goldDark,
       };
 
@@ -915,6 +901,8 @@ class _DeliveryTrackingScreenState extends State<DeliveryTrackingScreen> {
         'today' => 'اليوم',
         'soon' => 'خلال 3 أيام',
         'returned' => 'مرتجع',
+        'partial' => 'جزئي',
+        'pending' => 'قيد التسليم',
         _ => 'قادم',
       };
 

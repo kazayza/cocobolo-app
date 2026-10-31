@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
@@ -9,6 +10,8 @@ import '../services/leads_service.dart';
 import '../services/opportunities_service.dart';
 import '../services/permission_service.dart';
 import 'opportunity_detail_screen.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 
 /// Lead details — Blazor LeadDetailsV2 workflow parity
 class LeadDetailScreen extends StatefulWidget {
@@ -101,17 +104,17 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Color _statusColor(String s) {
     switch (s) {
       case LeadsService.statusNew:
-        return const Color(0xFF3B82F6);
+        return AppColors.info;
       case LeadsService.statusAssigned:
-        return const Color(0xFF8B5CF6);
+        return AppStatus.editPending;
       case LeadsService.statusContacted:
-        return const Color(0xFFF59E0B);
+        return AppColors.warning;
       case LeadsService.statusConverted:
-        return const Color(0xFF22C55E);
+        return AppColors.success;
       case LeadsService.statusRejected:
-        return const Color(0xFFEF4444);
+        return AppColors.error;
       default:
-        return Colors.blueGrey;
+        return AppColors.neutral;
     }
   }
 
@@ -188,7 +191,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.cairo()),
-        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
+        backgroundColor: ok ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -233,7 +236,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade400,
+                          color: AppColors.neutralLight,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -257,7 +260,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                           label: Text(t, style: GoogleFonts.cairo(fontSize: 12)),
                           selected: sel,
                           onSelected: (_) => setModal(() => type = t),
-                          selectedColor: AppColors.gold.withOpacity(0.35),
+                          selectedColor: AppColors.gold.withValues(alpha: 0.35),
                         );
                       }).toList(),
                     ),
@@ -711,7 +714,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
+                            backgroundColor: AppColors.success,
                             foregroundColor: Colors.white,
                           ),
                           onPressed: empId == null
@@ -801,18 +804,18 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.red.withOpacity(0.12), shape: BoxShape.circle), child: const Icon(Icons.block_rounded, color: Colors.red, size: 20)),
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), shape: BoxShape.circle), child: const Icon(Icons.block_rounded, color: AppColors.error, size: 20)),
           const SizedBox(width: 10),
           Text('رفض الـ Lead مباشر', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: Text('سيتم رفض الـ Lead مباشرة بدون إرسال طلب للمدير العام. الخسارة الحقيقية تكون في العملاء الفعليين بعد التحويل.', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey.shade700))),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.neutral.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)), child: Text('سيتم رفض الـ Lead مباشرة بدون إرسال طلب للمدير العام. الخسارة الحقيقية تكون في العملاء الفعليين بعد التحويل.', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral))),
           const SizedBox(height: 12),
           TextField(controller: ctrl, decoration: _inputDeco('سبب الرفض *'), style: GoogleFonts.cairo(), maxLines: 3),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text('إلغاء', style: GoogleFonts.cairo())),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), onPressed: () => Navigator.pop(c, true), child: Text('رفض مباشر', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), onPressed: () => Navigator.pop(c, true), child: Text('رفض مباشر', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -873,6 +876,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 18)),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           actions: [
             if (!_loading)
               IconButton(
@@ -882,21 +886,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           ],
         ),
         body: _loading
-            ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+            ? const AppLoading()
             : _error != null
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_error!, style: GoogleFonts.cairo()),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                            onPressed: _loadAll,
-                            child: Text('إعادة المحاولة',
-                                style: GoogleFonts.cairo())),
-                      ],
-                    ),
-                  )
+                ? AppError(message: _error!, onRetry: _loadAll)
                 : Stack(
                     children: [
                       RefreshIndicator(
@@ -980,19 +972,19 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     final phone = '${_lead?['Phone'] ?? ''}';
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [AppColors.navy, const Color(0xFF1E3A5F), const Color(0xFF2A4A7F)]),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: AppColors.navy.withOpacity(0.35), blurRadius: 22, offset: const Offset(0, 10))],
+        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: AppGradients.identityCard),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.35), blurRadius: 22, offset: const Offset(0, 10))],
       ),
       child: Stack(children: [
-        Positioned(top: -20, left: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), shape: BoxShape.circle))),
-        Positioned(bottom: -30, right: -30, child: Container(width: 140, height: 140, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.08), shape: BoxShape.circle))),
+        Positioned(top: -20, left: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle))),
+        Positioned(bottom: -30, right: -30, child: Container(width: 140, height: 140, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), shape: BoxShape.circle))),
         Padding(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Stack(children: [
-                Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withOpacity(0.14), shape: BoxShape.circle, border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.5)), child: Center(child: Text(initials, style: GoogleFonts.cairo(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)))),
+                Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.20), width: 1.5)), child: Center(child: Text(initials, style: GoogleFonts.cairo(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)))),
                 Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(5), decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: AppColors.navy, width: 2.5)), child: Icon(_statusIcon(s), size: 12, color: Colors.white))),
               ]),
               const SizedBox(width: 16),
@@ -1000,16 +992,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2)),
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 6, children: [
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))]), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(_statusIcon(s), size: 12, color: Colors.white), const SizedBox(width: 5), Text(s, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white))])),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.15))), child: Text('#${_lead!['LeadId']}', style: GoogleFonts.cairo(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w700))),
+                  StatusBadge(label: s, color: color, icon: _statusIcon(s), filled: true),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: Text('#${_lead!['LeadId']}', style: GoogleFonts.cairo(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w700))),
                 ]),
               ])),
             ]),
             const SizedBox(height: 18),
             Row(children: [
-              Expanded(child: _quickActionBtn(Icons.phone_rounded, 'اتصال', const Color(0xFF60A5FA), () => _launchTel(phone))),
+              Expanded(child: _quickActionBtn(Icons.call_rounded, 'اتصال', AppColors.infoLight, () => _launchTel(phone))),
               const SizedBox(width: 10),
-              Expanded(child: _quickActionBtn(Icons.chat_bubble_rounded, 'واتساب', const Color(0xFF4ADE80), () => _launchWhatsApp(phone))),
+              Expanded(child: _faQuickActionBtn(FontAwesomeIcons.whatsapp, 'واتساب', AppColors.whatsapp, () => _launchWhatsApp(phone))),
               const SizedBox(width: 10),
               Expanded(child: _quickActionBtn(Icons.copy_rounded, 'نسخ الرقم', Colors.white70, () async {
                 await Clipboard.setData(ClipboardData(text: phone));
@@ -1033,7 +1025,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Widget _quickActionBtn(
       IconData icon, String label, Color c, VoidCallback onTap) {
     return Material(
-      color: c.withOpacity(0.12),
+      color: c.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -1043,6 +1035,30 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           child: Column(
             children: [
               Icon(icon, color: c, size: 20),
+              const SizedBox(height: 4),
+              Text(label,
+                  style: GoogleFonts.cairo(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: c)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _faQuickActionBtn(
+      FaIconData icon, String label, Color c, VoidCallback onTap) {
+    return Material(
+      color: c.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            children: [
+              FaIcon(icon, color: c, size: 20),
               const SizedBox(height: 4),
               Text(label,
                   style: GoogleFonts.cairo(
@@ -1075,26 +1091,26 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Widget _buildActionsRow() {
-    final contactColor = _isDark ? AppColors.gold : const Color(0xFF1D4ED8);
-    final contactedColor = const Color(0xFFEA580C);
-    final assignColor = const Color(0xFF7C3AED);
-    final convertColor = const Color(0xFF15803D);
-    final rejectColor = const Color(0xFFDC2626);
+    final contactColor = _isDark ? AppColors.gold : AppColors.info;
+    final contactedColor = AppStatus.overdue;
+    final assignColor = AppStatus.editPending;
+    final convertColor = AppColors.success;
+    final rejectColor = AppColors.error;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withOpacity(0.22)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.22)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.bolt_rounded, size: 16, color: AppColors.gold)),
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.bolt_rounded, size: 16, color: AppColors.gold)),
           const SizedBox(width: 8),
           Text('إجراءات سريعة', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 14)),
           const Spacer(),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.green.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: Text('بدون موافقة مدير - مباشر', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Text('بدون موافقة مدير - مباشر', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success))),
         ]),
         const SizedBox(height: 12),
         Wrap(spacing: 10, runSpacing: 10, children: [
@@ -1119,7 +1135,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Widget _actionChip(IconData icon, String label, Color c, VoidCallback onTap, {bool isPrimary = false}) {
-    final bg = c.withOpacity(_isDark ? 0.22 : 0.14);
+    final bg = c.withValues(alpha: _isDark ? 0.22 : 0.14);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1130,8 +1146,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           decoration: BoxDecoration(
             color: isPrimary ? c : bg,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: c.withOpacity(isPrimary ? 1 : 0.55), width: isPrimary ? 0 : 1.2),
-            boxShadow: isPrimary ? [BoxShadow(color: c.withOpacity(0.32), blurRadius: 10, offset: const Offset(0, 4))] : null,
+            border: Border.all(color: c.withValues(alpha: isPrimary ? 1 : 0.55), width: isPrimary ? 0 : 1.2),
+            boxShadow: isPrimary ? [BoxShadow(color: c.withValues(alpha: 0.32), blurRadius: 10, offset: const Offset(0, 4))] : null,
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 16, color: isPrimary ? Colors.white : c),
@@ -1145,26 +1161,19 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
     final visible = children.whereType<Widget>().toList();
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 5))],
-      ),
+      child: AppCard(
+      padding: EdgeInsets.zero,
+      radius: AppRadius.xxl,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-          child: Row(children: [
-            Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, size: 20, color: AppColors.gold)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(title, style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 15))),
-            Container(width: 5, height: 20, decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(4))),
-          ]),
+          child: AppSectionHeader(title: title, icon: icon),
         ),
         Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: visible)),
       ]),
+      ),
     );
   }
 
@@ -1202,17 +1211,14 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
   Widget _buildAssignmentCard() {
     final name = '${_lead?['AssignedEmployeeName'] ?? 'غير مسند'}';
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      radius: AppRadius.lg,
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: const Color(0xFF8B5CF6).withOpacity(0.15),
-            child: const Icon(Icons.badge, color: Color(0xFF8B5CF6)),
+            backgroundColor: AppStatus.editPending.withValues(alpha: 0.15),
+            child: const Icon(Icons.badge, color: AppStatus.editPending),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1244,12 +1250,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     final notes = '${_lead?['Notes'] ?? ''}';
     final feedback = '${_lead?['Feedback'] ?? ''}';
     final rejected = '${_lead?['RejectedReason'] ?? ''}';
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1293,9 +1296,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 style: GoogleFonts.cairo(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: Colors.red)),
+                    color: AppColors.error)),
             Text(rejected,
-                style: GoogleFonts.cairo(fontSize: 13, color: Colors.red.shade700)),
+                style: GoogleFonts.cairo(fontSize: 13, color: AppColors.error)),
           ],
         ],
       ),
@@ -1308,16 +1311,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF22C55E).withOpacity(0.08),
+        color: AppColors.success.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF22C55E).withOpacity(0.35)),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('تم التحويل',
               style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.w900, color: const Color(0xFF166534))),
+                  fontWeight: FontWeight.w900, color: AppColors.success)),
           if (_lead?['ConvertedDate'] != null)
             Text('بتاريخ ${_fmtDate(_lead!['ConvertedDate'])} بواسطة ${_lead!['ConvertedBy'] ?? ''}',
                 style: GoogleFonts.cairo(fontSize: 12)),
@@ -1350,12 +1353,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Widget _buildTimeline() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1371,7 +1371,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.2),
+                  color: AppColors.gold.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text('${_interactions.length}',
@@ -1424,7 +1424,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(_interactionIcon(type), color: color, size: 20),
@@ -1500,19 +1500,19 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Color _interactionColor(String type) {
     switch (type) {
       case LeadsService.typeCall:
-        return const Color(0xFF3B82F6);
+        return AppColors.info;
       case LeadsService.typeWhatsApp:
-        return const Color(0xFF22C55E);
+        return AppColors.success;
       case LeadsService.typeAssigned:
-        return const Color(0xFF0EA5E9);
+        return AppColors.infoLight;
       case LeadsService.typeRejected:
-        return const Color(0xFFEF4444);
+        return AppColors.error;
       case LeadsService.typeConverted:
-        return const Color(0xFF8B5CF6);
+        return AppStatus.editPending;
       case LeadsService.typeFollowUp:
-        return const Color(0xFFF59E0B);
+        return AppColors.warning;
       default:
-        return const Color(0xFF64748B);
+        return AppColors.neutral;
     }
   }
 

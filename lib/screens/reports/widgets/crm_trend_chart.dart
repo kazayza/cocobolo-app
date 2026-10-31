@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -34,20 +36,9 @@ class _CrmTrendChartState extends State<CrmTrendChart> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -121,7 +112,7 @@ class _CrmTrendChartState extends State<CrmTrendChart> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: isActive ? color.withOpacity(0.15) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.all(AppRadius.lg),
             border: Border.all(
               color: isActive ? color : AppColors.divider(widget.isDark),
             ),
@@ -168,7 +159,7 @@ class _CrmTrendChartState extends State<CrmTrendChart> {
   // === Touch Info Card ===
   Widget _buildTouchInfo(TrendItem item) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.08)
@@ -445,12 +436,12 @@ class _CrmTrendChartState extends State<CrmTrendChart> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         children: [

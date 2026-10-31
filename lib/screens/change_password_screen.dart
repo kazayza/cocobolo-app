@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants.dart'; // تأكد إن baseUrl هنا
+import '../core/auth/session_service.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   final int userId;
@@ -38,7 +42,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/change-password'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': widget.userId,
           'currentPassword': _currentPassController.text,
@@ -49,13 +53,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        _showMessage('تم تغيير كلمة المرور بنجاح ✅', Colors.green);
+        _showMessage('تم تغيير كلمة المرور بنجاح ✅', AppColors.success);
         Navigator.pop(context); // الرجوع للخلف
       } else {
-        _showMessage(data['message'] ?? 'فشل تغيير كلمة المرور', Colors.red);
+        _showMessage(data['message'] ?? 'فشل تغيير كلمة المرور', AppColors.error);
       }
     } catch (e) {
-      _showMessage('خطأ في الاتصال بالسيرفر', Colors.red);
+      _showMessage('خطأ في الاتصال بالسيرفر', AppColors.error);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -74,17 +78,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black;
-
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background(isDark),
       appBar: AppBar(
-        title: Text('تغيير كلمة المرور', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        title: Text('تغيير كلمة المرور', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        backgroundColor: bgColor,
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
         elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -96,12 +97,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: AppColors.info.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.lock_reset, size: 60, color: Colors.blue),
+                child: const Icon(Icons.lock_reset, size: 60, color: AppColors.info),
               ),
               const SizedBox(height: 30),
+
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AppSectionHeader(
+                      title: 'بيانات كلمة المرور',
+                      icon: Icons.lock_outline,
+                    ),
+                    const SizedBox(height: 20),
 
               // كلمة المرور الحالية
               _buildPasswordField(
@@ -141,6 +152,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 },
                 isDark: isDark,
               ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 40),
 
               // زر الحفظ
@@ -150,8 +164,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _changePassword,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2196F3),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: AppColors.navy,
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.sm)),
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -176,35 +190,47 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     required String? Function(String?) validator,
     required bool isDark,
   }) {
-    return TextFormField(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.cairo(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.text(isDark),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
       controller: controller,
       obscureText: isObscure,
       validator: validator,
       style: GoogleFonts.cairo(color: isDark ? Colors.white : Colors.black),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.cairo(color: Colors.grey),
         prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
         suffixIcon: IconButton(
           icon: Icon(isObscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
           onPressed: onToggle,
         ),
         filled: true,
-        fillColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        fillColor: isDark ? AppColors.darkSurface : Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+          borderRadius: AppRadius.all(AppRadius.sm),
+          borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+          borderRadius: AppRadius.all(AppRadius.sm),
+          borderSide: BorderSide(color: AppColors.info, width: 2),
         ),
-        errorStyle: GoogleFonts.cairo(color: Colors.redAccent),
+        errorStyle: GoogleFonts.cairo(color: AppColors.error),
       ),
+        ),
+      ],
     );
   }
 }

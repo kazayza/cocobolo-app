@@ -16,10 +16,12 @@ import '../services/app_text_styles.dart';
 import '../services/price_list_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import '../widgets/premium_ui.dart';
 import 'price_requests_screen.dart';
 import 'product_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class PriceListScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -256,11 +258,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
   Color _tierColor(String tier) {
     switch (tier) {
       case 'CClass':
-        return const Color(0xFF64748B);
+        return AppColors.neutral;
       case 'Elite':
         return AppColors.goldDark;
       default:
-        return const Color(0xFF6366F1);
+        return AppColors.navyLight;
     }
   }
 
@@ -315,16 +317,18 @@ class _PriceListScreenState extends State<PriceListScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frm_PriceList'),
         backgroundColor: AppColors.premiumBackground(_isDark),
         body: NestedScrollView(
           headerSliverBuilder:
               (BuildContext context, bool innerBoxIsScrolled) => <Widget>[
-            SliverAppBar(
+            SliverAppBar( leading: const AppDrawerMenuButton(),
               pinned: true,
               stretch: true,
               expandedHeight: 132,
               backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
+              elevation: 0,
               title: Text(
                 'قائمة الأسعار',
                 style: AppTextStyles.titleLarge(_isDark),
@@ -731,52 +735,13 @@ class _PriceListScreenState extends State<PriceListScreen> {
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return AppStatCard(
+      label: label,
+      value: value,
+      color: color,
+      icon: icon,
+      selected: selected,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: 0.15)
-              : AppColors.inputFill(_isDark),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? color : AppColors.divider(_isDark),
-            width: selected ? 1.4 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 15, color: color),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.cairo(
-                color: _secondaryTextColor,
-                fontSize: 8,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -976,10 +941,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
                   if (_canSeeSalePrices) ...<Widget>[
                     const SizedBox(width: 8),
                     _tablePriceCell('ستاندرد', _price(row, 'CClass'),
-                        const Color(0xFF64748B)),
+                        AppColors.neutral),
                     const SizedBox(width: 5),
                     _tablePriceCell('بريميوم', _price(row, 'Premium'),
-                        const Color(0xFF6366F1)),
+                        AppColors.navyLight),
                     const SizedBox(width: 5),
                     _tablePriceCell('إيليت', _price(row, 'Elite'),
                         AppColors.goldDark),
@@ -1008,13 +973,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
             style: GoogleFonts.cairo(
                 color: color, fontSize: 8, fontWeight: FontWeight.bold),
           ),
-          Text(
-            price > 0 ? '${_formatMoney(price)}' : '—',
-            style: GoogleFonts.cairo(
-              color: _textColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
+          AmountText(
+            value: price > 0 ? '${_formatMoney(price)}' : '—',
+            size: 11,
+            color: _textColor,
           ),
         ],
       ),
@@ -1058,7 +1020,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
         borderRadius: BorderRadius.circular(17),
         border: Border.all(
           color:
-              selected ? const Color(0xFF6366F1) : AppColors.divider(_isDark),
+              selected ? AppColors.navyLight : AppColors.divider(_isDark),
           width: selected ? 1.5 : 1,
         ),
         boxShadow: <BoxShadow>[
@@ -1104,7 +1066,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                         height: 28,
                         decoration: BoxDecoration(
                           color: selected
-                              ? const Color(0xFF6366F1)
+                              ? AppColors.navyLight
                               : Colors.black.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.white38),
@@ -1138,7 +1100,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                           : 'غير متاح',
                       icon: Icons.inventory_rounded,
                       color: stock > 0
-                          ? const Color(0xFF15803D)
+                          ? AppColors.success
                           : Colors.red.shade700,
                     ),
                   ),
@@ -1171,7 +1133,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                               padding: EdgeInsets.only(right: 4),
                               child: Icon(
                                 Icons.public_rounded,
-                                color: Color(0xFF0891B2),
+                                color: AppColors.info,
                                 size: 15,
                               ),
                             ),
@@ -1322,13 +1284,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
                     ),
                   ),
                 ),
-              Text(
-                value > 0 ? '${_formatMoney(value)} ج' : '—',
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: compact ? 9.5 : 12,
-                  fontWeight: FontWeight.w900,
-                ),
+              AmountText(
+                value: value > 0 ? '${_formatMoney(value)} ج' : '—',
+                size: compact ? 9.5 : 12,
+                color: _textColor,
               ),
               if (_canSeeCosts && cost > 0) ...<Widget>[
                 const SizedBox(width: 4),
@@ -1492,7 +1451,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color:
-              selected ? const Color(0xFF6366F1) : AppColors.divider(_isDark),
+              selected ? AppColors.navyLight : AppColors.divider(_isDark),
         ),
       ),
       child: Material(
@@ -1530,7 +1489,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                         left: 5,
                         child: Icon(
                           Icons.public_rounded,
-                          color: Color(0xFF22D3EE),
+                          color: AppColors.infoLight,
                           size: 16,
                         ),
                       ),
@@ -1566,7 +1525,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                                   ? Icons.check_circle_rounded
                                   : Icons.compare_arrows_rounded,
                               color: selected
-                                  ? const Color(0xFF6366F1)
+                                  ? AppColors.navyLight
                                   : _secondaryTextColor,
                               size: 19,
                             ),
@@ -1695,12 +1654,12 @@ class _PriceListScreenState extends State<PriceListScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                color: AppColors.navyLight.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
                 Icons.compare_arrows_rounded,
-                color: Color(0xFF6366F1),
+                color: AppColors.navyLight,
               ),
             ),
             const SizedBox(width: 9),
@@ -1720,7 +1679,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
+                backgroundColor: AppColors.navyLight,
                 foregroundColor: Colors.white,
               ),
               onPressed: _openComparison,
@@ -1771,7 +1730,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                 Row(
                   children: <Widget>[
                     const Icon(Icons.compare_arrows_rounded,
-                        color: Color(0xFF6366F1)),
+                        color: AppColors.navyLight),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -2041,13 +2000,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
                                 ),
                               ),
                               const Spacer(),
-                              Text(
-                                '${_formatMoney(currentValue)} ج.م',
-                                style: GoogleFonts.cairo(
-                                  color: _textColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                              AmountText(
+                                value: '${_formatMoney(currentValue)} ج.م',
+                                size: 14,
+                                color: _textColor,
                               ),
                             ],
                           ),
@@ -2417,13 +2373,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
                 child: Icon(Icons.arrow_back_rounded,
                     color: Colors.grey, size: 17),
               ),
-              Text(
-                '${_formatMoney(newValue)} ج',
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                ),
+              AmountText(
+                value: '${_formatMoney(newValue)} ج',
+                size: 14,
+                color: _textColor,
               ),
               const Spacer(),
               Text(

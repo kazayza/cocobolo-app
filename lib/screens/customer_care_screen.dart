@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
@@ -8,12 +9,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/app_colors.dart';
 import '../services/customer_care_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/app_states.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'client_card_screen.dart';
 import 'complaint_details_screen.dart';
 import 'customer_care_history_screen.dart';
 import 'invoice/invoice_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class CustomerCareScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -487,8 +490,12 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_CustomerCare'),
       backgroundColor: AppColors.background(_isDark),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('خدمة العملاء',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -561,11 +568,11 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.navyDark, AppColors.navy, AppColors.navyLight],
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -608,7 +615,7 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
             _kpi('شكاوى', _kpis['OpenComplaints'], Icons.report_problem_rounded,
                 AppColors.error, 'complaints'),
             _kpi('اتصال لاحق', _kpis['CallbackCount'],
-                Icons.event_repeat_rounded, Colors.purple, 'callbacks'),
+                Icons.event_repeat_rounded, AppStatus.editPending, 'callbacks'),
           ]),
         ),
         const SizedBox(height: 12),
@@ -761,7 +768,7 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -794,7 +801,7 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
           if (status == 'Done')
             _badge('تم التواصل', AppColors.success)
           else if (status == 'Open' && callback)
-            _badge('متابعة مجدولة', Colors.purple)
+            _badge('متابعة مجدولة', AppStatus.editPending)
           else if (status == 'Skipped')
             _badge('مُسقطة', AppColors.error)
           else
@@ -831,7 +838,10 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
             ),
             IconButton(
               onPressed: () => _whatsapp('${row['Phone']}'),
-              icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              icon: const FaIcon(
+                FontAwesomeIcons.whatsapp,
+                color: AppColors.whatsapp,
+              ),
               tooltip: 'واتساب',
             ),
           ],
@@ -855,16 +865,8 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 8.5, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color) =>
+      StatusBadge(label: text, color: color, small: true);
 
   Widget _chip(IconData icon, String text, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -897,7 +899,7 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
         'Delivery' => AppColors.success,
         'SalesInvoice' => AppColors.warning,
         'ComplaintFollowUp' => AppColors.error,
-        _ => Colors.purple,
+        _ => AppStatus.editPending,
       };
 
   IconData _outcomeIcon(String outcome) => switch (outcome) {
@@ -916,14 +918,14 @@ class _CustomerCareScreenState extends State<CustomerCareScreen> {
         'Negative' => AppColors.error,
         'NoAnswer' => AppColors.warning,
         'NotInterested' => AppColors.neutral,
-        'CallbackLater' => Colors.purple,
+        'CallbackLater' => AppStatus.editPending,
         _ => AppColors.navy,
       };
 
   Color _callbackColor(dynamic value) {
     final date = DateTime.tryParse('${value ?? ''}');
-    if (date == null) return Colors.purple;
-    return date.isBefore(DateTime.now()) ? AppColors.error : Colors.purple;
+    if (date == null) return AppStatus.editPending;
+    return date.isBefore(DateTime.now()) ? AppColors.error : AppStatus.editPending;
   }
 
   String _date(dynamic value) {

@@ -1,10 +1,19 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/expense_service.dart';
+import '../../services/theme_service.dart';
+import '../../core/network/api_client.dart';
+import '../../widgets/design_kit.dart';
 
+/// تقارير المصروفات — وضعا بلازور فقط: تفصيلي / إجمالي شهري، من نهايات
+/// الخادم (print-data وmonthly-summary) لا من حساب عميل على قائمة
+/// مقتطعة. التصدير فعلي: CSV من نهاية التصدير يُحفظ مؤقتًا ويُشارك
+/// بنمط التطبيق المعتاد. الهوية واعية بالوضع في الوضعين.
 class ExpenseReportsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -22,183 +31,242 @@ class ExpenseReportsScreen extends StatefulWidget {
 }
 
 class _ExpenseReportsScreenState extends State<ExpenseReportsScreen> {
-  // بيانات التقرير
-  double totalExpenses = 0.0;
-  int transactionsCount = 0;
-  List<Map<String, dynamic>> expenses = [];
+  // وضعا بلازور: detail / summary
+  String _mode = 'detail';
+  List<Map<String, dynamic>> _items = [];
+  Map<String, dynamic>? _monthly;
+  double _totalAmount = 0;
+  int _totalCount = 0;
   bool isLoading = true;
-  
-  // الفلاتر
+  bool _exporting = false;
+  String? _error;
+
   String _selectedPeriod = 'هذا الشهر';
-  List<String> periods = ['اليوم', 'أمس', 'الأسبوع', 'هذا الشهر', 'الشهر الماضي', 'مخصص'];
+  final List<String> periods = [
+    'اليوم',
+    'أمس',
+    'الأسبوع',
+    'هذا الشهر',
+    'الشهر الماضي',
+    'مخصص'
+  ];
   DateTimeRange? _selectedDateRange;
-  
-  // أنواع التقارير
-  String _selectedReportType = 'إحصائي';
-  List<String> reportTypes = ['إحصائي', 'تفصيلي', 'التصنيفات', 'المقارنة'];
-  
+
+  bool get _isDark => ThemeService().isDarkMode;
+
   @override
   void initState() {
     super.initState();
     _selectedPeriod = widget.initialPeriod;
-    _initDateRange();
+    final now = DateTime.now();
+    _selectedDateRange = DateTimeRange(
+        start: DateTime(now.year, now.month, 1), end: now);
     _loadReportData();
   }
-  
-  void _initDateRange() {
-    final now = DateTime.now();
-    final startDate = DateTime(now.year, now.month, 1);
-    _selectedDateRange = DateTimeRange(start: startDate, end: now);
-  }
-  
-  Future<void> _loadReportData() async {
-    setState(() => isLoading = true);
-    
-    try {
-      final dateRange = _getDateRangeForPeriod(_selectedPeriod);
-      
-      // جلب المصروفات للفترة المحددة
-      expenses = await ExpenseService.getExpensesForChart(
-        startDate: dateRange.start,
-        endDate: dateRange.end,
-      );
-      
-      // حساب الإجمالي وعدد المعاملات
-      totalExpenses = expenses.fold(0.0, (sum, expense) {
-        return sum + (expense['Amount'] as double);
-      });
-      
-      transactionsCount = expenses.length;
-      
-    } catch (e) {
-      print('❌ خطأ في تحميل بيانات التقرير: $e');
-    } finally {
-      setState(() => isLoading = false);
-    }
-  }
-  
+
   DateTimeRange _getDateRangeForPeriod(String period) {
     final now = DateTime.now();
-    
     switch (period) {
       case 'اليوم':
         final start = DateTime(now.year, now.month, now.day);
         return DateTimeRange(start: start, end: now);
-        
       case 'أمس':
-        final yesterday = now.subtract(Duration(days: 1));
-        final start = DateTime(yesterday.year, yesterday.month, yesterday.day);
+        final yesterday = now.subtract(const Duration(days: 1));
+        final start =
+            DateTime(yesterday.year, yesterday.month, yesterday.day);
         return DateTimeRange(start: start, end: yesterday);
-        
       case 'الأسبوع':
-        final weekAgo = now.subtract(Duration(days: 7));
+        final weekAgo = now.subtract(const Duration(days: 7));
         return DateTimeRange(start: weekAgo, end: now);
-        
       case 'هذا الشهر':
         final start = DateTime(now.year, now.month, 1);
         return DateTimeRange(start: start, end: now);
-        
       case 'الشهر الماضي':
         final lastMonth = DateTime(now.year, now.month - 1, 1);
         final end = DateTime(now.year, now.month, 0);
         return DateTimeRange(start: lastMonth, end: end);
-        
       case 'مخصص':
-        return _selectedDateRange ?? DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: now,
-        );
-        
+        return _selectedDateRange ??
+            DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
       default:
         return DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: now,
-        );
+            start: DateTime(now.year, now.month, 1), end: now);
     }
   }
-  
+
+  String _fmtDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+
+  Future<void> _loadReportData() async {
+    setState(() {
+      isLoading = true;
+      _error = null;
+    });
+    try {
+      final range = _getDateRangeForPeriod(_selectedPeriod);
+      if (_mode == 'summary') {
+        final summary = await ExpenseService.getMonthlySummary(
+          startDate: _fmtDate(range.start),
+          endDate: _fmtDate(range.end),
+        );
+        if (mounted) {
+          setState(() {
+            _monthly = summary;
+            _items = [];
+            _totalAmount =
+                (summary['GrandTotal'] as num?)?.toDouble() ?? 0;
+            _totalCount = (summary['TotalCount'] as num?)?.toInt() ?? 0;
+          });
+        }
+      } else {
+        final data = await ExpenseService.getPrintData(
+          mode: 'detail',
+          startDate: _fmtDate(range.start),
+          endDate: _fmtDate(range.end),
+        );
+        final items = (data['items'] as List? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        if (mounted) {
+          setState(() {
+            _items = items;
+            _monthly = null;
+            _totalAmount = (data['totalAmount'] as num?)?.toDouble() ??
+                items.fold(
+                    0.0, (s, e) => s + ((e['Amount'] as num?)?.toDouble() ?? 0));
+            _totalCount =
+                (data['totalCount'] as num?)?.toInt() ?? items.length;
+          });
+        }
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'فشل تحميل بيانات التقرير');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  double get _average {
+    if (_mode == 'summary') {
+      return (_monthly?['MonthlyAverage'] as num?)?.toDouble() ?? 0;
+    }
+    return _totalCount > 0 ? _totalAmount / _totalCount : 0;
+  }
+
+  double get _max {
+    if (_mode == 'summary') {
+      final months = (_monthly?['Months'] as List?) ?? const [];
+      var m = 0.0;
+      for (final x in months) {
+        final t = ((x as Map)['Total'] as num?)?.toDouble() ?? 0;
+        if (t > m) m = t;
+      }
+      return m;
+    }
+    var m = 0.0;
+    for (final e in _items) {
+      final a = (e['Amount'] as num?)?.toDouble() ?? 0;
+      if (a > m) m = a;
+    }
+    return m;
+  }
+
+  Future<void> _exportReport() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final range = _getDateRangeForPeriod(_selectedPeriod);
+      final csv = await ExpenseService.exportCsv(
+        mode: _mode == 'summary' ? 'monthly' : 'detailed',
+        startDate: _fmtDate(range.start),
+        endDate: _fmtDate(range.end),
+      );
+      final dir = await getTemporaryDirectory();
+      final file = File(
+          '${dir.path}/expenses-${_mode == 'summary' ? 'monthly' : 'detailed'}.csv');
+      await file.writeAsString(csv);
+      await Share.shareXFiles([XFile(file.path)], text: 'تقرير المصروفات');
+    } on ApiException catch (e) {
+      _showSnackbar(e.message, isError: true);
+    } catch (_) {
+      _showSnackbar('حدث خطأ في التصدير', isError: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDark;
     return Scaffold(
-      backgroundColor: Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background(isDark),
       appBar: AppBar(
-        title: Text(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
           'تقارير المصروفات',
-          style: GoogleFonts.cairo(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: Color(0xFFE8B923),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.share, color: Colors.black),
-            onPressed: _shareReport,
-            tooltip: 'مشاركة التقرير',
-          ),
-          IconButton(
-            icon: Icon(Icons.download, color: Colors.black),
-            onPressed: _exportReport,
-            tooltip: 'تصدير التقرير',
-          ),
-        ],
-      ),
-      body: isLoading 
-          ? _buildLoading()
-          : _buildReportContent(),
-    );
-  }
-  
-  Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Color(0xFFE8B923)),
-          SizedBox(height: 20),
-          Text(
-            'جاري تحميل بيانات التقرير...',
-            style: GoogleFonts.cairo(color: Colors.white),
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.download, color: Colors.white),
+            onPressed: _exporting ? null : _exportReport,
+            tooltip: 'تصدير التقرير (CSV)',
           ),
         ],
       ),
+      body: isLoading
+          ? const AppLoading(message: 'جاري تحميل بيانات التقرير...')
+          : _error != null
+              ? AppError(message: _error!, onRetry: _loadReportData)
+              : _buildReportContent(isDark),
     );
   }
-  
-  Widget _buildReportContent() {
+
+  Widget _buildReportContent(bool isDark) {
     return SingleChildScrollView(
-      physics: BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== 1. فلاتر التقرير =====
-            _buildReportFilters(),
-            SizedBox(height: 20),
-            
-            // ===== 2. ملخص سريع =====
-            _buildQuickSummary(),
-            SizedBox(height: 20),
-            
-            // ===== 3. محتوى التقرير حسب النوع =====
-            _buildReportByType(),
-            SizedBox(height: 40),
+            _buildReportFilters(isDark),
+            const SizedBox(height: 20),
+            _buildKpis(isDark),
+            const SizedBox(height: 20),
+            if (_mode == 'summary') _buildMonthlyList(isDark),
+            if (_mode == 'detail') _buildDetailedList(isDark),
+            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
-  
-  // 1. فلاتر التقرير
-  Widget _buildReportFilters() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFE8B923).withOpacity(0.3)),
-      ),
+
+  Widget _buildReportFilters(bool isDark) {
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -207,62 +275,37 @@ class _ExpenseReportsScreenState extends State<ExpenseReportsScreen> {
             children: [
               Text(
                 'إعدادات التقرير',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.text(isDark),
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(Icons.filter_alt, color: Color(0xFFE8B923), size: 20),
+              const Icon(Icons.filter_alt, color: AppColors.gold, size: 20),
             ],
           ),
-          SizedBox(height: 16),
-          
-          // نوع التقرير
+          const SizedBox(height: 16),
           Text(
-            'نوع التقرير',
-            style: GoogleFonts.cairo(
-              color: Colors.grey[400],
-              fontSize: 14,
-            ),
+            'وضع التقرير',
+            style: TextStyle(
+                color: AppColors.textSecondary(isDark), fontSize: 14),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: reportTypes.map((type) {
-              final isSelected = _selectedReportType == type;
-              return FilterChip(
-                label: Text(
-                  type,
-                  style: GoogleFonts.cairo(
-                    color: isSelected ? Colors.black : Colors.white,
-                    fontSize: 12,
-                  ),
-                ),
-                selected: isSelected,
-                selectedColor: Color(0xFFE8B923),
-                backgroundColor: Color(0xFF2A2A2A),
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedReportType = type;
-                  });
-                },
-              );
-            }).toList(),
+            children: [
+              _modeChip('تفصيلي', 'detail', isDark),
+              _modeChip('إجمالي شهري', 'summary', isDark),
+            ],
           ),
-          
-          SizedBox(height: 16),
-          
-          // الفترة الزمنية
+          const SizedBox(height: 16),
           Text(
             'الفترة الزمنية',
-            style: GoogleFonts.cairo(
-              color: Colors.grey[400],
-              fontSize: 14,
-            ),
+            style: TextStyle(
+                color: AppColors.textSecondary(isDark), fontSize: 14),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -271,36 +314,45 @@ class _ExpenseReportsScreenState extends State<ExpenseReportsScreen> {
               return FilterChip(
                 label: Text(
                   period,
-                  style: GoogleFonts.cairo(
-                    color: isSelected ? Colors.black : Colors.white,
+                  style: TextStyle(
+                    color: isSelected
+                        ? AppColors.navy
+                        : AppColors.text(isDark),
                     fontSize: 12,
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: Color(0xFFE8B923),
-                backgroundColor: Color(0xFF2A2A2A),
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedPeriod = period;
-                  });
+                selectedColor: AppColors.gold,
+                backgroundColor: AppColors.inputFill(isDark),
+                onSelected: (_) async {
+                  if (period == 'مخصص') {
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      initialDateRange: _selectedDateRange,
+                    );
+                    if (picked != null) {
+                      setState(() => _selectedDateRange = picked);
+                    }
+                  }
+                  setState(() => _selectedPeriod = period);
                   _loadReportData();
                 },
               );
             }).toList(),
           ),
-          
-          SizedBox(height: 12),
-          
-          // عرض الفترة المحددة
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.calendar_today, color: Color(0xFFE8B923), size: 16),
-              SizedBox(width: 8),
+              const Icon(Icons.calendar_today,
+                  color: AppColors.gold, size: 16),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _getPeriodDisplayText(),
-                  style: GoogleFonts.cairo(
-                    color: Colors.grey[400],
+                  style: TextStyle(
+                    color: AppColors.textSecondary(isDark),
                     fontSize: 12,
                   ),
                 ),
@@ -311,402 +363,222 @@ class _ExpenseReportsScreenState extends State<ExpenseReportsScreen> {
       ),
     );
   }
-  
+
+  Widget _modeChip(String label, String mode, bool isDark) {
+    final isSelected = _mode == mode;
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? AppColors.navy : AppColors.text(isDark),
+          fontSize: 12,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: AppColors.gold,
+      backgroundColor: AppColors.inputFill(isDark),
+      onSelected: (_) {
+        if (_mode == mode) return;
+        setState(() => _mode = mode);
+        _loadReportData();
+      },
+    );
+  }
+
   String _getPeriodDisplayText() {
     final range = _getDateRangeForPeriod(_selectedPeriod);
-    
-    if (_selectedPeriod == 'اليوم') {
-      return '${DateFormat('dd/MM/yyyy').format(range.start)} (اليوم)';
-    } else if (_selectedPeriod == 'أمس') {
-      return '${DateFormat('dd/MM/yyyy').format(range.start)} (أمس)';
-    } else if (_selectedPeriod == 'مخصص') {
-      return '${DateFormat('dd/MM/yyyy').format(range.start)} - ${DateFormat('dd/MM/yyyy').format(range.end)}';
-    } else {
-      return '${DateFormat('dd/MM/yyyy').format(range.start)} - ${DateFormat('dd/MM/yyyy').format(range.end)} (${_selectedPeriod})';
-    }
+    final fmt = DateFormat('dd/MM/yyyy');
+    return '${fmt.format(range.start)} - ${fmt.format(range.end)} ($_selectedPeriod)';
   }
-  
-  // 2. ملخص سريع
-  Widget _buildQuickSummary() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFFE8B923).withOpacity(0.1),
-            Color(0xFF1A1A1A),
-        ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFE8B923).withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildSummaryItem(
-            value: '${NumberFormat('#,##0').format(totalExpenses)} ج.م',
-            label: 'إجمالي المصروفات',
-            icon: Icons.account_balance_wallet,
-            color: Colors.red,
-          ),
-          _buildSummaryItem(
-            value: '$transactionsCount',
-            label: 'عدد المعاملات',
-            icon: Icons.list,
-            color: Colors.blue,
-          ),
-          _buildSummaryItem(
-            value: _selectedPeriod,
-            label: 'الفترة المحددة',
-            icon: Icons.calendar_today,
-            color: Colors.green,
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildSummaryItem({
-    required String value,
-    required String label,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
-            fontSize: 10,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-  
-  // 3. محتوى التقرير حسب النوع
-  Widget _buildReportByType() {
-    switch (_selectedReportType) {
-      case 'إحصائي':
-        return _buildStatisticalReport();
-      case 'تفصيلي':
-        return _buildDetailedReport();
-      case 'التصنيفات':
-        return _buildCategoryReport();
-      case 'المقارنة':
-        return _buildComparisonReport();
-      default:
-        return _buildStatisticalReport();
-    }
-  }
-  
-  // 3.1 التقرير الإحصائي
-  Widget _buildStatisticalReport() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'التقرير الإحصائي',
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 16),
-        
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              _buildStatRow('إجمالي المصروفات', 
-                '${NumberFormat('#,##0').format(totalExpenses)} ج.م'),
-              SizedBox(height: 12),
-              _buildStatRow('عدد المعاملات', '$transactionsCount عملية'),
-              SizedBox(height: 12),
-              _buildStatRow('متوسط المعاملة', 
-                '${NumberFormat('#,##0').format(transactionsCount > 0 ? totalExpenses / transactionsCount : 0)} ج.م'),
-              SizedBox(height: 12),
-              _buildStatRow('الفترة الزمنية', _selectedPeriod),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildStatRow(String label, String value) {
+
+  Widget _buildKpis(bool isDark) {
+    final money = NumberFormat('#,##0');
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
-            fontSize: 14,
+        Expanded(
+          child: AppStatCard(
+            label: 'إجمالي المصروفات',
+            value: '${money.format(_totalAmount)} ج.م',
+            color: isDark ? AppColors.errorLight : AppColors.error,
+            icon: Icons.account_balance_wallet,
           ),
         ),
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        const SizedBox(width: 8),
+        Expanded(
+          child: AppStatCard(
+            label: 'عدد العمليات',
+            value: '$_totalCount',
+            color: isDark ? AppColors.infoLight : AppColors.info,
+            icon: Icons.list,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: AppStatCard(
+            label: _mode == 'summary' ? 'متوسط الشهر' : 'متوسط المصروف',
+            value: '${money.format(_average)} ج.م',
+            color: isDark ? AppColors.gold : AppColors.goldDark,
+            icon: Icons.calculate_outlined,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: AppStatCard(
+            label: _mode == 'summary' ? 'أعلى شهر' : 'أعلى مصروف',
+            value: '${money.format(_max)} ج.م',
+            color: isDark ? AppColors.warningLight : AppColors.warning,
+            icon: Icons.trending_up,
           ),
         ),
       ],
     );
   }
-  
-  // 3.2 التقرير التفصيلي
-  Widget _buildDetailedReport() {
+
+  Widget _buildDetailedList(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'التقرير التفصيلي',
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        AppSectionHeader(
+            title: 'التقرير التفصيلي (${_items.length})',
+            icon: Icons.receipt_long_rounded),
+        const SizedBox(height: 12),
+        if (_items.isEmpty)
+          const AppEmpty(message: 'لا توجد معاملات في هذه الفترة')
+        else
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              children: [
+                for (final e in _items) _detailRow(e, isDark),
+              ],
+            ),
           ),
-        ),
-        SizedBox(height: 16),
-        
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'قائمة بجميع المعاملات (${expenses.length})',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 12),
-              
-              if (expenses.isEmpty)
-                Center(
-                  child: Text(
-                    'لا توجد معاملات في هذه الفترة',
-                    style: GoogleFonts.cairo(color: Colors.grey),
+      ],
+    );
+  }
+
+  Widget _detailRow(Map<String, dynamic> e, bool isDark) {
+    final date = DateTime.tryParse(e['ExpenseDate']?.toString() ?? '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e['ExpenseName']?.toString() ?? '',
+                  style: TextStyle(
+                    color: AppColors.text(isDark),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
                   ),
-                )
-              else
-                ...expenses.map((expense) {
-                  final date = DateTime.parse(expense['ExpenseDate']);
-                  final amount = expense['Amount'] as double;
-                  final category = expense['CategoryName'] as String? ?? 'غير مصنف';
-                  final notes = expense['Notes'] as String? ?? '';
-                  
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12),
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(8),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${(e['FullGroupPath'] ?? e['ExpenseGroupName'] ?? '').toString()}'
+                  '${e['BranchName'] != null ? ' — ${e['BranchName']}' : ''}'
+                  '${date != null ? ' — ${DateFormat('dd/MM/yyyy').format(date)}' : ''}',
+                  style: TextStyle(
+                    color: AppColors.textSecondary(isDark),
+                    fontSize: 11,
+                  ),
+                ),
+                if (e['Torecipient'] != null &&
+                    e['Torecipient'].toString().isNotEmpty)
+                  Text(
+                    'المستلم: ${e['Torecipient']}',
+                    style: TextStyle(
+                      color: AppColors.textSecondary(isDark),
+                      fontSize: 11,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                DateFormat('dd/MM/yyyy - HH:mm').format(date),
-                                style: GoogleFonts.cairo(
-                                  color: Colors.grey[400],
-                                  fontSize: 11,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                category,
-                                style: GoogleFonts.cairo(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (notes.isNotEmpty) ...[
-                                SizedBox(height: 4),
-                                Text(
-                                  notes,
-                                  style: GoogleFonts.cairo(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '${NumberFormat('#,##0').format(amount)} ج.م',
-                          style: GoogleFonts.cairo(
-                            color: Color(0xFFE8B923),
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-            ],
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
+          AmountText(
+            value:
+                '${NumberFormat('#,##0.00').format((e['Amount'] as num?)?.toDouble() ?? 0)} ج.م',
+            color: isDark ? AppColors.errorLight : AppColors.error,
+            size: 13,
+          ),
+        ],
+      ),
     );
   }
-  
-  // 3.3 تقرير التصنيفات
-  Widget _buildCategoryReport() {
+
+  Widget _buildMonthlyList(bool isDark) {
+    final months = (_monthly?['Months'] as List?) ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'تقرير التصنيفات',
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 16),
-        
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Center(
-            child: Text(
-              'سيتم إضافة تحليل التصنيفات قريباً',
-              style: GoogleFonts.cairo(color: Colors.grey),
+        const AppSectionHeader(
+            title: 'الإجمالي الشهري', icon: Icons.calendar_month_rounded),
+        const SizedBox(height: 12),
+        if (months.isEmpty)
+          const AppEmpty(message: 'لا توجد بيانات في هذه الفترة')
+        else
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              children: [
+                for (final m in months)
+                  _monthRow(Map<String, dynamic>.from(m as Map), isDark),
+              ],
             ),
           ),
-        ),
       ],
     );
   }
-  
-  // 3.4 تقرير المقارنة
-  Widget _buildComparisonReport() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'تقرير المقارنة',
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 16),
-        
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Center(
-            child: Text(
-              'سيتم إضافة المقارنة بين الفترات قريباً',
-              style: GoogleFonts.cairo(color: Colors.grey),
+
+  Widget _monthRow(Map<String, dynamic> m, bool isDark) {
+    final change = (m['ChangePercent'] as num?)?.toDouble() ?? 0;
+    final hasPrev = m['HasPrevious'] == true;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  m['MonthLabel']?.toString() ?? '',
+                  style: TextStyle(
+                    color: AppColors.text(isDark),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${m['Count'] ?? 0} عملية',
+                  style: TextStyle(
+                    color: AppColors.textSecondary(isDark),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
-    );
-  }
-  
-  // === دوال المشاركة والتصدير ===
-  
-  void _shareReport() async {
-    try {
-      final reportContent = _generateShareableReport();
-      await Share.share(
-        reportContent,
-        subject: 'تقرير مصروفات - ${widget.username}',
-      );
-    } catch (e) {
-      print('❌ خطأ في المشاركة: $e');
-      _showSnackbar('حدث خطأ في المشاركة');
-    }
-  }
-  
-  String _generateShareableReport() {
-    final now = DateTime.now();
-    final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(now);
-    
-    return '''
-    📊 *تقرير المصروفات الشخصية*
-    👤 المستخدم: ${widget.username}
-    📅 تاريخ التقرير: $dateStr
-    ⏰ الفترة: $_selectedReportType - $_selectedPeriod
-    ═══════════════════════
-    
-    📈 *الإحصائيات:*
-    • إجمالي المصروفات: ${NumberFormat('#,##0').format(totalExpenses)} ج.م
-    • عدد المعاملات: $transactionsCount عملية
-    • المتوسط لكل معاملة: ${NumberFormat('#,##0').format(transactionsCount > 0 ? totalExpenses / transactionsCount : 0)} ج.م
-    
-    📋 *ملخص الفترة:*
-    ${_getPeriodDisplayText()}
-    
-    ═══════════════════════
-    تم إنشاؤه تلقائياً عبر نظام إدارة المصروفات
-    ''';
-  }
-  
-  void _exportReport() {
-    _showSnackbar('سيتم إضافة خيار التصدير قريباً');
-  }
-  
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Color(0xFF1A1A1A),
-        duration: Duration(seconds: 2),
+          if (hasPrev)
+            StatusBadge(
+              label:
+                  '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+              color: change > 0
+                  ? (isDark ? AppColors.errorLight : AppColors.error)
+                  : (isDark ? AppColors.successLight : AppColors.success),
+              small: true,
+            ),
+          const SizedBox(width: 10),
+          AmountText(
+            value:
+                '${NumberFormat('#,##0.00').format((m['Total'] as num?)?.toDouble() ?? 0)} ج.م',
+            color: AppColors.text(isDark),
+            size: 13,
+          ),
+        ],
       ),
     );
   }

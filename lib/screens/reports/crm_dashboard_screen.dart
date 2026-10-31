@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/dashboard_model.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/theme_service.dart';
-import '../../../services/app_colors.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import 'widgets/crm_period_chips.dart';
 import 'widgets/crm_filter_bar.dart';
 import 'widgets/crm_story_cards.dart';
@@ -23,6 +25,7 @@ import 'widgets/crm_section_header.dart';
 import 'widgets/crm_shimmer_loading.dart';
 import '../../services/crm_pdf_generator.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/app_drawer.dart';
 
 class CrmDashboardScreen extends StatefulWidget {
   final int userId;
@@ -281,7 +284,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
               onPrimary: Colors.black,
               secondary: AppColors.gold,
               onSecondary: Colors.black,
-              error: Colors.red,
+              error: AppColors.error,
               onError: Colors.white,
               surface: isDark ? AppColors.darkSurface : AppColors.lightSurface,
               onSurface: isDark ? Colors.white : AppColors.navy,
@@ -329,13 +332,14 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
     final isDark = ThemeService().isDarkMode;
 
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frmCRM_Dashboard'),
       backgroundColor: AppColors.background(isDark),
       floatingActionButton: _showScrollToTop
           ? FloatingActionButton(
               mini: true,
               backgroundColor: AppColors.gold,
               onPressed: _scrollToTop,
-              child: const Icon(Icons.keyboard_arrow_up, color: Colors.black),
+              child: const Icon(Icons.keyboard_arrow_up, color: AppColors.navy),
             ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.5, 0.5))
           : null,
       body: _loading
@@ -401,7 +405,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
                                   filled: true,
                                   fillColor: AppColors.surface(isDark),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: AppRadius.all(AppRadius.sm),
                                     borderSide: BorderSide.none,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -624,22 +628,17 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
       expandedHeight: 70,
       floating: true,
       pinned: true,
-      backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios_new,
-          color: AppColors.text(isDark),
-          size: 20,
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: AppDrawerMenuButton(color: Colors.white),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'لوحة تحكم المبيعات',
             style: GoogleFonts.cairo(
-              color: AppColors.text(isDark),
+              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -647,7 +646,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
           Text(
             'آخر تحديث: ${_getLastUpdateText()}',
             style: GoogleFonts.cairo(
-              color: AppColors.textSecondary(isDark),
+              color: Colors.white70,
               fontSize: 11,
             ),
           ),
@@ -707,7 +706,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
             margin: const EdgeInsets.only(top: 12),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.gold.withOpacity(0.2),
+              color: AppColors.gold.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -723,7 +722,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
         IconButton(
           icon: Icon(
             Icons.tune_rounded,
-            color: _activeFiltersCount > 0 ? AppColors.gold : AppColors.textSecondary(isDark),
+            color: _activeFiltersCount > 0 ? AppColors.gold : Colors.white70,
           ),
           onPressed: () => _showFilterSheet(isDark),
         ),
@@ -731,7 +730,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
         IconButton(
           icon: Icon(
             Icons.refresh_rounded,
-            color: AppColors.textSecondary(isDark),
+            color: Colors.white70,
           ),
           onPressed: _fetchData,
         ),
@@ -905,10 +904,10 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
                                   fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.gold,
-                            foregroundColor: Colors.black,
+                            foregroundColor: AppColors.navy,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: AppRadius.all(AppRadius.sm),
                             ),
                           ),
                         ),
@@ -988,50 +987,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
 
   // === Error ===
   Widget _buildError(bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: Colors.red[400], size: 64),
-            const SizedBox(height: 16),
-            Text(
-              'حدث خطأ',
-              style: GoogleFonts.cairo(
-                color: AppColors.text(isDark),
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage,
-              style: GoogleFonts.cairo(
-                color: AppColors.textSecondary(isDark),
-                fontSize: 13,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _fetchData,
-              icon: const Icon(Icons.refresh),
-              label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.black,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return AppError(message: _errorMessage, onRetry: _fetchData);
   }
 
   // === Last Update Text ===
@@ -1057,7 +1013,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
                 gradient: LinearGradient(
                   colors: [
                     Colors.transparent,
-                    AppColors.divider(isDark).withOpacity(0.5),
+                    AppColors.divider(isDark).withValues(alpha: 0.5),
                     Colors.transparent,
                   ],
                 ),
@@ -1069,7 +1025,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
             child: Icon(
               Icons.diamond_outlined,
               size: 8,
-              color: AppColors.gold.withOpacity(0.4),
+              color: AppColors.gold.withValues(alpha: 0.4),
             ),
           ),
           Expanded(
@@ -1079,7 +1035,7 @@ class _CrmDashboardScreenState extends State<CrmDashboardScreen> {
                 gradient: LinearGradient(
                   colors: [
                     Colors.transparent,
-                    AppColors.divider(isDark).withOpacity(0.5),
+                    AppColors.divider(isDark).withValues(alpha: 0.5),
                     Colors.transparent,
                   ],
                 ),

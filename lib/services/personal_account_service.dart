@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 /// 👤 سيرفس الحسابات الشخصية (مطابق لموديول الـ API / بلازور)
 class PersonalAccountService {
@@ -11,6 +12,8 @@ class PersonalAccountService {
   static Map<String, String> get _jsonHeaders => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        if (SessionService.instance.hasToken)
+          'Authorization': 'Bearer ${SessionService.instance.accessToken}',
       };
 
   /// قائمة الحسابات (مع بحث + نوع + فلتر رصيد + صفحات)
@@ -34,7 +37,7 @@ class PersonalAccountService {
       }
       if (isActive != null) q['isActive'] = isActive.toString();
 
-      final res = await http.get(_uri('/api/personal-accounts', q));
+      final res = await http.get(_uri('/api/personal-accounts', q), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         final data = body['data'] is Map ? body['data'] : <String, dynamic>{};
@@ -55,7 +58,7 @@ class PersonalAccountService {
   /// إحصائيات كل الحسابات (دائنون/مدينون/صافي)
   static Future<Map<String, dynamic>> getTotals() async {
     try {
-      final res = await http.get(_uri('/api/personal-accounts/totals'));
+      final res = await http.get(_uri('/api/personal-accounts/totals'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is Map) {
@@ -71,7 +74,7 @@ class PersonalAccountService {
   /// أنواع الحسابات
   static Future<List<Map<String, dynamic>>> getTypes() async {
     try {
-      final res = await http.get(_uri('/api/personal-accounts/types'));
+      final res = await http.get(_uri('/api/personal-accounts/types'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is List) {
@@ -87,7 +90,7 @@ class PersonalAccountService {
   /// حساب واحد
   static Future<Map<String, dynamic>?> getAccountById(int id) async {
     try {
-      final res = await http.get(_uri('/api/personal-accounts/$id'));
+      final res = await http.get(_uri('/api/personal-accounts/$id'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is Map) {
@@ -109,7 +112,7 @@ class PersonalAccountService {
 
       final res = await http.get(
         _uri('/api/personal-accounts/$accountId/statement', q.isEmpty ? null : q),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is Map) {

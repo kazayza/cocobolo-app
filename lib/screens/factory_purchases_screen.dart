@@ -11,11 +11,14 @@ import 'package:share_plus/share_plus.dart';
 import '../services/app_colors.dart';
 import '../services/factory_purchase_service.dart';
 import '../services/theme_service.dart';
+import '../services/design_tokens.dart';
 import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import 'factory_purchase_form_screen.dart';
 import 'invoice/invoice_details_screen.dart';
 import 'job_order_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class FactoryPurchasesScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -386,8 +389,12 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_SupplierInvoices'),
       backgroundColor: AppColors.background(_isDark),
-      appBar: AppBar(
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('فواتير شراء المصنع',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -406,7 +413,7 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
           ? FloatingActionButton.extended(
               onPressed: _busy ? null : _openCreate,
               backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.navyDark,
+              foregroundColor: AppColors.navy,
               icon: const Icon(Icons.add_rounded),
               label: Text('فاتورة شراء',
                   style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
@@ -575,11 +582,8 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
         ),
         child: Column(children: [
           Icon(icon, color: color, size: 18),
-          Text('${_int(value)}',
-              style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900)),
+          AmountText(
+              value: '${_int(value)}', color: Colors.white, size: 14),
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -591,28 +595,21 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
 
   Widget _amount(String label, dynamic value) => Expanded(
         child: Column(children: [
-          Text(_money(value),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800)),
+          AmountText(
+              value: _money(value), color: Colors.white, size: 11),
           Text(label,
               style: GoogleFonts.cairo(color: Colors.white54, fontSize: 8.5)),
         ]),
       );
 
   Widget _filters() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.xl,
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
-      child: Column(children: [
+        child: Column(children: [
         TextField(
           controller: _searchController,
           onChanged: _searchChanged,
@@ -679,7 +676,8 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
                   Text('مسح الفلاتر', style: GoogleFonts.cairo(fontSize: 10)),
             ),
           ),
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -743,11 +741,10 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (_can('canSeeAmounts'))
-              Text(_money(row['GrandTotal']),
-                  style: GoogleFonts.cairo(
-                      color: AppColors.text(_isDark),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900)),
+              AmountText(
+                  value: _money(row['GrandTotal']),
+                  color: AppColors.text(_isDark),
+                  size: 12),
             _badge(receiptStatus, receiptColor),
           ]),
         ]),
@@ -799,16 +796,8 @@ class _FactoryPurchasesScreenState extends State<FactoryPurchasesScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 8.5, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color) =>
+      StatusBadge(label: text, color: color, small: true);
 
   Widget _chip(IconData icon, String text, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),

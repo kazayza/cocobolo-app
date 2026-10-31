@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // ✅ إضافة المكتبة دي
 import '../services/icon_utils.dart';
 import './Reports/expense_reports.dart';
 import 'reports/crm_dashboard_screen.dart'; // ✅ إضافة شاشة الداشبورد
+import 'reports/sales_analytics_screen.dart'; // ✅ تحليلات المبيعات (بند 23)
 import 'expenses/expense_dashboard_screen.dart';
 import 'cashbox_transactions_screen.dart';
 import 'cashbox/cashbox_dashboard_screen.dart';
@@ -41,24 +44,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.navyDark,
       appBar: AppBar(
         title: Text(
           'التقارير',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.black),
+          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: const Color(0xFFE8B923),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ===== تقارير المبيعات =====
             _buildSectionTitle('تقارير المبيعات', Icons.point_of_sale),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _buildReportsGrid([
               _ReportItem(
                 title: 'مبيعات اليوم',
@@ -79,18 +84,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 onTap: () => _showComingSoon('تقرير أفضل المنتجات'),
               ),
               _ReportItem(
-                title: 'تحليل المبيعات',
+                title: 'تحليلات المبيعات',
                 icon: Icons.analytics,
                 color: const Color(0xFF9C27B0),
-                onTap: () => _showComingSoon('تحليل المبيعات'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SalesAnalyticsScreen(
+                      userId: widget.userId,
+                      username: widget.username,
+                    ),
+                  ),
+                ),
               ),
             ]),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // ===== تقارير العملاء =====
             _buildSectionTitle('تقارير العملاء', Icons.people),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _buildReportsGrid([
               _ReportItem(
                 title: 'أرصدة العملاء',
@@ -118,11 +131,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ]),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // ===== تقارير المصروفات =====
             _buildSectionTitle('تقارير المصروفات', Icons.money_off),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _buildReportsGrid([
               _ReportItem(
                 title: 'مصروفات اليوم',
@@ -158,17 +171,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ]),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // ===== تقارير المبيعات والعملاء (CRM) - قسم جديد ✅ =====
             _buildSectionTitle('تحليلات الـ CRM', FontAwesomeIcons.chartLine),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _buildReportsGrid([
               // ✅ ده الكارت الجديد (لوحة القيادة)
               _ReportItem(
                 title: 'لوحة القيادة (Dashboard)',
                 icon: FontAwesomeIcons.chartPie,
-                color: const Color(0xFFFFD700),
+                color: AppColors.gold,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -184,11 +197,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
               // ممكن تضيف تقارير CRM تانية هنا مستقبلاً
             ]),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xl),
 
             // ===== تقارير الخزينة =====
             _buildSectionTitle('تقارير الخزينة', Icons.account_balance),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _buildReportsGrid([
               _ReportItem(
                 title: 'حركة الخزينة',
@@ -236,7 +249,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildSectionTitle(String title, dynamic icon) {
     return Row(
       children: [
-        compatIcon(icon, color: const Color(0xFFFFD700), size: 22),
+        compatIcon(icon, color: AppColors.gold, size: 22),
         const SizedBox(width: 8),
         Text(
           title,
@@ -257,8 +270,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 1.5,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: AppSpacing.md,
+        mainAxisSpacing: AppSpacing.md,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -271,7 +284,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildReportCard(_ReportItem item, int index) {
     return InkWell(
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -282,14 +295,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
               item.color.withOpacity(0.05),
             ],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: item.color.withOpacity(0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: item.color.withOpacity(0.2),
                 shape: BoxShape.circle,
@@ -321,7 +334,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$feature - قريباً! 🚀', style: GoogleFonts.cairo()),
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.navy,
         behavior: SnackBarBehavior.floating,
       ),
     );

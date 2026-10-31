@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -13,32 +15,10 @@ import 'package:intl/intl.dart' as intl;
 import '../constants.dart';
 import 'add_interaction_screen.dart';
 import 'opportunity_details_screen.dart';
+import '../core/auth/session_service.dart';
 
-// ══════════════════════════════════════════════
-//  🎨 ثوابت التصميم
-// ══════════════════════════════════════════════
-class _AppColors {
-  static const Color background = Color(0xFF0A0A0F);
-  static const Color surface = Color(0xFF141420);
-  static const Color card = Color(0xFF1C1C2E);
-  static const Color gold = Color(0xFFFFD700);
-  static const Color red = Color(0xFFFF4757);
-  static const Color orange = Color(0xFFFF9F43);
-  static const Color green = Color(0xFF2ED573);
-  static const Color blue = Color(0xFF54A0FF);
-  static const Color whatsapp = Color(0xFF25D366);
-  static const Color textSecondary = Color(0xFF8A8A9A);
-  static const Color divider = Color(0xFF2A2A3E);
-}
-
-class _AppGradients {
-  static const LinearGradient appBar = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
-  );
-}
-
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
 // ══════════════════════════════════════════════
 //  📱 الشاشة الرئيسية
 // ══════════════════════════════════════════════
@@ -77,11 +57,21 @@ class _TasksScreenState extends State<TasksScreen>
   String searchQuery = '';
 
   final List<_TabConfig> _tabConfigs = [
-    _TabConfig('متأخرة', FontAwesomeIcons.triangleExclamation, _AppColors.red),
-    _TabConfig('اليوم', FontAwesomeIcons.calendarDay, _AppColors.orange),
-    _TabConfig('غداً', FontAwesomeIcons.calendarPlus, _AppColors.blue),
-    _TabConfig('قادمة', FontAwesomeIcons.calendarWeek, _AppColors.green),
-    _TabConfig('مكتملة', FontAwesomeIcons.circleCheck, _AppColors.textSecondary),
+    _TabConfig(
+        'متأخرة', FontAwesomeIcons.triangleExclamation, AppStatus.overdue),
+    _TabConfig('اليوم', FontAwesomeIcons.calendarDay, AppColors.warning),
+    _TabConfig('غداً', FontAwesomeIcons.calendarPlus, AppColors.info),
+    _TabConfig('قادمة', FontAwesomeIcons.calendarWeek, AppColors.infoLight),
+    _TabConfig('مكتملة', FontAwesomeIcons.circleCheck, AppColors.success),
+  ];
+
+  /// أيقونات Material لحالات التبويبات الفارغة — AppEmpty يقبل IconData فقط
+  static const List<IconData> _tabEmptyIcons = [
+    Icons.warning_amber_rounded,
+    Icons.today_rounded,
+    Icons.event_rounded,
+    Icons.calendar_month_rounded,
+    Icons.check_circle_rounded,
   ];
 
   @override
@@ -139,7 +129,10 @@ class _TasksScreenState extends State<TasksScreen>
   Future<void> _fetchEmployees() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/api/opportunities/employees'))
+          .get(
+            Uri.parse('$baseUrl/api/opportunities/employees'),
+            headers: SessionService.instance.authHeaders,
+          )
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
@@ -161,7 +154,10 @@ class _TasksScreenState extends State<TasksScreen>
       }
 
       final res = await http
-          .get(Uri.parse(url))
+          .get(
+            Uri.parse(url),
+            headers: SessionService.instance.authHeaders,
+          )
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
@@ -247,59 +243,64 @@ class _TasksScreenState extends State<TasksScreen>
     HapticFeedback.lightImpact();
     return await showDialog<bool>(
           context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: _AppColors.card,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: FaIcon(icon, color: color, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Text(title,
-                    style:
-                        GoogleFonts.cairo(color: Colors.white, fontSize: 16)),
-              ],
-            ),
-            content: Text(
-              message,
-              style: GoogleFonts.cairo(
-                  color: _AppColors.textSecondary, fontSize: 14),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text('إلغاء',
-                    style:
-                        GoogleFonts.cairo(color: _AppColors.textSecondary)),
+          builder: (ctx) {
+            final dialogTheme = Theme.of(ctx);
+            return AlertDialog(
+              backgroundColor: dialogTheme.colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadius.all(AppRadius.xxl),
               ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: AppRadius.all(AppRadius.xs),
+                    ),
+                    child: FaIcon(icon, color: color, size: 18),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Text(title,
+                      style: GoogleFonts.cairo(
+                          color: dialogTheme.colorScheme.onSurface,
+                          fontSize: 16)),
+                ],
+              ),
+              content: Text(
+                message,
+                style: GoogleFonts.cairo(
+                    color: dialogTheme.colorScheme.onSurfaceVariant,
+                    fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text('إلغاء',
+                      style: GoogleFonts.cairo(
+                          color: dialogTheme.colorScheme.onSurfaceVariant)),
+                ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: color,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppRadius.all(AppRadius.xs),
                   ),
                 ),
                 child: Text('تأكيد',
                     style: GoogleFonts.cairo(color: Colors.white)),
               ),
-            ],
-          ),
+              ],
+            );
+          },
         ) ??
         false;
   }
 
   Future<void> _makePhoneCall(String? phone) async {
     if (phone == null || phone.trim().isEmpty) {
-      _showSnackBar('لا يوجد رقم هاتف متاح', _AppColors.red,
+      _showSnackBar('لا يوجد رقم هاتف متاح', AppColors.error,
           FontAwesomeIcons.phoneSlash);
       return;
     }
@@ -308,7 +309,7 @@ class _TasksScreenState extends State<TasksScreen>
       title: 'اتصال',
       message: 'هل تريد الاتصال بـ $phone؟',
       icon: FontAwesomeIcons.phone,
-      color: _AppColors.green,
+      color: AppColors.success,
     );
     if (!confirmed) return;
 
@@ -316,14 +317,14 @@ class _TasksScreenState extends State<TasksScreen>
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      _showSnackBar('فشل في فتح تطبيق الهاتف', _AppColors.red,
+      _showSnackBar('فشل في فتح تطبيق الهاتف', AppColors.error,
           FontAwesomeIcons.circleExclamation);
     }
   }
 
   Future<void> _openWhatsApp(String? phone) async {
     if (phone == null || phone.trim().isEmpty) {
-      _showSnackBar('لا يوجد رقم هاتف متاح', _AppColors.red,
+      _showSnackBar('لا يوجد رقم هاتف متاح', AppColors.error,
           FontAwesomeIcons.phoneSlash);
       return;
     }
@@ -332,7 +333,7 @@ class _TasksScreenState extends State<TasksScreen>
       title: 'واتساب',
       message: 'هل تريد مراسلة $phone عبر واتساب؟',
       icon: FontAwesomeIcons.whatsapp,
-      color: _AppColors.whatsapp,
+      color: AppColors.whatsapp,
     );
     if (!confirmed) return;
 
@@ -353,7 +354,7 @@ class _TasksScreenState extends State<TasksScreen>
     } else if (await canLaunchUrl(normalUri)) {
       await launchUrl(normalUri, mode: LaunchMode.externalApplication);
     } else {
-      _showSnackBar('فشل في فتح واتساب', _AppColors.red,
+      _showSnackBar('فشل في فتح واتساب', AppColors.error,
           FontAwesomeIcons.circleExclamation);
     }
   }
@@ -419,10 +420,10 @@ class _TasksScreenState extends State<TasksScreen>
             ),
           ],
         ),
-        backgroundColor: color.withOpacity(0.9),
+        backgroundColor: color.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+            borderRadius: AppRadius.all(AppRadius.sm)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
       ),
@@ -431,7 +432,7 @@ class _TasksScreenState extends State<TasksScreen>
 
   void _openOpportunityDetails(dynamic task) async {
     if (task['OpportunityID'] == null) {
-      _showSnackBar('لا توجد فرصة مرتبطة', _AppColors.orange,
+      _showSnackBar('لا توجد فرصة مرتبطة', AppColors.warning,
           FontAwesomeIcons.circleExclamation);
       return;
     }
@@ -439,7 +440,7 @@ class _TasksScreenState extends State<TasksScreen>
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/${task['OpportunityID']}'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         final opportunity = jsonDecode(res.body);
@@ -458,7 +459,7 @@ class _TasksScreenState extends State<TasksScreen>
         }
       }
     } catch (e) {
-      _showSnackBar('خطأ في تحميل الفرصة', _AppColors.red,
+      _showSnackBar('خطأ في تحميل الفرصة', AppColors.error,
           FontAwesomeIcons.circleExclamation);
     }
   }
@@ -485,56 +486,60 @@ class _TasksScreenState extends State<TasksScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: _AppColors.background,
+      drawer: buildAppDrawer(currentRoute: 'frmCrmTasksLegacy'),
+      backgroundColor: AppColors.background(isDark),
       appBar: _buildAppBar(),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: _loadData,
-        backgroundColor: _AppColors.gold,
-        child: const Icon(Icons.refresh_rounded, color: Colors.black),
+        backgroundColor: AppColors.gold,
+        foregroundColor: AppColors.navy,
+        child: const Icon(Icons.refresh_rounded),
       ).animate().scale(delay: 500.ms),
     );
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _AppColors.surface,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       elevation: 0,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.arrow_back_ios_new,
-              color: Colors.white, size: 18),
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
+      leading: const AppDrawerMenuButton(),
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-              ),
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.gold.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const FaIcon(FontAwesomeIcons.listCheck,
-                color: Colors.black, size: 14),
+            child: FaIcon(FontAwesomeIcons.listCheck,
+                color: AppColors.gold, size: 20),
           ),
           const SizedBox(width: 10),
-          Text(
-            'إدارة المهام',
-            style: GoogleFonts.cairo(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'إدارة المهام',
+                style: GoogleFonts.cairo(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              Text(
+                'متابعة مهام العملاء والفرص',
+                style: GoogleFonts.cairo(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -545,7 +550,13 @@ class _TasksScreenState extends State<TasksScreen>
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(108),
         child: Container(
-          decoration: const BoxDecoration(gradient: _AppGradients.appBar),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: AppGradients.identityHeader,
+            ),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -564,21 +575,21 @@ class _TasksScreenState extends State<TasksScreen>
     return GestureDetector(
       onTap: _showEmployeeFilter,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
           color: hasFilter
-              ? _AppColors.gold.withOpacity(0.2)
-              : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+              ? AppColors.gold.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.1),
+          borderRadius: AppRadius.all(AppRadius.xs),
           border: hasFilter
-              ? Border.all(color: _AppColors.gold.withOpacity(0.5))
+              ? Border.all(color: AppColors.gold.withValues(alpha: 0.5))
               : null,
         ),
         child: Stack(
           children: [
             FaIcon(
               FontAwesomeIcons.filter,
-              color: hasFilter ? _AppColors.gold : Colors.white,
+              color: hasFilter ? AppColors.gold : Colors.white,
               size: 16,
             ),
             if (hasFilter)
@@ -588,8 +599,8 @@ class _TasksScreenState extends State<TasksScreen>
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: _AppColors.gold,
+                  decoration: BoxDecoration(
+                    color: AppColors.gold,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -603,26 +614,27 @@ class _TasksScreenState extends State<TasksScreen>
   // ─── شريط البحث ───
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.page, vertical: AppSpacing.sm),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: AppRadius.all(AppRadius.md),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: TextField(
           controller: _searchController,
           style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'بحث بالاسم، الهاتف، الوصف...',
-            hintStyle: GoogleFonts.cairo(
-                color: _AppColors.textSecondary, fontSize: 13),
+            hintStyle:
+                GoogleFonts.cairo(color: Colors.white70, fontSize: 13),
             prefixIcon: const Icon(Icons.search_rounded,
-                color: _AppColors.textSecondary, size: 20),
+                color: Colors.white70, size: 20),
             suffixIcon: searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.close_rounded,
-                        color: _AppColors.textSecondary, size: 18),
+                        color: Colors.white70, size: 18),
                     onPressed: () {
                       _searchController.clear();
                       setState(() => searchQuery = '');
@@ -644,10 +656,13 @@ class _TasksScreenState extends State<TasksScreen>
     return TabBar(
       controller: _tabController,
       isScrollable: true,
-      indicatorColor: _AppColors.gold,
+      indicatorColor: AppColors.gold,
       indicatorWeight: 3,
       indicatorSize: TabBarIndicatorSize.label,
-      labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      labelPadding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       dividerColor: Colors.transparent,
       tabs: List.generate(5, (i) {
         return _buildTab(
@@ -670,22 +685,7 @@ class _TasksScreenState extends State<TasksScreen>
           Text(label, style: GoogleFonts.cairo(fontSize: 12)),
           if (count > 0) ...[
             const SizedBox(width: 6),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [color, color.withOpacity(0.7)]),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
+            StatusBadge(label: '$count', color: color, filled: true, small: true),
           ],
         ],
       ),
@@ -694,7 +694,7 @@ class _TasksScreenState extends State<TasksScreen>
 
   // ─── الجسم ───
   Widget _buildBody() {
-    if (loading) return _buildLoadingShimmer();
+    if (loading) return const AppLoading();
     if (hasError) return _buildErrorView();
 
     final filtered = _allFilteredLists;
@@ -703,8 +703,8 @@ class _TasksScreenState extends State<TasksScreen>
       controller: _tabController,
       children: List.generate(5, (i) {
         return RefreshIndicator(
-          color: _AppColors.gold,
-          backgroundColor: _AppColors.card,
+          color: AppColors.gold,
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
           onRefresh: _loadData,
           child: _buildTaskList(filtered[i], i),
         );
@@ -712,76 +712,11 @@ class _TasksScreenState extends State<TasksScreen>
     );
   }
 
-  Widget _buildLoadingShimmer() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 6,
-      itemBuilder: (_, i) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 160,
-        decoration: BoxDecoration(
-          color: _AppColors.card,
-          borderRadius: BorderRadius.circular(16),
-        ),
-      )
-          .animate(onPlay: (c) => c.repeat())
-          .shimmer(
-            duration: 1200.ms,
-            color: Colors.white.withOpacity(0.05),
-          ),
-    );
-  }
-
   Widget _buildErrorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: _AppColors.red.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: _AppColors.red, size: 48),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              errorMessage,
-              style:
-                  GoogleFonts.cairo(color: Colors.white, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'تأكد من اتصالك بالإنترنت وحاول مرة أخرى',
-              style: GoogleFonts.cairo(
-                  color: _AppColors.textSecondary, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _AppColors.gold,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.refresh),
-              label: Text('إعادة المحاولة',
-                  style:
-                      GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9)),
-      ),
+    return AppError(
+      message: '$errorMessage\nتأكد من اتصالك بالإنترنت وحاول مرة أخرى',
+      onRetry: _loadData,
+      retryLabel: 'إعادة المحاولة',
     );
   }
 
@@ -789,7 +724,8 @@ class _TasksScreenState extends State<TasksScreen>
     if (tasks.isEmpty) return _buildEmptyState(tabIndex);
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page, AppSpacing.sm, AppSpacing.page, 80),
       itemCount: tasks.length,
       itemBuilder: (_, index) => _TaskCard(
         task: tasks[index],
@@ -818,38 +754,13 @@ class _TasksScreenState extends State<TasksScreen>
       children: [
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.4,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: config.color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: FaIcon(config.icon,
-                      size: 40, color: config.color.withOpacity(0.5)),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  messages[tabIndex],
-                  style: GoogleFonts.cairo(
-                      color: _AppColors.textSecondary, fontSize: 16),
-                ),
-                if (searchQuery.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'جرب تغيير كلمة البحث',
-                    style: GoogleFonts.cairo(
-                        color: _AppColors.textSecondary, fontSize: 13),
-                  ),
-                ],
-              ],
-            ).animate().fadeIn(duration: 400.ms).scale(
-                  begin: const Offset(0.9, 0.9),
-                ),
-          ),
+          child: AppEmpty(
+            message: messages[tabIndex],
+            hint: searchQuery.isNotEmpty ? 'جرب تغيير كلمة البحث' : null,
+            icon: _tabEmptyIcons[tabIndex],
+          ).animate().fadeIn(duration: 400.ms).scale(
+                begin: const Offset(0.9, 0.9),
+              ),
         ),
       ],
     );
@@ -861,48 +772,52 @@ class _TasksScreenState extends State<TasksScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
-        ),
-        decoration: const BoxDecoration(
-          color: _AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[700],
-                borderRadius: BorderRadius.circular(2),
+      builder: (ctx) {
+        final sheetTheme = Theme.of(ctx);
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          decoration: BoxDecoration(
+            color: sheetTheme.colorScheme.surface,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(AppRadius.xxxl)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: AppSpacing.md),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: sheetTheme.colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _AppColors.gold.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.15),
+                        borderRadius: AppRadius.all(AppRadius.xs),
+                      ),
+                      child: FaIcon(FontAwesomeIcons.filter,
+                          color: AppColors.gold, size: 16),
                     ),
-                    child: const FaIcon(FontAwesomeIcons.filter,
-                        color: _AppColors.gold, size: 16),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'فلتر حسب صاحب الفرصة',
-                    style: GoogleFonts.cairo(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(width: AppSpacing.md),
+                    Text(
+                      'فلتر حسب صاحب الفرصة',
+                      style: GoogleFonts.cairo(
+                        color: sheetTheme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
                   const Spacer(),
                   if (selectedEmployeeId != null)
                     TextButton(
@@ -916,12 +831,13 @@ class _TasksScreenState extends State<TasksScreen>
                       },
                       child: Text('مسح',
                           style: GoogleFonts.cairo(
-                              color: _AppColors.red, fontSize: 13)),
+                              color: AppColors.error, fontSize: 13)),
                     ),
                 ],
               ),
             ),
-            const Divider(color: _AppColors.divider, height: 1),
+            Divider(
+                color: sheetTheme.colorScheme.outlineVariant, height: 1),
             _buildEmployeeOption(
               name: 'كل الموظفين',
               icon: Icons.groups_rounded,
@@ -935,10 +851,11 @@ class _TasksScreenState extends State<TasksScreen>
                 _fetchTasks();
               },
             ),
-            const Divider(color: _AppColors.divider, height: 1),
+            Divider(
+                color: sheetTheme.colorScheme.outlineVariant, height: 1),
             Flexible(
               child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.only(bottom: AppSpacing.xl),
                 itemCount: employees.length,
                 itemBuilder: (_, i) {
                   final emp = employees[i];
@@ -959,9 +876,10 @@ class _TasksScreenState extends State<TasksScreen>
                 },
               ),
             ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -971,12 +889,14 @@ class _TasksScreenState extends State<TasksScreen>
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        color: isSelected ? _AppColors.gold.withOpacity(0.08) : null,
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xl, vertical: AppSpacing.md),
+        color: isSelected ? AppColors.gold.withValues(alpha: 0.08) : null,
         child: Row(
           children: [
             Container(
@@ -984,35 +904,31 @@ class _TasksScreenState extends State<TasksScreen>
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? _AppColors.gold.withOpacity(0.2)
-                    : Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
+                    ? AppColors.gold.withValues(alpha: 0.2)
+                    : onSurface.withValues(alpha: 0.06),
+                borderRadius: AppRadius.all(AppRadius.sm),
               ),
               child: Center(
                 child: icon != null
                     ? Icon(icon,
-                        color: isSelected
-                            ? _AppColors.gold
-                            : Colors.white,
+                        color: isSelected ? AppColors.gold : onSurface,
                         size: 20)
                     : Text(
                         name.isNotEmpty ? name[0].toUpperCase() : '?',
                         style: GoogleFonts.cairo(
-                          color: isSelected
-                              ? _AppColors.gold
-                              : Colors.white,
+                          color: isSelected ? AppColors.gold : onSurface,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Text(
                 name,
                 style: GoogleFonts.cairo(
-                  color: isSelected ? _AppColors.gold : Colors.white,
+                  color: isSelected ? AppColors.gold : onSurface,
                   fontWeight:
                       isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 14,
@@ -1020,8 +936,8 @@ class _TasksScreenState extends State<TasksScreen>
               ),
             ),
             if (isSelected)
-              const FaIcon(FontAwesomeIcons.circleCheck,
-                  color: _AppColors.gold, size: 16),
+              FaIcon(FontAwesomeIcons.circleCheck,
+                  color: AppColors.gold, size: 16),
           ],
         ),
       ),
@@ -1055,23 +971,25 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bool isHigh = task['Priority'] == 'High';
     final bool isCompleted = task['Status'] == 'Completed';
     final Color priorityColor =
-        isHigh ? _AppColors.red : _AppColors.orange;
-    final Color cardBorderColor =
-        isCompleted ? _AppColors.textSecondary : priorityColor;
+        isHigh ? AppColors.error : AppColors.warning;
+    final Color accentColor = isCompleted
+        ? theme.colorScheme.onSurfaceVariant
+        : priorityColor;
 
     return Dismissible(
       key: Key('task_${task['TaskID']}'),
-      background: const _SwipeBackground(
-        color: _AppColors.green,
+      background: _SwipeBackground(
+        color: AppColors.success,
         icon: FontAwesomeIcons.phone,
         label: 'اتصال',
         alignment: Alignment.centerRight,
       ),
-      secondaryBackground: const _SwipeBackground(
-        color: _AppColors.whatsapp,
+      secondaryBackground: _SwipeBackground(
+        color: AppColors.whatsapp,
         icon: FontAwesomeIcons.whatsapp,
         label: 'واتساب',
         alignment: Alignment.centerLeft,
@@ -1087,67 +1005,49 @@ class _TaskCard extends StatelessWidget {
       },
       child: GestureDetector(
         onTap: onDetails,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: _AppColors.card,
-            borderRadius: BorderRadius.circular(18),
-            border:
-                Border.all(color: cardBorderColor.withOpacity(0.15)),
-            boxShadow: [
-              BoxShadow(
-                color: cardBorderColor.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            radius: AppRadius.xl,
             child: IntrinsicHeight(
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // الشريط الجانبي
                   Container(
-                    width: 5,
+                    width: 4,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          cardBorderColor,
-                          cardBorderColor.withOpacity(0.3),
-                        ],
-                      ),
+                      color: accentColor,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
+                  const SizedBox(width: AppSpacing.md),
                   // المحتوى
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHeader(
-                              isCompleted, isHigh, priorityColor),
-                          const SizedBox(height: 14),
-                          _buildClientInfo(),
-                          const SizedBox(height: 12),
-                          _buildMetaInfo(),
-                          // ← أزرار الإجراءات بدون زر إنهاء
-                          if (!isCompleted) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 12),
-                              child: Divider(
-                                color: Colors.white.withOpacity(0.06),
-                                height: 1,
-                              ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(context, isCompleted, isHigh,
+                            priorityColor),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildClientInfo(context),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildMetaInfo(context),
+                        // ← أزرار الإجراءات بدون زر إنهاء
+                        if (!isCompleted) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.md),
+                            child: Divider(
+                              color: theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.5),
+                              height: 1,
                             ),
-                            _buildActions(),
-                          ],
+                          ),
+                          _buildActions(),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ],
@@ -1165,27 +1065,20 @@ class _TaskCard extends StatelessWidget {
         .slideX(begin: 0.06);
   }
 
-  Widget _buildHeader(
-      bool isCompleted, bool isHigh, Color priorityColor) {
+  Widget _buildHeader(BuildContext context, bool isCompleted, bool isHigh,
+      Color priorityColor) {
+    final theme = Theme.of(context);
+    final Color headerColor = isCompleted
+        ? theme.colorScheme.onSurfaceVariant
+        : priorityColor;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                (isCompleted
-                        ? _AppColors.textSecondary
-                        : priorityColor)
-                    .withOpacity(0.2),
-                (isCompleted
-                        ? _AppColors.textSecondary
-                        : priorityColor)
-                    .withOpacity(0.05),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
+            color: headerColor.withValues(alpha: 0.12),
+            borderRadius: AppRadius.all(AppRadius.sm),
           ),
           child: FaIcon(
             isCompleted
@@ -1193,13 +1086,11 @@ class _TaskCard extends StatelessWidget {
                 : (isHigh
                     ? FontAwesomeIcons.fire
                     : FontAwesomeIcons.clipboard),
-            color: isCompleted
-                ? _AppColors.textSecondary
-                : priorityColor,
+            color: headerColor,
             size: 16,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1208,8 +1099,8 @@ class _TaskCard extends StatelessWidget {
                 task['TaskDescription'] ?? 'مهمة',
                 style: GoogleFonts.cairo(
                   color: isCompleted
-                      ? _AppColors.textSecondary
-                      : Colors.white,
+                      ? theme.colorScheme.onSurfaceVariant
+                      : theme.colorScheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   decoration: isCompleted
@@ -1219,56 +1110,35 @@ class _TaskCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Row(
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: priorityColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      task['TaskTypeNameAr'] ?? 'متابعة',
-                      style: GoogleFonts.cairo(
-                          color: priorityColor, fontSize: 10),
-                    ),
+                  StatusBadge(
+                    label: task['TaskTypeNameAr'] ?? 'متابعة',
+                    color: priorityColor,
+                    small: true,
                   ),
-                  if (isHigh) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _AppColors.red.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const FaIcon(FontAwesomeIcons.arrowUp,
-                              color: _AppColors.red, size: 8),
-                          const SizedBox(width: 3),
-                          Text('عاجل',
-                              style: GoogleFonts.cairo(
-                                  color: _AppColors.red,
-                                  fontSize: 9)),
-                        ],
-                      ),
+                  if (isHigh)
+                    StatusBadge(
+                      label: 'عاجل',
+                      color: AppColors.error,
+                      icon: Icons.arrow_upward_rounded,
+                      small: true,
                     ),
-                  ],
                 ],
               ),
             ],
           ),
         ),
-        _buildDateBadge(),
+        _buildDateBadge(context),
       ],
     );
   }
 
-  Widget _buildDateBadge() {
+  Widget _buildDateBadge(BuildContext context) {
+    final theme = Theme.of(context);
     String dateText = '';
     String timeText = '';
 
@@ -1282,19 +1152,21 @@ class _TaskCard extends StatelessWidget {
     timeText = formatTime(task['DueTime']);
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 10, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: AppRadius.all(AppRadius.sm),
+        border: Border.all(
+            color:
+                theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
           Text(
             dateText,
             style: GoogleFonts.cairo(
-                color: Colors.white,
+                color: theme.colorScheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.bold),
           ),
@@ -1302,65 +1174,70 @@ class _TaskCard extends StatelessWidget {
             Text(
               timeText,
               style: GoogleFonts.cairo(
-                  color: _AppColors.textSecondary, fontSize: 10),
+                  color: theme.colorScheme.onSurfaceVariant, fontSize: 10),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildClientInfo() {
+  Widget _buildClientInfo(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
-        const FaIcon(FontAwesomeIcons.userLarge,
-            color: _AppColors.textSecondary, size: 12),
-        const SizedBox(width: 8),
+        FaIcon(FontAwesomeIcons.userLarge,
+            color: theme.colorScheme.onSurfaceVariant, size: 12),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
             task['ClientName'] ?? 'بدون اسم',
             style: GoogleFonts.cairo(
-                color: Colors.white,
+                color: theme.colorScheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w600),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         if (task['Phone'] != null) ...[
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             task['Phone'],
             style: GoogleFonts.cairo(
-                color: _AppColors.textSecondary, fontSize: 11),
+                color: theme.colorScheme.onSurfaceVariant, fontSize: 11),
           ),
         ],
       ],
     );
   }
 
-  Widget _buildMetaInfo() {
+  Widget _buildMetaInfo(BuildContext context) {
+    final theme = Theme.of(context);
     final oppOwner = task['OpportunityOwnerName'] ?? 'غير محدد';
     final assignedTo =
         task['AssignedToName']?.toString().split(' ').first ?? 'مجهول';
     final lastContact = formatLastContact(task['LastContactDate']);
 
     return Wrap(
-      spacing: 8,
+      spacing: AppSpacing.sm,
       runSpacing: 6,
       children: [
-        _MetaChip(
-          icon: FontAwesomeIcons.crown,
-          text: oppOwner,
-          color: _AppColors.gold,
+        StatusBadge(
+          label: oppOwner,
+          color: AppColors.gold,
+          icon: Icons.workspace_premium_rounded,
+          small: true,
         ),
-        _MetaChip(
-          icon: FontAwesomeIcons.userCheck,
-          text: assignedTo,
-          color: _AppColors.blue,
+        StatusBadge(
+          label: assignedTo,
+          color: AppColors.info,
+          icon: Icons.how_to_reg_rounded,
+          small: true,
         ),
-        _MetaChip(
-          icon: FontAwesomeIcons.clockRotateLeft,
-          text: lastContact,
-          color: _AppColors.textSecondary,
+        StatusBadge(
+          label: lastContact,
+          color: theme.colorScheme.onSurfaceVariant,
+          icon: Icons.history_rounded,
+          small: true,
         ),
       ],
     );
@@ -1369,26 +1246,33 @@ class _TaskCard extends StatelessWidget {
   // ✅ 3 أزرار فقط بدون زر إنهاء
   Widget _buildActions() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ActionBtn(
-          label: 'اتصال',
-          icon: FontAwesomeIcons.phone,
-          color: _AppColors.green,
-          onTap: onCall,
+        Expanded(
+          child: AppButton(
+            label: 'اتصال',
+            icon: Icons.call_rounded,
+            color: AppColors.success,
+            onTap: onCall,
+          ),
         ),
-        const SizedBox(width: 8),
-        _ActionBtn(
-          label: 'واتساب',
-          icon: FontAwesomeIcons.whatsapp,
-          color: _AppColors.whatsapp,
-          onTap: onWhatsApp,
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _FaAppButton(
+            label: 'واتساب',
+            icon: FontAwesomeIcons.whatsapp,
+            color: AppColors.whatsapp,
+            onTap: onWhatsApp,
+          ),
         ),
-        const SizedBox(width: 8),
-        _ActionBtn(
-          label: 'تسجيل تواصل',
-          icon: FontAwesomeIcons.commentDots,
-          color: _AppColors.gold,
-          onTap: onInteraction,
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: AppButton(
+            label: 'تسجيل تواصل',
+            icon: Icons.forum_rounded,
+            color: AppColors.gold,
+            onTap: onInteraction,
+          ),
         ),
       ],
     );
@@ -1398,94 +1282,6 @@ class _TaskCard extends StatelessWidget {
 // ══════════════════════════════════════════════
 //  🧩 Widgets مساعدة
 // ══════════════════════════════════════════════
-
-class _MetaChip extends StatelessWidget {
-  final FaIconData icon;
-  final String text;
-  final Color color;
-
-  const _MetaChip({
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FaIcon(icon, size: 10, color: color),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              style: GoogleFonts.cairo(color: color, fontSize: 10),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  final String label;
-  final FaIconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionBtn({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withOpacity(0.2)),
-            ),
-            child: Column(
-              children: [
-                FaIcon(icon, color: color, size: 13),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SwipeBackground extends StatelessWidget {
   final Color color;
@@ -1503,14 +1299,14 @@ class _SwipeBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppRadius.all(AppRadius.xl),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       alignment: alignment,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1525,7 +1321,7 @@ class _SwipeBackground extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: FaIcon(icon, color: color, size: 20),
@@ -1550,4 +1346,58 @@ class _TabConfig {
   final Color color;
 
   const _TabConfig(this.label, this.icon, this.color);
+}
+
+/// زر إجراء بأيقونة FontAwesome — مرآة AppButton شكليًا لأن أيقونات
+/// FontAwesome (FaIconData) لا تدخل في خانة IconData الخاصة بالكيت.
+class _FaAppButton extends StatelessWidget {
+  final String label;
+  final FaIconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FaAppButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.09),
+      borderRadius: AppRadius.all(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.all(AppRadius.lg),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.all(AppRadius.lg),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FaIcon(icon, size: 18, color: color),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

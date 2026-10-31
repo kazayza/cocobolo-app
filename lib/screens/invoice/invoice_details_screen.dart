@@ -14,8 +14,15 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../constants.dart';
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/permission_service.dart';
+import '../general_tasks_screen.dart';
 import '../../services/invoice_service.dart';
+import '../../services/payment_service.dart';
+import '../payments_screen.dart';
+import '../../services/cashbox_service.dart';
 import '../../core/network/api_client.dart';
 import 'add_invoice_screen.dart';
 import 'invoice_edit_history_sheet.dart';
@@ -45,6 +52,27 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
   final PermissionService _perms = PermissionService();
 
+  // قدرة الإلغاء: ادعاء الإلغاء المخصص في بلازور الحالي
+  // (frm_PartiesInvoices:Cancel) أو Admin — ادعاء الحذف لم يعد يكفي،
+  // وقدرة الخادم من نموذج التعديل تحمل الحكم نفسه.
+  bool _canCancelFromServer = false;
+  bool get _canCancelInvoice =>
+      _canCancelFromServer ||
+      _perms.isAdmin ||
+      (_perms.getPermission('frm_PartiesInvoices:Cancel')?.canView == true);
+
+  // بوابات إجراءات دفعات هذه الفاتورة — مرآة payments.canEdit/canDelete
+  bool _canEditPaymentRow(bool purchase) =>
+      _perms.isAdmin ||
+      _perms.canEdit(FormNames.payments) ||
+      _perms.isAccountManager ||
+      _perms.isAccount ||
+      (!purchase && _perms.isSales);
+  bool get _canDeletePaymentRow =>
+      _perms.isAdmin || _perms.canDelete(FormNames.payments);
+  bool get _canViewPaymentsList =>
+      _perms.isAdmin || _perms.canView(FormNames.payments);
+
   bool get _isAdminOrAccountMgr => _perms.canFullEditInvoices;
   bool get _canApprove => _perms.canApproveInvoiceEdit;
   // طلب التعديل في المرجع الحالي لفاتورة البيع فقط؛ الشراء له مسار تشغيل مستقل.
@@ -69,9 +97,18 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     });
     try {
       final data = await InvoiceService.instance.getFull(widget.transactionId);
+      // قدرات الخادم (منها canCancel) — فشلها لا يمنع عرض التفاصيل
+      var canCancel = false;
+      try {
+        final model =
+            await InvoiceService.instance.getEditModel(widget.transactionId);
+        final caps = model['capabilities'];
+        if (caps is Map) canCancel = caps['canCancel'] == true;
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _data = data;
+        _canCancelFromServer = canCancel;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -158,7 +195,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       'الموافقة على التعديل',
       'هل توافق على طلب تعديل هذه الفاتورة؟',
       'موافقة',
-      const Color(0xFF43A047),
+      AppColors.success,
     );
     if (ok != true || !mounted) return;
     try {
@@ -272,7 +309,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
+              foregroundColor: AppColors.navy,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('تطبيق الخصم'),
@@ -377,7 +414,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
+              foregroundColor: AppColors.navy,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('حفظ التعديل'),
@@ -450,7 +487,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
+              foregroundColor: AppColors.navy,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('حفظ'),
@@ -1360,8 +1397,8 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isSuccess
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+            ? AppColors.success
+            : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -1374,7 +1411,29 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('فاتورة #${widget.transactionId}'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
+          IconButton(
+            tooltip: 'تكليف جديد',
+            icon: const Icon(Icons.add_task_rounded),
+            color: AppColors.gold,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => GeneralTasksScreen(
+                    userId: _perms.userId ?? 0,
+                    username: widget.username,
+                    presetLinkedType: 'Invoice',
+                    presetLinkedId: widget.transactionId,
+                    autoOpenCreate: true,
+                  ),
+                ),
+              );
+            },
+          ),
           if (_pdfGenerating)
             const Padding(
               padding: EdgeInsets.all(14),
@@ -1398,7 +1457,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
               ? _buildError()
               : _buildBody(),
@@ -1406,41 +1465,23 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 
   Widget _buildError() {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   (Color, String, IconData) _statusInfo(String? status) {
     switch (status) {
       case 'Paid':
-        return (const Color(0xFF43A047), 'مدفوعة', Icons.check_circle_rounded);
+        return (AppColors.success, 'مدفوعة', Icons.check_circle_rounded);
       case 'PartiallyPaid':
         return (
-          const Color(0xFFFF9800),
+          AppColors.warning,
           'مدفوعة جزئياً',
           Icons.payment_rounded,
         );
       case 'Cancelled':
-        return (const Color(0xFFE53935), 'ملغاة', Icons.cancel_rounded);
+        return (AppColors.error, 'ملغاة', Icons.cancel_rounded);
       default:
-        return (const Color(0xFF2196F3), 'مفتوحة', Icons.lock_open_rounded);
+        return (AppColors.info, 'مفتوحة', Icons.lock_open_rounded);
     }
   }
 
@@ -1486,7 +1527,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 end: Alignment.bottomRight,
                 colors: isDark
                     ? [HomeAccent.navyDark, HomeAccent.navyLight]
-                    : [HomeAccent.navy, const Color(0xFF2C4E77)],
+                    : [HomeAccent.navy, AppColors.navyLight],
               ),
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
@@ -1553,7 +1594,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                           refNo,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFFE8C86A),
+                            color: AppColors.goldLight,
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1624,33 +1665,11 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                              color: statusColor.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3))
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, size: 13, color: Colors.white),
-                          const SizedBox(width: 5),
-                          Text(
-                            statusText,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
+                    StatusBadge(
+                      label: statusText,
+                      color: statusColor,
+                      icon: statusIcon,
+                      filled: true,
                     ),
                   ],
                 ),
@@ -1763,7 +1782,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF9C27B0).withValues(alpha: 0.22),
+                      color: AppStatus.editPending.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                           color:
@@ -1837,7 +1856,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             _SectionCard(
               title: 'تحليل الربح',
               icon: Icons.trending_up_rounded,
-              color: const Color(0xFF059669),
+              color: AppStatus.profit,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
                 child: Row(
@@ -1846,7 +1865,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       child: _ProfitTile(
                         label: 'التكلفة',
                         value: _fmt(profit['totalCost']),
-                        color: const Color(0xFF64748B),
+                        color: AppColors.neutral,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1854,7 +1873,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       child: _ProfitTile(
                         label: 'مجمل الربح',
                         value: _fmt(profit['grossProfit']),
-                        color: const Color(0xFF059669),
+                        color: AppStatus.profit,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1924,7 +1943,17 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               child: Column(
                 children: [
                   for (int idx = 0; idx < payments.length; idx++) ...[
-                    _PaymentRow(payment: payments[idx]),
+                    _PaymentRow(
+                      payment: payments[idx],
+                      canEdit: _canEditPaymentRow(isPurchase),
+                      canDelete: _canDeletePaymentRow,
+                      onReceipt: () => _showPaymentReceipt(
+                          Map<String, dynamic>.from(payments[idx] as Map)),
+                      onEdit: () => _editPaymentFromDetails(
+                          Map<String, dynamic>.from(payments[idx] as Map)),
+                      onDelete: () => _deletePaymentFromDetails(
+                          Map<String, dynamic>.from(payments[idx] as Map)),
+                    ),
                     if (idx != payments.length - 1)
                       Divider(
                           height: 1,
@@ -1932,6 +1961,28 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                           color: theme.colorScheme.outlineVariant
                               .withValues(alpha: 0.25)),
                   ],
+                  if (_canViewPaymentsList)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                              theme.brightness == Brightness.dark
+                                  ? AppColors.gold
+                                  : AppColors.navy,
+                        ),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                        label: const Text('سجل المدفوعات الكامل'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PaymentsScreen(
+                              username: widget.username,
+                              initialType: isPurchase ? 'Purchase' : 'Sale',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1954,7 +2005,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               editStatus != 1 &&
               editStatus != 2 &&
               header['InvoiceStatus'] != 'Cancelled')
-            _ActionButton(
+            AppButton(
               icon: Icons.edit_note_rounded,
               label: 'طلب تعديل الفاتورة',
               color: HomeAccent.indigo,
@@ -1965,17 +2016,17 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             Row(
               children: [
                 Expanded(
-                    child: _ActionButton(
+                    child: AppButton(
                         icon: Icons.check_rounded,
                         label: 'موافقة',
-                        color: const Color(0xFF43A047),
+                        color: AppColors.success,
                         onTap: _approveEdit)),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: _ActionButton(
+                    child: AppButton(
                         icon: Icons.close_rounded,
                         label: 'رفض',
-                        color: const Color(0xFFE53935),
+                        color: AppColors.error,
                         onTap: _rejectEdit)),
               ],
             ),
@@ -1988,7 +2039,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       _perms.canView('frm_SupplierInvoices'))
                   : (_canApprove && editStatus != 1))) ...[
             const SizedBox(height: 12),
-            _ActionButton(
+            AppButton(
               icon: Icons.edit_rounded,
               label: _isAdminOrAccountMgr
                   ? 'تعديل الفاتورة بالكامل'
@@ -1997,9 +2048,33 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               onTap: _openInvoiceEdit,
             ),
           ],
+          if (!isPurchase &&
+              header['InvoiceStatus'] != 'Cancelled' &&
+              _remaining(header) > 0) ...[
+            const SizedBox(height: 12),
+            AppButton(
+              icon: Icons.payments_rounded,
+              label: 'إضافة دفعة',
+              color: AppColors.success,
+              onTap: () => _addPayment(header),
+            ),
+          ],
+          if (_canCancelInvoice &&
+              header['InvoiceStatus'] != 'Cancelled' &&
+              !(_numOf(header['GrandTotal']) > 0 &&
+                  _numOf(header['PaidAmount']) >=
+                      _numOf(header['GrandTotal']))) ...[
+            const SizedBox(height: 12),
+            AppButton(
+              icon: Icons.cancel_rounded,
+              label: 'إلغاء الفاتورة',
+              color: AppColors.error,
+              onTap: () => _cancelInvoice(header),
+            ),
+          ],
           if (_canViewHistory) ...[
             const SizedBox(height: 12),
-            _ActionButton(
+            AppButton(
               icon: Icons.history_rounded,
               label: 'سجل التعديلات والاسترجاع',
               color: HomeAccent.indigo,
@@ -2011,6 +2086,572 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         ],
       ),
     );
+  }
+
+  // ──────────── إضافة دفعة (Item 14) ────────────────
+  Future<void> _addPayment(Map<String, dynamic> header) async {
+    final remaining = _remaining(header).toDouble();
+    final amountCtrl =
+        TextEditingController(text: remaining.toStringAsFixed(2));
+    final notesCtrl = TextEditingController();
+    List<Map<String, dynamic>> boxes = [];
+    try {
+      boxes = (await CashboxService.getAllCashboxes())
+          .where((b) => b['IsActive'] != false)
+          .toList();
+    } catch (_) {}
+    if (!mounted) return;
+    int? selectedBoxId;
+    for (final b in boxes) {
+      if (b['IsDefault'] == true) {
+        selectedBoxId = (b['CashBoxID'] as num?)?.toInt();
+        break;
+      }
+    }
+    selectedBoxId ??=
+        boxes.isNotEmpty ? (boxes.first['CashBoxID'] as num?)?.toInt() : null;
+    String selectedMethod = 'Cash';
+    // تحليل شرائح السداد 70/20/10 من الخادم — يُجلب عند فتح الحوار
+    // ويُحدَّث بزر التحليل عند تغيير المبلغ، وخطؤه ظاهر داخل الحوار.
+    Map<String, dynamic>? analysis;
+    String? analysisError;
+    var analysisRequested = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> loadAnalysis() async {
+            try {
+              final amount =
+                  double.tryParse(amountCtrl.text.trim()) ?? remaining;
+              final data = await PaymentService.instance.getAnalysis(
+                widget.transactionId,
+                amount: amount > 0 ? amount : remaining,
+              );
+              setDialogState(() {
+                analysis = data;
+                analysisError = null;
+              });
+            } on ApiException catch (e) {
+              setDialogState(() => analysisError = e.message);
+            }
+          }
+
+          if (!analysisRequested) {
+            analysisRequested = true;
+            loadAnalysis();
+          }
+          final tierAnalysis = analysis?['CurrentPaymentAnalysis'];
+          return AlertDialog(
+          title: const Text('إضافة دفعة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'المبلغ *',
+                    helperText: 'المتبقي: ${_fmt(remaining)} ج',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedBoxId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الخزينة *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: boxes
+                      .map((b) => DropdownMenuItem<int>(
+                            value: (b['CashBoxID'] as num?)?.toInt(),
+                            child: Text('${b['CashBoxName'] ?? ''}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedBoxId = v),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedMethod,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'طريقة الدفع *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: PaymentService.selectableMethods
+                      .map((m) => DropdownMenuItem<String>(
+                            value: m['value'],
+                            child: Text(m['label']!),
+                          ))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedMethod = v ?? 'Cash'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظات (اختياري)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (analysisError != null)
+                  Text(
+                    'تعذر تحميل تحليل الشرائح: $analysisError',
+                    style: TextStyle(
+                        color: AppColors.error, fontSize: 12),
+                  )
+                else if (tierAnalysis is Map) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: HomeAccent.teal.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'تحليل الشرائح (70/20/10)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12.5),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'تحديث التحليل بالمبلغ الحالي',
+                              icon: const Icon(Icons.refresh_rounded,
+                                  size: 18),
+                              onPressed: loadAnalysis,
+                            ),
+                          ],
+                        ),
+                        if ((tierAnalysis['Description'] ?? '')
+                            .toString()
+                            .isNotEmpty)
+                          Text(
+                            tierAnalysis['Description'].toString(),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        for (final alloc
+                            in (tierAnalysis['Allocations'] as List? ?? []))
+                          Text(
+                            '${(alloc as Map)['TierName']}: ${_fmt((alloc['AmountAllocated'] as num?)?.toDouble() ?? 0)} ج',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حفظ الدفعة'),
+            ),
+          ],
+          );
+        },
+      ),
+    );
+    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    final notesText = notesCtrl.text.trim();
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+    if (amount <= 0 || selectedBoxId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل مبلغًا صحيحًا واختر الخزينة')),
+      );
+      return;
+    }
+    try {
+      await InvoiceService.instance.addPayment(
+        widget.transactionId,
+        amount: amount,
+        cashBoxId: selectedBoxId!,
+        paymentMethod: selectedMethod,
+        notes: notesText.isEmpty ? null : notesText,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إضافة الدفعة بنجاح')),
+      );
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
+  }
+
+  // ──────────── تعديل دفعة من سجل الفاتورة ────────────────
+  // وحدات التحكم مملوكة للحوار وتُحرَّر بعد إغلاقه مباشرة.
+  Future<void> _editPaymentFromDetails(Map<String, dynamic> payment) async {
+    List<Map<String, dynamic>> boxes = [];
+    try {
+      boxes = (await CashboxService.getAllCashboxes())
+          .where((b) => b['IsActive'] != false)
+          .toList();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+    if (!mounted) return;
+    final amountCtrl = TextEditingController(
+        text: _numOf(payment['Amount']).toDouble().toStringAsFixed(2));
+    final notesCtrl =
+        TextEditingController(text: '${payment['Notes'] ?? ''}');
+    int? boxId = (payment['CashBoxID'] as num?)?.toInt() ??
+        (boxes.isNotEmpty ? (boxes.first['CashBoxID'] as num?)?.toInt() : null);
+    String method = PaymentService.selectableMethods
+            .any((m) => m['value'] == '${payment['PaymentMethod'] ?? ''}')
+        ? '${payment['PaymentMethod']}'
+        : 'Cash';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('تعديل الدفعة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: boxId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الخزينة *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: boxes
+                      .map((b) => DropdownMenuItem<int>(
+                            value: (b['CashBoxID'] as num?)?.toInt(),
+                            child: Text('${b['CashBoxName'] ?? ''}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => boxId = v),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: method,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'طريقة الدفع *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: PaymentService.selectableMethods
+                      .map((m) => DropdownMenuItem<String>(
+                            value: m['value'],
+                            child: Text(m['label']!),
+                          ))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => method = v ?? 'Cash'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظات (اختياري)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('تراجع'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حفظ التعديل'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    final notesText = notesCtrl.text.trim();
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+    if (amount <= 0 || boxId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل مبلغًا صحيحًا واختر الخزينة')),
+      );
+      return;
+    }
+    try {
+      await PaymentService.instance.updatePayment(
+        (payment['PaymentID'] as num).toInt(),
+        amount: amount,
+        cashBoxId: boxId!,
+        paymentMethod: method,
+        notes: notesText.isEmpty ? null : notesText,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تعديل الدفعة بنجاح')),
+      );
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  // ──────────── إلغاء دفعة من سجل الفاتورة (سبب إلزامي) ─────────
+  Future<void> _deletePaymentFromDetails(Map<String, dynamic> payment) async {
+    final reasonCtrl = TextEditingController();
+    String? reasonError;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('إلغاء الدفعة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'سيتم حذف دفعة ${_fmt(payment['Amount'])} ج نهائيًا مع حركتها في الخزينة، وإعادة حساب الفاتورة.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonCtrl,
+                decoration: InputDecoration(
+                  labelText: 'سبب الإلغاء *',
+                  errorText: reasonError,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('تراجع'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () {
+                if (reasonCtrl.text.trim().isEmpty) {
+                  setDialogState(() => reasonError = 'سبب الإلغاء مطلوب');
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('إلغاء الدفعة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reason = reasonCtrl.text.trim();
+    reasonCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+    try {
+      await PaymentService.instance.deletePayment(
+        (payment['PaymentID'] as num).toInt(),
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إلغاء الدفعة ورد قيمتها للخزينة')),
+      );
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  // ──────────── سند دفعة من سجل الفاتورة ────────────────────────
+  Future<void> _showPaymentReceipt(Map<String, dynamic> payment) async {
+    Map<String, dynamic> receipt;
+    try {
+      receipt = await PaymentService.instance
+          .getReceipt((payment['PaymentID'] as num).toInt());
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+    if (!mounted) return;
+    final pay =
+        Map<String, dynamic>.from((receipt['Payment'] as Map?) ?? payment);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${receipt['ReceiptTypeAr'] ?? 'سند دفعة'}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('رقم السند: ${receipt['ReceiptNumber'] ?? ''}'),
+              Text('الطرف: ${pay['PartyName'] ?? '—'}'),
+              Text('الخزينة: ${pay['CashBoxName'] ?? '—'}'),
+              const SizedBox(height: 10),
+              Text(
+                '${_fmt(pay['Amount'])} ج',
+                style:
+                    const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              Text('${receipt['AmountInWords'] ?? ''}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.print_rounded),
+            label: const Text('طباعة / مشاركة'),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _printPaymentReceipt(receipt, pay);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // طباعة/مشاركة سند الدفعة PDF — نمط سند الرسوم الإضافية نفسه
+  Future<void> _printPaymentReceipt(
+      Map<String, dynamic> receipt, Map<String, dynamic> pay) async {
+    try {
+      final regularData =
+          await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+      final boldData = await rootBundle.load('assets/fonts/Cairo-Bold.ttf');
+      final regular = pw.Font.ttf(regularData);
+      final bold = pw.Font.ttf(boldData);
+      final document = pw.Document();
+      document.addPage(pw.Page(
+        pageFormat: PdfPageFormat.a5,
+        margin: const pw.EdgeInsets.all(26),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: regular, bold: bold),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Text('${receipt['CompanyName'] ?? 'COCOBOLO'}',
+                style: pw.TextStyle(font: bold, fontSize: 16)),
+            pw.Text(
+                '${receipt['ReceiptTypeAr'] ?? ''} — ${receipt['ReceiptNumber'] ?? ''}',
+                style: pw.TextStyle(font: bold, fontSize: 13)),
+            pw.SizedBox(height: 14),
+            pw.Text('الطرف: ${pay['PartyName'] ?? '—'}',
+                style: pw.TextStyle(font: regular, fontSize: 11)),
+            pw.Text('الفاتورة: ${pay['InvoiceReferenceNumber'] ?? '—'}',
+                style: pw.TextStyle(font: regular, fontSize: 11)),
+            pw.Text('الخزينة: ${pay['CashBoxName'] ?? '—'}',
+                style: pw.TextStyle(font: regular, fontSize: 11)),
+            pw.SizedBox(height: 14),
+            pw.Text('${_fmt(pay['Amount'])} ج',
+                style: pw.TextStyle(font: bold, fontSize: 20)),
+            pw.Text('${receipt['AmountInWords'] ?? ''}',
+                style: pw.TextStyle(font: regular, fontSize: 11)),
+          ],
+        ),
+      ));
+      final bytes = await document.save();
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName =
+          receipt['ReceiptNumber'] ?? 'payment_${pay['PaymentID']}';
+      final file = File('${directory.path}/$fileName.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/pdf')],
+        subject: '${receipt['ReceiptTypeAr'] ?? 'سند دفعة'}',
+        text: '${receipt['ReceiptTypeAr'] ?? 'سند دفعة'} — ${pay['PartyName'] ?? ''}',
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إنشاء السند: $e')),
+        );
+      }
+    }
+  }
+
+  // ──────────── إلغاء الفاتورة (Item 14) ────────────────
+  Future<void> _cancelInvoice(Map<String, dynamic> header) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إلغاء الفاتورة'),
+        content: Text(
+          'سيتم إلغاء الفاتورة ${header['ReferenceNumber'] ?? ''} نهائيًا وإعادة المخزون. هل تريد المتابعة؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('إلغاء الفاتورة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await InvoiceService.instance.cancelInvoice(widget.transactionId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إلغاء الفاتورة')),
+      );
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
   }
 
   num _remaining(Map<String, dynamic> header) {
@@ -2054,13 +2695,10 @@ class _ProfitTile extends StatelessWidget {
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              hasCurrency ? '$value ج' : value,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-              ),
+            child: AmountText(
+              value: hasCurrency ? '$value ج' : value,
+              color: color,
+              size: 14,
             ),
           ),
         ],
@@ -2113,11 +2751,7 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: TextStyle(
-                  color: color, fontSize: 14, fontWeight: FontWeight.w900),
-            ),
+            child: AmountText(value: value, color: color, size: 14),
           ),
           Text('ج.م',
               style: TextStyle(
@@ -2142,45 +2776,16 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
+    // مبنية الآن على مكوّنات النظام: AppCard + AppSectionHeader
+    return AppCard(
+      padding: EdgeInsets.zero,
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                Container(
-                    width: 4,
-                    height: 18,
-                    decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(4))),
-                const SizedBox(width: 10),
-                Icon(icon, size: 18, color: color),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(title,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 14.5, fontWeight: FontWeight.w800)),
-                ),
-              ],
-            ),
+            child: AppSectionHeader(title: title, icon: icon, accent: color),
           ),
           child,
         ],
@@ -2416,7 +3021,20 @@ class _ProductRow extends StatelessWidget {
 
 class _PaymentRow extends StatelessWidget {
   final dynamic payment;
-  const _PaymentRow({required this.payment});
+  final bool canEdit;
+  final bool canDelete;
+  final VoidCallback? onReceipt;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const _PaymentRow({
+    required this.payment,
+    this.canEdit = false,
+    this.canDelete = false,
+    this.onReceipt,
+    this.onEdit,
+    this.onDelete,
+  });
 
   String _date(dynamic v) {
     if (v == null) return '—';
@@ -2434,96 +3052,101 @@ class _PaymentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasActions =
+        onReceipt != null || (canEdit && onEdit != null) || (canDelete && onDelete != null);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: HomeAccent.teal.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(
-                  color: HomeAccent.teal.withValues(alpha: 0.18)),
-            ),
-            child: const Icon(Icons.check_rounded,
-                size: 18, color: HomeAccent.teal),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_date(payment['PaymentDate'] ?? payment['CreatedAt']),
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface)),
-                if ((payment['PaymentMethod'] ?? '').toString().isNotEmpty)
-                  Text(payment['PaymentMethod'].toString(),
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: theme.colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text('${_fmt(payment['Amount'])} ج',
-              style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w900,
-                  color: HomeAccent.teal)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionButton(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.09),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.28)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Row(
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800)),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: HomeAccent.teal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                      color: HomeAccent.teal.withValues(alpha: 0.18)),
+                ),
+                child: const Icon(Icons.check_rounded,
+                    size: 18, color: HomeAccent.teal),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_date(payment['PaymentDate'] ?? payment['CreatedAt']),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface)),
+                    if ((payment['PaymentMethod'] ?? '')
+                        .toString()
+                        .isNotEmpty)
+                      Text(
+                          PaymentService.methodLabel(
+                              payment['PaymentMethod'].toString()),
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    if ((payment['CashBoxName'] ?? '').toString().isNotEmpty)
+                      Text('الخزينة: ${payment['CashBoxName']}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    if (payment['Percentage'] != null)
+                      Text(
+                          'نسبة الدفعة: ${(payment['Percentage'] as num).toStringAsFixed(1)}%',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              AmountText(
+                value: '${_fmt(payment['Amount'])} ج',
+                size: 13.5,
+                color: HomeAccent.teal,
               ),
             ],
           ),
-        ),
+          if (hasActions)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (onReceipt != null)
+                  IconButton(
+                    tooltip: 'سند الدفعة',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.receipt_rounded, size: 19),
+                    onPressed: onReceipt,
+                  ),
+                if (canEdit && onEdit != null)
+                  IconButton(
+                    tooltip: 'تعديل الدفعة',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_rounded, size: 19),
+                    onPressed: onEdit,
+                  ),
+                if (canDelete && onDelete != null)
+                  IconButton(
+                    tooltip: 'إلغاء الدفعة',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.delete_rounded,
+                        size: 19, color: AppColors.error),
+                    onPressed: onDelete,
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -2550,22 +3173,22 @@ class _EditRequestCard extends StatelessWidget {
     final theme = Theme.of(context);
     final (Color color, IconData icon, String title) = switch (editStatus) {
       1 => (
-          const Color(0xFF9C27B0),
+          AppStatus.editPending,
           Icons.hourglass_top_rounded,
           'طلب تعديل معلق'
         ),
       2 => (
-          const Color(0xFF43A047),
+          AppColors.success,
           Icons.lock_open_rounded,
           'تمت الموافقة على فتح التعديل'
         ),
       3 => (
-          const Color(0xFFE53935),
+          AppColors.error,
           Icons.cancel_rounded,
           'تم رفض طلب التعديل'
         ),
       _ => (
-          const Color(0xFF2196F3),
+          AppColors.info,
           Icons.edit_rounded,
           'تم تنفيذ التعديل'
         ),

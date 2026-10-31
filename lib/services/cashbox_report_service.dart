@@ -270,6 +270,110 @@ static pw.Widget _buildTable(
   }
 
   // ✅ إنشاء ملف Excel
+  // ✅ إنشاء PDF لملخص الخزن من استجابة الملخص الحالية (Item 26)
+  static Future<Uint8List> generateSummaryPDF({
+    required Map<String, dynamic> summary,
+    required List<Map<String, dynamic>> boxes,
+    required String periodLabel,
+  }) async {
+    final arabicFont = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final arabicFontBold = await rootBundle.load('assets/fonts/Cairo-Bold.ttf');
+    final ttf = pw.Font.ttf(arabicFont);
+    final ttfBold = pw.Font.ttf(arabicFontBold);
+    final formatter = NumberFormat('#,##0.00', 'en');
+
+    double toNum(dynamic v) =>
+        v is num ? v.toDouble() : double.tryParse('${v ?? ''}') ?? 0;
+
+    pw.Widget figure(String label, dynamic value, {bool bold = false}) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 3),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(label,
+                style: pw.TextStyle(font: bold ? ttfBold : ttf, fontSize: 11),
+                textDirection: pw.TextDirection.rtl),
+            pw.Text('${formatter.format(toNum(value))} ج',
+                style: pw.TextStyle(font: bold ? ttfBold : ttf, fontSize: 11)),
+          ],
+        ),
+      );
+    }
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: ttf, bold: ttfBold),
+        footer: (context) => _buildFooter(context, ttf),
+        build: (context) => [
+          pw.Text(
+            'ملخص الخزن — $periodLabel',
+            style: pw.TextStyle(font: ttfBold, fontSize: 18),
+            textDirection: pw.TextDirection.rtl,
+          ),
+          pw.Text(
+            'تاريخ الطباعة: ${DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now())}',
+            style: pw.TextStyle(font: ttf, fontSize: 9, color: PdfColors.grey600),
+            textDirection: pw.TextDirection.rtl,
+          ),
+          pw.SizedBox(height: 14),
+          figure('رصيد أول الفترة', summary['PeriodOpeningBalance'], bold: true),
+          figure('وارد الفترة', summary['TotalIn']),
+          figure('صادر الفترة', summary['TotalOut']),
+          figure('رصيد آخر الفترة', summary['ClosingBalance'], bold: true),
+          figure('الرصيد الحالي (كل الأوقات)', summary['CurrentBalance']),
+          pw.SizedBox(height: 16),
+          pw.Text(
+            'تفاصيل كل خزينة',
+            style: pw.TextStyle(font: ttfBold, fontSize: 14),
+            textDirection: pw.TextDirection.rtl,
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey400),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.blueGrey700),
+                children: [
+                  for (final h in ['الخزينة', 'أول الفترة', 'الوارد', 'الصادر', 'آخر الفترة', 'الحالي'])
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(h,
+                          style: pw.TextStyle(font: ttfBold, fontSize: 10, color: PdfColors.white),
+                          textDirection: pw.TextDirection.rtl),
+                    ),
+                ],
+              ),
+              for (final b in boxes)
+                pw.TableRow(
+                  children: [
+                    for (final cell in [
+                      '${b['CashBoxName'] ?? ''}',
+                      formatter.format(toNum(b['PeriodOpeningBalance'])),
+                      formatter.format(toNum(b['TotalIn'])),
+                      formatter.format(toNum(b['TotalOut'])),
+                      formatter.format(toNum(b['ClosingBalance'])),
+                      formatter.format(toNum(b['CurrentBalance'])),
+                    ])
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Text(cell,
+                            style: pw.TextStyle(font: ttf, fontSize: 10),
+                            textDirection: pw.TextDirection.rtl),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return pdf.save();
+  }
+
   static Future<String> generateExcel({
     required List<Map<String, dynamic>> transactions,
     required double totalIn,

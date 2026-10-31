@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:intl/intl.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../services/expense_service.dart';
+import '../../services/permission_service.dart';
+import '../../services/theme_service.dart';
+import '../../core/network/api_client.dart';
+import '../../widgets/design_kit.dart';
+import '../../widgets/app_drawer.dart';
 
-import '../../constants.dart';
-import '../../features/home/widgets/home_accent.dart';
-
-/// ─────────────────────────────────────────────────────────────
-///  💰 مجموعات المصروفات — عرض + إنشاء
-///  (مطابقة لـ ExpenseGroups في بلازور)
-/// ─────────────────────────────────────────────────────────────
+/// مجموعات المصروفات — شجرة تكرارية بأي عمق مع إجماليات وعدد مصروفات
+/// كل مجموعة (بالتعريف المعترف به من الخادم)، وإنشاء/تعديل/حذف محروس
+/// بصلاحيات frm_ExpensesGroup (Add/Edit/Delete). منتقي الأب يستبعد
+/// المجموعة نفسها وأحفادها، والحذف يختفي عندما توجد مصروفات أو أبناء
+/// (ورسالة الخادم هي الحارس الأخير).
 class ExpenseGroupsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -28,6 +33,15 @@ class _ExpenseGroupsScreenState extends State<ExpenseGroupsScreen> {
   bool _loading = true;
   String? _error;
 
+  final PermissionService _perms = PermissionService();
+
+  bool get _canAdd => _perms.canAdd(FormNames.expensesGroup) || _perms.isAdmin;
+  bool get _canEdit =>
+      _perms.canEdit(FormNames.expensesGroup) || _perms.isAdmin;
+  bool get _canDelete =>
+      _perms.canDelete(FormNames.expensesGroup) || _perms.isAdmin;
+  bool get _isDark => ThemeService().isDarkMode;
+
   @override
   void initState() {
     super.initState();
@@ -40,82 +54,180 @@ class _ExpenseGroupsScreenState extends State<ExpenseGroupsScreen> {
       _error = null;
     });
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/expenses/groups'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+      final groups = await ExpenseService.getExpenseGroups();
+      if (mounted) {
         setState(() {
-          _groups = (data as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'فشل التحميل (${res.statusCode})';
+          _groups = groups;
           _loading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'فشل الاتصال';
-        _loading = false;
-      });
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'فشل الاتصال';
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<void> _createGroup({int? parentId}) async {
-    final nameCtrl = TextEditingController();
+  Set<int> _descendantsOf(int id) {
+    final result = <int>{};
+    final stack = [id];
+    while (stack.isNotEmpty) {
+      final current = stack.removeLast();
+      for (final g in _groups) {
+        if (g['ParentGroupID'] == current) {
+          final childId = (g['ExpenseGroupID'] as num).toInt();
+          if (result.add(childId)) stack.add(childId);
+        }
+      }
+    }
+    return result;
+  }
 
-    final submitted = await showDialog<bool>(
+  Future<void> _showGroupDialog({
+    Map<String, dynamic>? existing,
+    int? presetParentId,
+  }) async {
+    final isEdit = existing != null;
+    final selfId =
+        isEdit ? (existing['ExpenseGroupID'] as num).toInt() : null;
+    final excluded = selfId != null
+        ? {selfId, ..._descendantsOf(selfId)}
+        : <int>{};
+    final candidates = _groups
+        .where((g) => !excluded.contains((g['ExpenseGroupID'] as num).toInt()))
+        .toList();
+
+    // وحدات تحكم مملوكة للحوار وتُحرَّر بعد إغلاقه
+    final nameCtrl = TextEditingController(
+        text: isEdit ? (existing['ExpenseGroupName']?.toString() ?? '') : '');
+    int? parentId = isEdit
+        ? (existing['ParentGroupID'] as num?)?.toInt()
+        : presetParentId;
+    if (parentId != null &&
+        !candidates.any((g) => g['ExpenseGroupID'] == parentId)) {
+      parentId = null;
+    }
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isEdit ? 'تعديل المجموعة' : 'مجموعة جديدة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'اسم المجموعة *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<int?>(
+                value: parentId,
+                decoration: const InputDecoration(
+                  labelText: 'المجموعة الأم',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('بلا مجموعة أم (رئيسية)'),
+                  ),
+                  ...candidates.map((g) => DropdownMenuItem<int?>(
+                        value: (g['ExpenseGroupID'] as num).toInt(),
+                        child: Text(g['ExpenseGroupName']?.toString() ?? ''),
+                      )),
+                ],
+                onChanged: (v) => setDialogState(() => parentId = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(isEdit ? 'حفظ' : 'إنشاء'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true || !mounted) {
+      nameCtrl.dispose();
+      return;
+    }
+    final name = nameCtrl.text.trim();
+    nameCtrl.dispose();
+    if (name.isEmpty) {
+      _showMsg('اسم المجموعة مطلوب', false);
+      return;
+    }
+    try {
+      if (isEdit) {
+        final result = await ExpenseService.updateGroup(
+            id: selfId!, name: name, parentGroupId: parentId);
+        _showMsg(result['message']?.toString() ?? 'تم التحديث', true);
+      } else {
+        final result = await ExpenseService.createGroup(
+            name: name, parentGroupId: parentId);
+        _showMsg(result['message']?.toString() ?? 'تم إنشاء المجموعة', true);
+      }
+      _load();
+    } on ApiException catch (e) {
+      _showMsg(e.message, false);
+    } catch (_) {
+      _showMsg('خطأ في الاتصال', false);
+    }
+  }
+
+  Future<void> _confirmDelete(Map<String, dynamic> group) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(parentId == null ? 'مجموعة جديدة' : 'مجموعة فرعية جديدة'),
-        content: TextField(
-          controller: nameCtrl,
-          decoration: const InputDecoration(
-            labelText: 'اسم المجموعة *',
-            border: OutlineInputBorder(),
-          ),
-        ),
+        title: const Text('تأكيد الحذف'),
+        content:
+            Text('هل تريد حذف مجموعة "${group['ExpenseGroupName']}"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: HomeAccent.accent,
-              foregroundColor: const Color(0xFF13273F),
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('إنشاء'),
+            child: Text('حذف',
+                style: TextStyle(
+                    color:
+                        _isDark ? AppColors.errorLight : AppColors.error)),
           ),
         ],
       ),
     );
-
-    if (submitted != true || !mounted) return;
-    if (nameCtrl.text.trim().isEmpty) {
-      _showMsg('اسم المجموعة مطلوب', false);
-      return;
-    }
-
+    if (confirmed != true || !mounted) return;
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/expenses/groups'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'expenseGroupName': nameCtrl.text.trim(),
-          'parentGroupId': parentId,
-        }),
-      );
-      final result = jsonDecode(res.body);
-      _showMsg(
-        result['message'] ?? 'تم إنشاء المجموعة',
-        result['success'] == true || res.statusCode == 200,
-      );
+      final result = await ExpenseService.deleteGroup(
+          (group['ExpenseGroupID'] as num).toInt());
+      _showMsg(result['message']?.toString() ?? 'تم الحذف', true);
       _load();
-    } catch (e) {
+    } on ApiException catch (e) {
+      // رسالة الخادم هي الحارس الأخير (مصروفات/أبناء ظهرت بعد التحميل)
+      _showMsg(e.message, false);
+    } catch (_) {
       _showMsg('خطأ في الاتصال', false);
     }
   }
@@ -125,9 +237,7 @@ class _ExpenseGroupsScreenState extends State<ExpenseGroupsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isSuccess
-            ? const Color(0xFF43A047)
-            : const Color(0xFFE53935),
+        backgroundColor: isSuccess ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -135,201 +245,135 @@ class _ExpenseGroupsScreenState extends State<ExpenseGroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // تقسيم: أم + فرعية
-    final parents = _groups.where((g) => g['ParentGroupID'] == null).toList();
-    final children = _groups.where((g) => g['ParentGroupID'] != null).toList();
-
+    final roots =
+        _groups.where((g) => g['ParentGroupID'] == null).toList();
     return Scaffold(
+      backgroundColor: AppColors.background(_isDark),
+      drawer: buildAppDrawer(currentRoute: 'frmExpenseTree'),
       appBar: AppBar(
+        leading: const AppDrawerMenuButton(),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: const Text('مجموعات المصروفات'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            tooltip: 'مجموعة جديدة',
-            onPressed: () => _createGroup(),
-          ),
+          if (_canAdd)
+            IconButton(
+              icon: const Icon(Icons.add_rounded),
+              tooltip: 'مجموعة جديدة',
+              onPressed: () => _showGroupDialog(),
+            ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
-              ? _buildError(theme)
+              ? AppError(message: _error!, onRetry: _load)
               : _groups.isEmpty
-                  ? _buildEmpty(theme)
+                  ? const AppEmpty(
+                      icon: Icons.category_rounded,
+                      message: 'لا توجد مجموعات — اضغط + لإنشاء أول مجموعة',
+                    )
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          for (final parent in parents)
-                            _ParentGroupCard(
-                              group: parent,
-                              children: children
-                                  .where((c) =>
-                                      c['ParentGroupID'] ==
-                                      parent['ExpenseGroupID'])
-                                  .toList(),
-                              onAddChild: () =>
-                                  _createGroup(
-                                    parentId: (parent['ExpenseGroupID']
-                                            as num)
-                                        .toInt(),
-                                  ),
-                            ),
+                          for (final root in roots)
+                            _buildNode(root, 0),
                         ],
                       ),
                     ),
     );
   }
 
-  Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildNode(Map<String, dynamic> group, int depth) {
+    final id = (group['ExpenseGroupID'] as num).toInt();
+    final children =
+        _groups.where((g) => g['ParentGroupID'] == id).toList();
+    final expensesCount = (group['ExpensesCount'] as num?)?.toInt() ?? 0;
+    final childrenCount = (group['ChildrenCount'] as num?)?.toInt() ??
+        children.length;
+    final total = (group['TotalAmount'] as num?)?.toDouble() ?? 0;
+    final canDeleteThis =
+        _canDelete && expensesCount == 0 && childrenCount == 0;
+    final isDark = _isDark;
 
-  Widget _buildEmpty(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.category_rounded,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد مجموعات — اضغط + لإنشاء أول مجموعة',
-            style: TextStyle(
-              fontSize: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParentGroupCard extends StatelessWidget {
-  final Map<String, dynamic> group;
-  final List<Map<String, dynamic>> children;
-  final VoidCallback onAddChild;
-
-  const _ParentGroupCard({
-    required this.group,
-    required this.children,
-    required this.onAddChild,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // المجموعة الأم
-          ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: HomeAccent.gold.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.folder_rounded,
-                color: HomeAccent.gold,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              (group['ExpenseGroupName'] ?? '—').toString(),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            subtitle: Text(
-              '${children.length} مجموعة فرعية',
-              style: TextStyle(
-                fontSize: 11.5,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.add_rounded, size: 20),
-              tooltip: 'مجموعة فرعية',
-              onPressed: onAddChild,
-            ),
-          ),
-          // المجموعات الفرعية
-          if (children.isNotEmpty)
-            for (final child in children)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: 10, right: depth == 0 ? 0 : 18.0 * depth.clamp(1, 4)),
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        radius: AppRadius.lg,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.03),
-                  border: Border(
-                    top: BorderSide(
-                      color: theme.colorScheme.outlineVariant
-                          .withValues(alpha: 0.3),
-                    ),
-                  ),
+                  color: AppColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.subdirectory_arrow_left_rounded,
-                      size: 16,
-                      color: HomeAccent.amber,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        (child['ExpenseGroupName'] ?? '—').toString(),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Icon(
+                  depth == 0
+                      ? Icons.folder_rounded
+                      : Icons.folder_open_rounded,
+                  color: AppColors.gold,
+                  size: 20,
                 ),
               ),
-        ],
+              title: Text(
+                (group['ExpenseGroupName'] ?? '—').toString(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.text(isDark),
+                ),
+              ),
+              subtitle: Text(
+                'الإجمالي ${NumberFormat('#,##0.00').format(total)} ج.م'
+                ' — $expensesCount مصروف'
+                ' — $childrenCount مجموعة فرعية'
+                '${group['CreatedBy'] != null ? ' — بواسطة ${group['CreatedBy']}' : ''}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary(isDark),
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_canAdd)
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      tooltip: 'مجموعة فرعية',
+                      onPressed: () =>
+                          _showGroupDialog(presetParentId: id),
+                    ),
+                  if (_canEdit)
+                    IconButton(
+                      icon: const Icon(Icons.edit_rounded, size: 19),
+                      tooltip: 'تعديل',
+                      onPressed: () => _showGroupDialog(existing: group),
+                    ),
+                  if (canDeleteThis)
+                    IconButton(
+                      icon: Icon(Icons.delete_rounded,
+                          size: 19,
+                          color: isDark
+                              ? AppColors.errorLight
+                              : AppColors.error),
+                      tooltip: 'حذف',
+                      onPressed: () => _confirmDelete(group),
+                    ),
+                ],
+              ),
+            ),
+            for (final child in children) _buildNode(child, depth + 1),
+          ],
+        ),
       ),
     );
   }

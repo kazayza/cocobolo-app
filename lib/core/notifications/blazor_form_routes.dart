@@ -68,7 +68,7 @@ class BlazorFormNames {
   static const frmManamgerSales = 'frmManamgerSales';
   static const frmClientCard = 'frmClientCard';
   static const frmCashBoxManual = 'frm_CashBoxManual';
-  static const frmCashBoxDashboard = 'frm_CashBoxDashboard';
+  static const frmCashBoxDashboard = 'frmCashBoxDashboard';
   static const frmCashBoxTransaction = 'frm_CashBoxTransaction';
   static const frmExecutiveCockpit = 'frm_ExecutiveCockpit';
   static const executiveCockpit = 'executive-cockpit';

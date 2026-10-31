@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
 import '../models/dashboard_model.dart';
+import '../core/auth/session_service.dart';
 
 class DashboardService {
   Future<DashboardData> getDashboardData({
@@ -24,7 +25,7 @@ class DashboardService {
       final uri = Uri.parse('$baseUrl/api/reports/dashboard')
           .replace(queryParameters: params.isNotEmpty ? params : null);
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 30));
+      final response = await http.get(uri, headers: SessionService.instance.authHeaders).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);

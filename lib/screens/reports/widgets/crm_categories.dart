@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -32,20 +34,9 @@ class _CrmCategoriesState extends State<CrmCategories> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -181,7 +172,7 @@ class _CrmCategoriesState extends State<CrmCategories> {
           color: isTouched
               ? color.withOpacity(widget.isDark ? 0.15 : 0.1)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.all(AppRadius.xs),
           border: isTouched ? Border.all(color: color.withOpacity(0.3)) : null,
         ),
         child: Row(
@@ -238,10 +229,10 @@ class _CrmCategoriesState extends State<CrmCategories> {
   // === تفاصيل التصنيف المختار ===
   Widget _buildCategoryDetails(CategoryItem item) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: _getCategoryColor(_touchedIndex).withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(
           color: _getCategoryColor(_touchedIndex).withOpacity(0.3),
         ),
@@ -253,7 +244,7 @@ class _CrmCategoriesState extends State<CrmCategories> {
             '✅',
             'مكسبة',
             '${item.won}',
-            const Color(0xFF66BB6A),
+            AppColors.successLight,
           ),
           Container(width: 1, height: 30, color: AppColors.divider(widget.isDark)),
           _buildDetailItem(
@@ -267,7 +258,7 @@ class _CrmCategoriesState extends State<CrmCategories> {
             '💰',
             'إيراد',
             _formatCurrency(item.actualRevenue),
-            const Color(0xFF42A5F5),
+            AppColors.infoLight,
           ),
         ],
       ),
@@ -311,12 +302,12 @@ class _CrmCategoriesState extends State<CrmCategories> {
     );
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         children: [
@@ -335,7 +326,7 @@ class _CrmCategoriesState extends State<CrmCategories> {
                 child: Text(
                   '${bestConversion.name} (${bestConversion.conversionRate.toStringAsFixed(0)}%)',
                   style: GoogleFonts.cairo(
-                    color: const Color(0xFF66BB6A),
+                    color: AppColors.successLight,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -362,7 +353,7 @@ class _CrmCategoriesState extends State<CrmCategories> {
                     child: Text(
                       '${highestRevenue.name} (${_formatCurrency(highestRevenue.actualRevenue)} ج.م)',
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFF42A5F5),
+                        color: AppColors.infoLight,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),

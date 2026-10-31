@@ -1,9 +1,12 @@
 import 'dart:io';
+import '../services/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/auth/session_service.dart';
+import '../widgets/design_kit.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final String url;
@@ -28,7 +31,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   Future<void> _loadPdf() async {
     try {
-      final response = await http.get(Uri.parse(widget.url));
+      // الرابط الحالي الوحيد لهذه الشاشة هو ملف من الـ API — نرسل التوكن.
+      final response = await http.get(
+        Uri.parse(widget.url),
+        headers: SessionService.instance.authHeaders,
+      );
       if (response.statusCode == 200) {
         final dir = await getTemporaryDirectory();
         final file = File('${dir.path}/temp_pdf.pdf');
@@ -58,12 +65,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return Scaffold(
       backgroundColor: Colors.black, // أو لون الثيم بتاعك
       appBar: AppBar(
-        title: Text(widget.title, style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFFE8B923), // لونك الذهبي
-        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(widget.title, style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFE8B923)))
+          ? const AppLoading()
           : errorMessage.isNotEmpty
               ? Center(child: Text(errorMessage, style: GoogleFonts.cairo(color: Colors.white)))
               : PDFView(

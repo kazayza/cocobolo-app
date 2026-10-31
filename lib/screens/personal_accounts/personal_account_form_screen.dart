@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../services/app_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/design_tokens.dart';
 import '../../services/personal_account_service.dart';
+import '../../widgets/design_kit.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// 👤 إضافة / تعديل حساب شخصي
@@ -132,7 +135,7 @@ class _PersonalAccountFormScreenState extends State<PersonalAccountFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(ok ? '✅ ${result['message']}' : (result['message']?.toString() ?? 'حدث خطأ'), style: GoogleFonts.cairo(fontSize: 13)),
-          backgroundColor: ok ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+          backgroundColor: ok ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -140,7 +143,7 @@ class _PersonalAccountFormScreenState extends State<PersonalAccountFormScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ: $e', style: GoogleFonts.cairo(fontSize: 13)), backgroundColor: const Color(0xFFC62828), behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text('خطأ: $e', style: GoogleFonts.cairo(fontSize: 13)), backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -167,10 +170,10 @@ class _PersonalAccountFormScreenState extends State<PersonalAccountFormScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFF4F7FB),
+      backgroundColor: isDark ? AppColors.navyDark : AppColors.lightBackground,
       appBar: AppBar(
         title: Text(_isEdit ? 'تعديل حساب' : 'حساب جديد', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 17)),
-        backgroundColor: HomeAccent.navyDark,
+        backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -387,11 +390,11 @@ class _PersonalAccountFormScreenState extends State<PersonalAccountFormScreen> {
                 onPressed: _saving ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: HomeAccent.gold,
-                  foregroundColor: const Color(0xFF0D1A2A),
+                  foregroundColor: AppColors.navy,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: _saving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0D1A2A)))
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy))
                     : const Icon(Icons.save_rounded, size: 20),
                 label: Text(_saving ? 'جاري الحفظ...' : 'حفظ', style: GoogleFonts.cairo(fontWeight: FontWeight.w800, fontSize: 15)),
               ),
@@ -409,29 +412,13 @@ class _PersonalAccountFormScreenState extends State<PersonalAccountFormScreen> {
     required Color color,
     required List<Widget> children,
   }) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
-                child: Icon(icon, size: 16, color: color),
-              ),
-              const SizedBox(width: 8),
-              Text(title, style: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-            ],
-          ),
+          AppSectionHeader(title: title, icon: icon, accent: color),
           const SizedBox(height: 12),
           ...children,
         ],

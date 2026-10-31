@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/app_colors.dart';
 import '../../../services/theme_service.dart';
 
 import '../models/home_dashboard_config.dart';
 
 /// Single source of truth for accent colors per dashboard card type.
 /// كل نوع بطاقة له لون مميز → hierarchy بصري واضح بدل لون واحد لكل حاجة.
+/// ألوان العلامة التجارية نفسها تُقرأ من [AppColors] — تعريف واحد فقط.
 class HomeAccent {
   HomeAccent._();
 
-  // ── ألوان العلامة التجارية ─────────────────────────────
-  static const Color gold = Color(0xFFDBBF74);
-  static const Color goldLight = Color(0xFFE8D49B);
-  static const Color goldDark = Color(0xFFB8974A);
-  static const Color navy = Color(0xFF13273F);
-  static const Color navyLight = Color(0xFF1E3A5F);
-  static const Color navyDark = Color(0xFF0D1A2A);
+  // ── ألوان العلامة التجارية (من AppColors — الهوية الرسمية) ──
+  static const Color gold = AppColors.gold;
+  static const Color goldLight = AppColors.goldLight;
+  static const Color goldDark = AppColors.goldDark;
+  static const Color navy = AppColors.navy;
+  static const Color navyLight = AppColors.navyLight;
+  static const Color navyDark = AppColors.navyDark;
 
   // ── ألوان التمييز حسب الوحدة ──────────────────────────
   static const Color indigo = Color(0xFF5C6BC0);

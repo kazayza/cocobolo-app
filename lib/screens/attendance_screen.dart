@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +12,9 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:map_launcher/map_launcher.dart';
 import '../constants.dart';
+import '../core/auth/session_service.dart';
+import '../services/permission_service.dart';
+import '../widgets/app_drawer.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final int userId;
@@ -29,6 +35,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   // ═══════════════════════════════════════════════════════════════
   // المتغيرات
   // ═══════════════════════════════════════════════════════════════
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String status = 'loading';
   DateTime? checkInTime;
@@ -82,7 +90,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/attendance/statistics/${widget.userId}'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -101,7 +109,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/attendance/status/${widget.userId}'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -173,7 +181,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       final res = await http.post(
         Uri.parse('$baseUrl/api/attendance/$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': widget.userId,
           'latitude': position.latitude,
@@ -234,9 +242,234 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   // ═══════════════════════════════════════════════════════════════
 
   @override
+  // الحضور اليدوي للمعفيين من البصمة — بوابة الكتابة نفسها خادميًا:
+  // Admin/HrManager/AccountManager/Account
+  bool get _canWriteManualAttendance {
+    final role = (PermissionService().role ?? '')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s_-]+'), '');
+    return ['admin', 'hrmanager', 'accountmanager', 'account'].contains(role);
+  }
+
+  Future<void> _openManualAttendance() async {
+    final monthCtrl = TextEditingController(
+      text: DateFormat('yyyy-MM').format(DateTime.now()),
+    );
+    List<dynamic> rows = [];
+    bool loadingRows = false;
+    bool loadedOnce = false;
+    String? loadError;
+    final editors = <int, Map<String, TextEditingController>>{};
+
+    void buildEditors() {
+      for (final e in editors.values) {
+        for (final c in e.values) {
+          c.dispose();
+        }
+      }
+      editors.clear();
+      for (final r in rows) {
+        final m = Map<String, dynamic>.from(r as Map);
+        final id = (m['EmployeeID'] as num?)?.toInt() ?? 0;
+        editors[id] = {
+          'present': TextEditingController(text: '${m['PresentDays'] ?? 0}'),
+          'absence': TextEditingController(text: '${m['AbsenceDays'] ?? 0}'),
+          'late': TextEditingController(text: '${m['LateMinutes'] ?? 0}'),
+          'notes': TextEditingController(text: '${m['Notes'] ?? ''}'),
+        };
+      }
+    }
+
+    Future<void> load(StateSetter setDialogState) async {
+      setDialogState(() {
+        loadingRows = true;
+        loadError = null;
+      });
+      try {
+        final res = await http.get(
+          Uri.parse('$baseUrl/api/attendance/manual?month=${monthCtrl.text.trim()}'),
+          headers: SessionService.instance.authHeaders,
+        );
+        final decoded = jsonDecode(res.body);
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          throw Exception(decoded is Map ? (decoded['message'] ?? 'فشل التحميل') : 'فشل التحميل');
+        }
+        final data = decoded is Map ? decoded['data'] : decoded;
+        setDialogState(() {
+          rows = data is List ? data : [];
+          buildEditors();
+        });
+      } catch (e) {
+        setDialogState(() => loadError = e.toString());
+      } finally {
+        setDialogState(() {
+          loadingRows = false;
+          loadedOnce = true;
+        });
+      }
+    }
+
+    Future<void> saveRow(Map<String, dynamic> row) async {
+      final id = (row['EmployeeID'] as num?)?.toInt() ?? 0;
+      final e = editors[id];
+      if (e == null) return;
+      try {
+        final res = await http.post(
+          Uri.parse('$baseUrl/api/attendance/manual'),
+          headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'EmployeeID': id,
+            'AttendanceMonth': monthCtrl.text.trim(),
+            'PresentDays': int.tryParse(e['present']!.text) ?? 0,
+            'AbsenceDays': int.tryParse(e['absence']!.text) ?? 0,
+            'LateMinutes': int.tryParse(e['late']!.text) ?? 0,
+            'Notes': e['notes']!.text.trim(),
+          }),
+        );
+        final decoded = jsonDecode(res.body);
+        final ok = res.statusCode >= 200 && res.statusCode < 300 && decoded['success'] == true;
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok ? 'تم حفظ حضور ${row['EmployeeName']}' : (decoded['message']?.toString() ?? 'فشل الحفظ'),
+              style: GoogleFonts.cairo(),
+            ),
+            backgroundColor: ok ? Colors.green : Colors.red,
+          ),
+        );
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('فشل الحفظ: $err', style: GoogleFonts.cairo()), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          if (!loadedOnce && !loadingRows) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => load(setDialogState));
+          }
+          return AlertDialog(
+            title: Text('الحضور اليدوي للمعفيين من البصمة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 15)),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: monthCtrl,
+                        decoration: InputDecoration(labelText: 'الشهر (YYYY-MM)', labelStyle: GoogleFonts.cairo(fontSize: 12)),
+                        style: GoogleFonts.cairo(fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: loadingRows ? null : () => load(setDialogState),
+                      child: Text('تحميل', style: GoogleFonts.cairo(fontSize: 12)),
+                    ),
+                  ]),
+                  if (loadError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(loadError!, style: GoogleFonts.cairo(color: Colors.red, fontSize: 12)),
+                    ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: loadingRows
+                        ? const Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())
+                        : rows.isEmpty
+                            ? Text('لا يوجد موظفون معفيون من البصمة', style: GoogleFonts.cairo(fontSize: 12, color: Colors.grey))
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: rows.length,
+                                itemBuilder: (_, i) {
+                                  final row = Map<String, dynamic>.from(rows[i] as Map);
+                                  final id = (row['EmployeeID'] as num?)?.toInt() ?? 0;
+                                  final e = editors[id];
+                                  if (e == null) return const SizedBox.shrink();
+                                  Widget numField(String key, String label) => SizedBox(
+                                        width: 76,
+                                        child: TextField(
+                                          controller: e[key],
+                                          keyboardType: TextInputType.number,
+                                          decoration: InputDecoration(labelText: label, labelStyle: GoogleFonts.cairo(fontSize: 10)),
+                                          style: GoogleFonts.cairo(fontSize: 12),
+                                        ),
+                                      );
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('${row['EmployeeName'] ?? ''} • ${row['Department'] ?? ''}', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        Row(children: [
+                                          numField('present', 'حضور'),
+                                          const SizedBox(width: 6),
+                                          numField('absence', 'غياب'),
+                                          const SizedBox(width: 6),
+                                          numField('late', 'تأخير (د)'),
+                                          const SizedBox(width: 6),
+                                          IconButton(
+                                            icon: const Icon(Icons.save_outlined, size: 20),
+                                            tooltip: 'حفظ',
+                                            onPressed: () => saveRow(row),
+                                          ),
+                                        ]),
+                                        TextField(
+                                          controller: e['notes'],
+                                          decoration: InputDecoration(labelText: 'ملاحظات', labelStyle: GoogleFonts.cairo(fontSize: 10)),
+                                          style: GoogleFonts.cairo(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text('إغلاق', style: GoogleFonts.cairo()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    monthCtrl.dispose();
+    for (final e in editors.values) {
+      for (final c in e.values) {
+        c.dispose();
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: buildAppDrawer(currentRoute: 'frm_empAttendance'),
       backgroundColor: const Color(0xFF0F0F0F),
+      floatingActionButton: _canWriteManualAttendance
+          ? FloatingActionButton.extended(
+              onPressed: _openManualAttendance,
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              icon: const Icon(Icons.fact_check_outlined),
+              label: Text('الحضور اليدوي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+            )
+          : null,
       body: status == 'loading'
           ? _buildLoadingState()
           : status == 'not_linked'
@@ -345,13 +578,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8B923).withOpacity(0.1),
+                color: AppColors.gold.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.person_off_outlined,
                 size: 60,
-                color: Color(0xFFE8B923),
+                color: AppColors.gold,
               ),
             ).animate().shake(duration: 800.ms),
 
@@ -386,12 +619,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFE8B923), Color(0xFFD4A017)],
+                    colors: [AppColors.gold, AppColors.goldDark],
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE8B923).withOpacity(0.3),
+                      color: AppColors.gold.withOpacity(0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -493,7 +726,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       statusIcon = Icons.logout_rounded;
     } else {
       statusText = 'لم يتم تسجيل الحضور بعد';
-      statusColor = const Color(0xFFFF9800);
+      statusColor = AppColors.warning;
       statusIcon = Icons.access_time_rounded;
     }
 
@@ -517,9 +750,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildHeaderButton(
-                Icons.arrow_back_ios_new_rounded,
-                () => Navigator.pop(context),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeaderButton(
+                    Icons.arrow_back_ios_new_rounded,
+                    () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildHeaderButton(
+                    Icons.menu_rounded,
+                    () => _scaffoldKey.currentState?.openDrawer(),
+                  ),
+                ],
               ),
               _buildHeaderButton(
                 Icons.refresh_rounded,
@@ -543,12 +786,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 height: 60,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFE8B923), Color(0xFFD4A017)],
+                    colors: [AppColors.gold, AppColors.goldDark],
                   ),
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE8B923).withOpacity(0.35),
+                      color: AppColors.gold.withOpacity(0.35),
                       blurRadius: 14,
                       offset: const Offset(0, 5),
                     ),
@@ -578,7 +821,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       children: [
                         Icon(
                           _getGreetingIcon(),
-                          color: const Color(0xFFE8B923),
+                          color: AppColors.gold,
                           size: 16,
                         ),
                         const SizedBox(width: 6),
@@ -627,7 +870,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     Text(
                       totalHoursToday.toStringAsFixed(1),
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFFE8B923),
+                        color: AppColors.gold,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -745,12 +988,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8B923).withOpacity(0.1),
+              color: AppColors.gold.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
               Icons.access_time_rounded,
-              color: Color(0xFFE8B923),
+              color: AppColors.gold,
               size: 22,
             ),
           ),
@@ -777,7 +1020,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               Text(
                 DateFormat('ss').format(_currentTime),
                 style: GoogleFonts.cairo(
-                  color: const Color(0xFFE8B923),
+                  color: AppColors.gold,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -898,13 +1141,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildStatisticsCard() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+      radius: AppRadius.xxl,
+      color: const Color(0xFF1A1A1A),
       child: Column(
         children: [
           Row(
@@ -914,7 +1154,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 'أيام الحضور',
                 '$attendanceDaysThisMonth',
                 Icons.calendar_month_rounded,
-                const Color(0xFFE8B923),
+                AppColors.gold,
               ),
               _buildDivider(),
               _buildStatItem(
@@ -928,7 +1168,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 'التأخير',
                 '$lateMinutes د',
                 Icons.warning_amber_rounded,
-                lateMinutes > 0 ? const Color(0xFFFF9800) : Colors.grey,
+                lateMinutes > 0 ? AppColors.warning : Colors.grey,
               ),
             ],
           ),
@@ -937,10 +1177,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF9800).withOpacity(0.1),
+                color: AppColors.warning.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: const Color(0xFFFF9800).withOpacity(0.2),
+                  color: AppColors.warning.withOpacity(0.2),
                 ),
               ),
               child: Row(
@@ -948,14 +1188,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 children: [
                   const Icon(
                     Icons.info_outline_rounded,
-                    color: Color(0xFFFF9800),
+                    color: AppColors.warning,
                     size: 14,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     'تأخير $lateMinutes دقيقة اليوم',
                     style: GoogleFonts.cairo(
-                      color: const Color(0xFFFF9800),
+                      color: AppColors.warning,
                       fontSize: 12,
                     ),
                   ),
@@ -1005,40 +1245,16 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildTodayRecord() {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+      radius: AppRadius.xxl,
+      color: const Color(0xFF1A1A1A),
       child: Column(
         children: [
           // العنوان
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8B923).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.history_rounded,
-                  color: Color(0xFFE8B923),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'سجل اليوم',
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          const AppSectionHeader(
+            title: 'سجل اليوم',
+            icon: Icons.history_rounded,
           ),
 
           const SizedBox(height: 18),
@@ -1081,7 +1297,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   children: [
                     const Icon(
                       Icons.location_on_rounded,
-                      color: Color(0xFFE8B923),
+                      color: AppColors.gold,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
@@ -1100,7 +1316,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8B923).withOpacity(0.1),
+                        color: AppColors.gold.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -1109,7 +1325,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                           Text(
                             'عرض',
                             style: GoogleFonts.cairo(
-                              color: const Color(0xFFE8B923),
+                              color: AppColors.gold,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1117,7 +1333,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                           const SizedBox(width: 4),
                           const Icon(
                             Icons.arrow_forward_ios_rounded,
-                            color: Color(0xFFE8B923),
+                            color: AppColors.gold,
                             size: 10,
                           ),
                         ],
@@ -1334,7 +1550,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8B923).withOpacity(0.1),
+                      color: AppColors.gold.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -1342,14 +1558,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       children: [
                         const Icon(
                           Icons.map_rounded,
-                          color: Color(0xFFE8B923),
+                          color: AppColors.gold,
                           size: 16,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           'عرض الموقع',
                           style: GoogleFonts.cairo(
-                            color: const Color(0xFFE8B923),
+                            color: AppColors.gold,
                             fontSize: 12,
                           ),
                         ),
@@ -1369,7 +1585,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFE8B923), Color(0xFFD4A017)],
+                      colors: [AppColors.gold, AppColors.goldDark],
                     ),
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -1516,12 +1732,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8B923).withOpacity(0.1),
+                  color: AppColors.gold.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.support_agent_rounded,
-                  color: Color(0xFFE8B923),
+                  color: AppColors.gold,
                   size: 36,
                 ),
               ),
@@ -1552,7 +1768,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFE8B923), Color(0xFFD4A017)],
+                      colors: [AppColors.gold, AppColors.goldDark],
                     ),
                     borderRadius: BorderRadius.circular(14),
                   ),

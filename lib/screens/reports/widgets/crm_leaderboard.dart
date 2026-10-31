@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -22,20 +24,9 @@ class CrmLeaderboard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -142,7 +133,7 @@ class CrmLeaderboard extends StatelessWidget {
                 color.withOpacity(isDark ? 0.08 : 0.03),
               ],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.all(AppRadius.lg),
             border: Border.all(
               color: color.withOpacity(rank == 1 ? 0.5 : 0.3),
               width: rank == 1 ? 2 : 1,
@@ -221,13 +212,10 @@ class CrmLeaderboard extends StatelessWidget {
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    '${_formatCurrency(item.actualRevenue)} ج.م',
-                    style: GoogleFonts.cairo(
-                      color: color,
-                      fontSize: fontSizeRevenue,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: AmountText(
+                    value: '${_formatCurrency(item.actualRevenue)} ج.م',
+                    size: fontSizeRevenue,
+                    color: color,
                   ),
                 ),
               ),
@@ -275,7 +263,7 @@ class CrmLeaderboard extends StatelessWidget {
                 height: 28,
                 decoration: BoxDecoration(
                   color: AppColors.textHint(isDark).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.all(AppRadius.xs),
                 ),
                 child: Center(
                   child: Text(
@@ -347,13 +335,13 @@ class CrmLeaderboard extends StatelessWidget {
                     Row(
                       children: [
                         _buildMiniInfo(Icons.check_circle, '${item.wonDeals}',
-                            const Color(0xFF66BB6A)),
+                            AppColors.successLight),
                         const SizedBox(width: 10),
                         _buildMiniInfo(Icons.cancel, '${item.lostDeals}',
-                            const Color(0xFFEF5350)),
+                            AppColors.errorLight),
                         const SizedBox(width: 10),
                         _buildMiniInfo(Icons.timer, '${item.avgCloseTime}د',
-                            const Color(0xFF42A5F5)),
+                            AppColors.infoLight),
                         const SizedBox(width: 10),
                         _buildMiniInfo(Icons.trending_up,
                             '${item.dailyActivityRate}/ي',
@@ -400,13 +388,10 @@ class CrmLeaderboard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    _formatCurrency(item.actualRevenue),
-                    style: GoogleFonts.cairo(
-                      color: const Color(0xFF66BB6A),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  AmountText(
+                    value: _formatCurrency(item.actualRevenue),
+                    size: 14,
+                    color: AppColors.successLight,
                   ),
                   const SizedBox(height: 2),
                   Container(
@@ -415,7 +400,7 @@ class CrmLeaderboard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _getConversionColor(item.conversionRate)
                           .withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: AppRadius.all(AppRadius.xs),
                       border: Border.all(
                         color: _getConversionColor(item.conversionRate)
                             .withOpacity(0.3),
@@ -441,13 +426,13 @@ class CrmLeaderboard extends StatelessWidget {
                           const Icon(
                             Icons.warning_amber_rounded,
                             size: 10,
-                            color: Color(0xFFEF5350),
+                            color: AppColors.errorLight,
                           ),
                           const SizedBox(width: 2),
                           Text(
                             '${item.overdueTasks} متأخرة',
                             style: GoogleFonts.cairo(
-                              color: const Color(0xFFEF5350),
+                              color: AppColors.errorLight,
                               fontSize: 8,
                               fontWeight: FontWeight.bold,
                             ),

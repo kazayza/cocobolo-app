@@ -123,7 +123,11 @@ class PermissionService {
   bool get canRejectLeadDirectly => userId != null;
 
   bool get isSales => _isRole('Sales');
-  bool get isAccountManager => _isRole('AccountManager');
+  // مدير الحسابات بصيغتيه: بلازور نفسه وحّد «AccountsManager» مع
+  // «AccountManager» في صفحات الرواتب والورديات (12-H16)، فالصيغة
+  // الثانية هي الدور نفسه لا دور آخر.
+  bool get isAccountManager =>
+      _isRole('AccountManager') || _isRole('AccountsManager');
   bool get isAccount => _isRole('Account') || _isRole('Accountant');
   bool get isWarehouse => _isRole('Warehouse');
   bool get isCashier => _isRole('Cashier');
@@ -133,6 +137,7 @@ class PermissionService {
   bool get isSocialView => _isRole('SocialView');
   bool get isHrManager => _isRole('HrManager') || _isRole('HRManager');
   bool get isProductionManager => _isRole('ProductionManager');
+  bool get isDeliveryOfficer => _isRole('DeliveryOfficer');
   bool get isFactoryManager => _isRole('FactoryManager');
   bool get isUserRole => _isRole('User');
 
@@ -267,6 +272,124 @@ class PermissionService {
       isSalesManager ||
       isGeneralManager ||
       hasClaim('frm_CustomerCare:Export');
+
+  // ═══ بوابات وحدات الرواتب/السلف/خارج الراتب — مرآة صفحات بلازور ═══
+
+  /// سجل المرتبات — بوابة PayrollList.razor حرفيًا: الأدمن ومدير
+  /// الموارد ومدير الحسابات (بصيغتيه) والمحاسب، أو مطالبة عرض
+  /// الرواتب بأي من اسميها. (كان الدرج يحجبها عن «المحاسب» كليًا
+  /// لأنه ليس في عائلة مدير الحسابات — وهو دور مستقل في بلازور.)
+  bool get canViewPayrollModule =>
+      isAdmin ||
+      isHrManager ||
+      isAccountManager ||
+      isAccount ||
+      hasClaim('frm_Payroll:View') ||
+      hasClaim('frmPayrollProcessor:View');
+
+  /// دفعات خارج الراتب — بوابة OffPayrollPaymentsPage.razor: نفس
+  /// عائلة الرواتب، ومطالباتها frm_PayrollPayment:View / frm_Payroll:View
+  /// (ويقبل الـAPI أيضًا frmPayrollProcessor:View في canEnter).
+  bool get canEnterOffPayrollModule =>
+      isAdmin ||
+      isHrManager ||
+      isAccountManager ||
+      isAccount ||
+      hasClaim('frm_PayrollPayment:View') ||
+      hasClaim('frm_Payroll:View') ||
+      hasClaim('frmPayrollProcessor:View');
+
+  /// السلف — بوابة LoansPage.razor هي المطالبة وحدها:
+  /// frmEmployeeLoans:View (الاسم الحقيقي في جدول الصلاحيات؛ اسم
+  /// FormNames.loansPage ‏«frm_LoansPage» اسم مسار داخل التطبيق فقط
+  /// ولا توجد به صلاحية في القاعدة أصلًا).
+  bool get canViewLoansModule =>
+      canView('frmEmployeeLoans') || hasClaim('frmEmployeeLoans:View');
+
+  /// لوحة الموارد البشرية — مطالبتها المخصصة في بلازور بلا اسم
+  /// FormNames المطابق: frm_HR_Dashboard:View.
+  bool get canViewHrDashboard =>
+      canView('frm_HR_Dashboard') || hasClaim('frm_HR_Dashboard:View');
+
+  // ═══ الاستثناءات اليومية — مرآة ExemptionsPage + MyExemptions ═══
+
+  /// أدوار إدارة الاستثناءات (IsExemptionManagerRole في بلازور):
+  /// تعتمد وترفض، ومنشئوها تُولد طلباتهم معتمدة.
+  bool get isExemptionManagerRole =>
+      isAdmin || isGeneralManager || isAccountManager || isHrManager;
+
+  /// فتح شاشة الاستثناءات: مديروها أو حامل مطالبة العرض أو أي موظف
+  /// مرتبط (يرى طلباته هو فقط بنطاق الخادم — صفحة «استثناءاتي»).
+  bool get canViewExemptions =>
+      isExemptionManagerRole ||
+      canView(FormNames.dailyExemptions) ||
+      employeeId != null;
+
+  /// إنشاء لموظف آخر — بوابة إضافة الصفحة: أدمن/مدير حسابات/مدير
+  /// موارد أو مطالبة الإضافة (المدير العام ليس فيها في بلازور).
+  bool get canAddExemptions =>
+      isAdmin ||
+      isAccountManager ||
+      isHrManager ||
+      canAdd(FormNames.dailyExemptions);
+
+  /// أزرار الاعتماد/الرفض — بوابة الصفحة: أدوار الإدارة أو مطالبة
+  /// التعديل، والخادم يفرض أدوار الإدارة فعليًا عند التنفيذ.
+  bool get canApproveExemptions =>
+      isExemptionManagerRole || canEdit(FormNames.dailyExemptions);
+
+  /// الحذف — بوابة الصفحة الحرفية: أدمن/مدير موارد أو مطالبة الحذف.
+  bool get canDeleteExemptions =>
+      isAdmin || isHrManager || canDelete(FormNames.dailyExemptions);
+
+  // ═══ سجلات البصمة الخام + الحضور اليدوي — بوابات الـAPI نفسها ═══
+
+  /// عرض سجلات البصمة الخام: أدمن أو مدير مبيعات أو مدير حسابات أو
+  /// محاسب أو مدير موارد بشرية، أو مطالبة عرض الحضور.
+  bool get canViewRawLogs =>
+      isAdmin ||
+      isSalesManager ||
+      isAccountManager ||
+      isAccount ||
+      isHrManager ||
+      hasClaim('${FormNames.attendance}:View');
+
+  /// كتابة الحضور اليدوي اليومي (إنشاء/تعديل/حذف): أدمن أو مدير
+  /// حسابات أو محاسب أو مدير موارد بشرية، أو مطالبة تعديل الحضور.
+  bool get canManualWriteAttendance =>
+      isAdmin ||
+      isAccountManager ||
+      isAccount ||
+      isHrManager ||
+      hasClaim('${FormNames.attendance}:Edit');
+
+  // الجزاءات: العرض لمن له مطالبة على الشاشة الجديدة أو توقيع مباشر،
+  // أو أحد أدوار إدارة الموارد البشرية/الحسابات المعتادة — حتى تظهر
+  // الشاشة للمديرين قبل زرع المطالبات في قاعدة الصلاحيات، والخادم
+  // يحدّد نطاق البيانات ويفرض البوابة الحقيقية في كل الأحوال.
+  // ويفتحها أيضًا أي حساب مرتبط بموظف (يرى جزاءاته هو) — مرآة
+  // CanAccessPage في بلازور التي تشمل EmployeeId != null.
+  bool get canViewPenalties =>
+      canView(FormNames.employeePenalties) ||
+      hasClaim('frm_EmployeePenalties:View') ||
+      hasClaim('frm_EmployeePenalties:DirectSign') ||
+      hasClaim('frm_EmployeePenalties:Add') ||
+      isAdmin ||
+      isGeneralManager ||
+      isAccountManager ||
+      isHrManager ||
+      isProductionManager ||
+      employeeId != null;
+
+  // إنشاء جزاء: مطالبة الإضافة (تُولّد تلقائيًا من صلاحية Add عند
+  // توفرها) أو أحد الأدوار الأربعة المصادق عليها للإنشاء في التصميم.
+  bool get canCreatePenalties =>
+      canAdd(FormNames.employeePenalties) ||
+      hasClaim('frm_EmployeePenalties:Add') ||
+      isAdmin ||
+      isGeneralManager ||
+      isAccountManager ||
+      isProductionManager;
 
   bool get canViewExecutiveCockpit =>
       isAdmin || canView(FormNames.executiveCockpit);
@@ -525,6 +648,7 @@ class FormNames {
   static const String supplierInvoices = 'frm_SupplierInvoices';
   static const String expensesAdd = 'frm_Expenses';
   static const String expensesList = 'frm_ExpensesList';
+  static const String expensesGroup = 'frm_ExpensesGroup';
   static const String paymentsInvoicesNew = 'frm_PaymentsInvoicesNew';
   static const String customerDocs = 'frmCustomerDocs';
 
@@ -538,7 +662,9 @@ class FormNames {
   static const String payrollProcessor = 'frmPayrollProcessor';
   static const String employeeShifts = 'frm_EmpolyeeShifts';
   static const String dailyExemptions = 'frmDailyExemptions';
+  static const String attendance = 'frm_Attendance';
   static const String allShifts = 'frm_AllShifts';
+  static const String shiftsManagement = 'frm_ShiftsManagement';
   static const String empAttendance = 'frm_empAttendance';
   static const String rpt_empAttendance = 'rpt_empAttendance';
   static const String myPermissions = 'frm_MyPermissions';
@@ -546,6 +672,7 @@ class FormNames {
   static const String payrollList = 'frm_PayrollList';
   static const String payslip = 'frm_Payslip';
   static const String loansPage = 'frm_LoansPage';
+  static const String employeePenalties = 'frm_EmployeePenalties';
   static const String hrDashboard = 'frm_HRDashboard';
   static const String offPayroll = 'frm_OffPayroll';
   static const String offPayrollPayment = 'frm_PayrollPayment';
@@ -559,13 +686,16 @@ class FormNames {
   static const String cashBoxManual = 'frm_CashBoxManual';
   static const String inspectionCharge = 'frmInspectionCharge';
   static const String cashBoxTransaction = 'frm_CashBoxTransaction';
-  static const String cashBoxDashboard = 'frm_CashBoxDashboard';
+  static const String cashBoxDashboard = 'frmCashBoxDashboard';
+  static const String cashBoxSummary = 'frmCashBoxSummary';
+  static const String cashBoxReview = 'frmCashBoxReview';
 
   // ═══════════════════════════════════════
   // 6. التقارير
   // ═══════════════════════════════════════
   static const String dashboard = 'DashBoard';
   static const String executiveCockpit = 'frm_ExecutiveCockpit';
+  static const String financialReports = 'frm_FinancialReports';
   static const String filterIncomeStatement = 'frmFilterIncomeStatment';
   static const String cashFlowNew = 'frm_CashFlowNew';
   static const String expensesDashboard = 'frmExpensesDashboard';
@@ -604,6 +734,7 @@ class FormNames {
   static const String customerCareHistory = 'frm_CustomerCare_History';
   static const String crmDashboard = 'frmCRM_Dashboard';
   static const String invoiceDeliveryStatus = 'frmInvoiceDeliveryStatus';
+  static const String deliveryMaintenance = 'frmDeliveryMaintenance';
   static const String purchaseReceiptStatus = 'frm_PurchaseReceiptStatus';
   static const String additionalCharges = inspectionCharge;
   static const String editOpportunity = 'frmEditOpportunity';
@@ -769,6 +900,11 @@ class MenuStructure {
             Icons.local_shipping,
           ),
           SubMenuItem(
+            'صيانة التسليمات',
+            FormNames.deliveryMaintenance,
+            Icons.build_rounded,
+          ),
+          SubMenuItem(
             'استلامات الشراء',
             FormNames.purchaseReceiptStatus,
             Icons.inventory_rounded,
@@ -829,6 +965,16 @@ class MenuStructure {
             Icons.history,
           ),
           SubMenuItem('سند قبض / صرف', FormNames.cashBoxManual, Icons.receipt),
+          SubMenuItem(
+            'ملخص الخزينة',
+            FormNames.cashBoxSummary,
+            Icons.summarize_rounded,
+          ),
+          SubMenuItem(
+            'مراجعة الخزينة',
+            FormNames.cashBoxReview,
+            Icons.assignment_turned_in_rounded,
+          ),
           // ── المصروفات ──
           SubMenuItem(
             'كافة المصروفات',
@@ -877,7 +1023,6 @@ class MenuStructure {
             FormNames.myschedule,
             Icons.calendar_month_rounded,
           ),
-          SubMenuItem('إضافة موظف', FormNames.employeesAdd, Icons.person_add),
           SubMenuItem(
             'طلب اذن',
             FormNames.myPermissions,
@@ -899,6 +1044,11 @@ class MenuStructure {
             Icons.account_balance_wallet_rounded,
           ),
           SubMenuItem(
+            'الجزاءات',
+            FormNames.employeePenalties,
+            Icons.gavel_rounded,
+          ),
+          SubMenuItem(
             'لوحة HR',
             FormNames.hrDashboard,
             Icons.dashboard_customize_rounded,
@@ -909,19 +1059,14 @@ class MenuStructure {
             Icons.card_giftcard_rounded,
           ),
           SubMenuItem(
-            'شيفتات الموظفين',
-            FormNames.employeeShifts,
-            Icons.schedule,
+            'إدارة الشيفتات',
+            FormNames.shiftsManagement,
+            Icons.schedule_rounded,
           ),
           SubMenuItem(
             'متابعه الحضور والانصراف',
             FormNames.rpt_empAttendance,
             Icons.fingerprint,
-          ),
-          SubMenuItem(
-            'متابعة الشيفتات',
-            FormNames.allShifts,
-            Icons.calendar_month,
           ),
           SubMenuItem(
             'استثناءات الموظفين',
@@ -943,6 +1088,11 @@ class MenuStructure {
             'لوحة القيادة التنفيذية',
             FormNames.executiveCockpit,
             Icons.workspace_premium_rounded,
+          ),
+          SubMenuItem(
+            'التقارير المالية',
+            FormNames.financialReports,
+            Icons.account_balance_rounded,
           ),
           SubMenuItem('لوحة المعلومات', FormNames.dashboard, Icons.dashboard),
           SubMenuItem(

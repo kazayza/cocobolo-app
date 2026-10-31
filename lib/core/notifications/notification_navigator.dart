@@ -346,9 +346,12 @@ class NotificationNavigator {
           username: username,
         );
       case MobileNotifTarget.generalTasks:
+        // رابط عميق إلى التكليف نفسه (إصلاح بلازور): الشاشة تفتح حواره
+        // بعد التحميل إن كان مرئيًا للمستخدم.
         return GeneralTasksScreen(
           userId: userId,
           username: username,
+          initialTaskId: d.relatedId,
         );
       case MobileNotifTarget.lostRecovery:
         return LostRecoveryScreen(

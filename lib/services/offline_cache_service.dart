@@ -18,7 +18,16 @@ class OfflineCacheService {
     return _prefs!;
   }
 
-  String _key(String cacheKey) => '$_prefix$cacheKey';
+  /// مفتاح الكاش منسوبًا للمستخدم الحالي: cache_u<userId>_<cacheKey>
+  /// النسبة تمنع قراءة مستخدمٍ كاشَ مستخدمٍ آخر على نفس الجهاز.
+  /// مفاتيح ما قبل هذا التعديل (بدون النسبة) تصبح غير قابلة للوصول تلقائيًا،
+  /// ويحذفها clearAll() عند أول تسجيل خروج (تطابق البادئة cache_).
+  /// ملاحظة للترحيل المستقبلي: مقطع النسبة u<userId>_ يقع بين البادئة العامة
+  /// والمفتاح الخام، فيسهل تحليله/نزعه عند نقل التخزين لمحرك آخر.
+  String _key(String cacheKey) {
+    final uid = _prefs?.getInt('userId') ?? 0;
+    return '${_prefix}u${uid}_$cacheKey';
+  }
 
   /// حفظ بيانات مؤقتة مع مدة صلاحية.
   Future<void> set(String cacheKey, dynamic data,

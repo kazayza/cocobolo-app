@@ -5,10 +5,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
+import '../../core/auth/session_service.dart';
 
+import '../../widgets/app_drawer.dart';
 class StockEntryScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -120,7 +124,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
         if (_warehouseId != null) 'warehouseId': '$_warehouseId',
       },
     );
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: SessionService.instance.authHeaders);
     if (response.statusCode != 200) return const [];
     final decoded = jsonDecode(response.body);
     if (decoded is List) return decoded;
@@ -160,7 +164,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
               width: 44,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: AppColors.neutralLight,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -194,14 +198,14 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                       side: BorderSide(
-                        color: _isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                        color: _isDark ? Colors.white10 : AppColors.lightDivider,
                       ),
                     ),
                     tileColor: _isDark
-                        ? const Color(0xFF111C2D)
-                        : const Color(0xFFF8FAFC),
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0x1513273F),
+                        ? AppColors.darkSurface
+                        : AppColors.lightBackground,
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.navy.withValues(alpha: 0.08),
                       child: Icon(Icons.chair_alt_rounded, color: AppColors.navy),
                     ),
                     title: Text(
@@ -266,7 +270,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/inventory/transactions'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'productId': _selectedProduct!['ProductID'] ??
               _selectedProduct!['ProductId'],
@@ -304,7 +308,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(value, style: GoogleFonts.cairo()),
-        backgroundColor: error ? Colors.red.shade700 : const Color(0xFF059669),
+        backgroundColor: error ? AppColors.error : AppStatus.profit,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -341,11 +345,12 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(
+        drawer: buildAppDrawer(currentRoute: 'frm_StockEntry'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             'إضافة رصيد',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
@@ -353,8 +358,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
         ),
         body: Stack(
           children: [
-            if (_loading)
-              const Center(child: CircularProgressIndicator())
+            if (_loading) const AppLoading()
             else
               ListView(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
@@ -381,7 +385,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                         icon: Icons.assessment_outlined,
                         label: 'الرصيد بعد الحفظ',
                         value: '$_projectedStock',
-                        color: const Color(0xFF6EE7B7),
+                        color: AppColors.successLight,
                       ),
                     ],
                   ),
@@ -584,7 +588,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
               ? 'اختر منتجًا لعرض أثر الحركة.'
               : _selectedProduct!['ProductName']?.toString(),
           icon: Icons.assessment_rounded,
-          color: const Color(0xFF2563EB),
+          color: AppColors.info,
           child: Column(
             children: [
               Row(
@@ -594,7 +598,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                       icon: Icons.inventory_outlined,
                       label: 'قبل الإضافة',
                       value: '$_currentStock',
-                      color: const Color(0xFF64748B),
+                      color: AppColors.neutral,
                     ),
                   ),
                   const SizedBox(width: 9),
@@ -603,7 +607,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
                       icon: Icons.inventory_rounded,
                       label: 'بعد الإضافة',
                       value: '$_projectedStock',
-                      color: const Color(0xFF059669),
+                      color: AppStatus.profit,
                     ),
                   ),
                 ],
@@ -631,7 +635,7 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
         InventorySection(
           title: 'ضوابط التسجيل',
           icon: Icons.verified_user_outlined,
-          color: const Color(0xFFD97706),
+          color: AppStatus.overdue,
           child: Column(
             children: [
               _rule(
@@ -768,13 +772,13 @@ class _StockEntryScreenState extends State<StockEntryScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.08),
+        color: AppColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.20)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.20)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.red),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(child: Text(_error ?? 'حدث خطأ')),
           IconButton(

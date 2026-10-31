@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 class UserService {
   // نخزن البيانات عشان ما نطلبش كل مرة
@@ -20,7 +21,7 @@ class UserService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/users/$userId/employee'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);

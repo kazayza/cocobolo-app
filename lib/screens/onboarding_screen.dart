@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 
 /// شاشة ترحيب بريميوم - COCOBOLO
 /// تصميم نيفي + ذهبي فاخر مع لوجو وأنيميشن احترافي
@@ -96,14 +97,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0D1A2A), // navyDark
-              Color(0xFF13273F), // navy
-              Color(0xFF1A3352), // navyLight
+              AppColors.navyDark, // navyDark
+              AppColors.navy, // navy
+              AppColors.navyLight, // navyLight
             ],
           ),
         ),
@@ -279,7 +280,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           GestureDetector(
             onTap: _finish,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
@@ -543,16 +544,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               onTap: _nextPage,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                     colors: [
-                      Color(0xFFDBBF74), // gold
-                      Color(0xFFE8D49B), // goldLight
-                      Color(0xFFDBBF74),
+                      AppColors.gold, // gold
+                      AppColors.goldLight, // goldLight
+                      AppColors.gold,
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.gold.withValues(alpha: 0.35),
@@ -569,7 +570,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       builder: (_, __) {
                         return Positioned.fill(
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
                             child: Transform.translate(
                               offset: Offset((_shimmerController.value * 320) - 80, 0),
                               child: Container(

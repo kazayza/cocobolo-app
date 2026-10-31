@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/personal_account_service.dart';
+import '../../widgets/design_kit.dart';
 import 'personal_account_form_screen.dart';
 import 'personal_account_transaction_screen.dart';
 
@@ -84,11 +87,14 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
     final isDark = theme.brightness == Brightness.dark;
     final acc = widget.account;
     final balance = (acc['CurrentBalance'] ?? 0).toDouble();
-    final balanceColor = balance > 0 ? const Color(0xFFE53935) : (balance < 0 ? const Color(0xFF43A047) : theme.colorScheme.onSurfaceVariant);
+    final balanceColor = balance > 0 ? AppColors.error : (balance < 0 ? AppColors.success : theme.colorScheme.onSurfaceVariant);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(acc['AccountName']?.toString() ?? 'كشف حساب'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -98,7 +104,7 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
               ? _buildError(theme)
               : RefreshIndicator(
@@ -110,22 +116,7 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded, size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   Widget _buildBody(ThemeData theme, bool isDark, double balance, Color balanceColor) {
@@ -168,7 +159,7 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
                         const SizedBox(height: 3),
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text('${_fmt(balance.abs())} ج.م', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                          child: AmountText(value: '${_fmt(balance.abs())} ج.م', size: 22, color: Colors.white),
                         ),
                       ],
                     ),
@@ -244,45 +235,28 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
         const SizedBox(height: 16),
 
         // ── رأس القائمة ──────────────────────────
-        Row(
-          children: [
-            Container(width: 8, height: 8, decoration: const BoxDecoration(color: HomeAccent.gold, shape: BoxShape.circle)),
-            const SizedBox(width: 8),
-            const Text('الحركات', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '${txs.length} حركة',
-                style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ),
-          ],
+        AppSectionHeader(
+          title: 'الحركات',
+          trailing: Text(
+            '${txs.length} حركة',
+            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+          ),
         ),
         const SizedBox(height: 8),
 
         if (txs.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.receipt_long_rounded, size: 36, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(height: 12),
-                Text('لا توجد حركات', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-              ],
-            ),
+          const AppEmpty(
+            icon: Icons.receipt_long_rounded,
+            message: 'لا توجد حركات',
           )
         else
           ...txs.asMap().entries.map((entry) {
             final tx = entry.value;
             final isIn = (tx['AmountIn'] ?? 0).toDouble() > 0;
             final amount = isIn ? (tx['AmountIn'] ?? 0).toDouble() : (tx['AmountOut'] ?? 0).toDouble();
-            final color = isIn ? const Color(0xFF3B82F6) : const Color(0xFF8B5CF6);
+            final color = isIn ? AppColors.info : AppStatus.editPending;
             final running = (tx['RunningBalance'] ?? 0).toDouble();
-            final runningColor = running > 0 ? const Color(0xFFE53935) : (running < 0 ? const Color(0xFF43A047) : theme.colorScheme.onSurfaceVariant);
+            final runningColor = running > 0 ? AppColors.error : (running < 0 ? AppColors.success : theme.colorScheme.onSurfaceVariant);
 
             String dateStr = '';
             String timeStr = '';
@@ -294,15 +268,12 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
               dateStr = tx['TransactionDate']?.toString() ?? '';
             }
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-              ),
-              child: Column(
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AppCard(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                radius: AppRadius.md,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -332,13 +303,16 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            '${isIn ? '+' : '-'}${_fmt(amount)}',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: color),
+                          AmountText(
+                            value: '${isIn ? '+' : '-'}${_fmt(amount)}',
+                            size: 13.5,
+                            color: color,
                           ),
-                          Text(
-                            'رصيد: ${_fmt(running.abs())}',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: runningColor),
+                          AmountText(
+                            value: 'رصيد: ${_fmt(running.abs())}',
+                            size: 10,
+                            color: runningColor,
+                            weight: FontWeight.w700,
                           ),
                         ],
                       ),
@@ -372,6 +346,7 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
                     ),
                   ],
                 ],
+                ),
               ),
             );
           }),
@@ -383,9 +358,10 @@ class _PersonalAccountStatementScreenState extends State<PersonalAccountStatemen
     return Expanded(
       child: Column(
         children: [
-          Text(
-            value is int ? '$value' : _fmt(value),
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+          AmountText(
+            value: value is int ? '$value' : _fmt(value),
+            size: 14,
+            color: Colors.white,
           ),
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),

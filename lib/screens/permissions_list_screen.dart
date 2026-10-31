@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,7 +11,9 @@ import 'dart:async';
 import '../constants.dart';
 import '../services/permission_service.dart';
 import 'request_permission_screen.dart';
+import '../core/auth/session_service.dart';
 
+import '../widgets/app_drawer.dart';
 class PermissionsListScreen extends StatefulWidget {
   final int userId;
 
@@ -94,7 +99,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
       final uri = Uri.parse('$baseUrl/api/permissions/list').replace(queryParameters: queryParams);
       print('🌐 Fetching: $uri');
 
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
 
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
@@ -159,11 +164,11 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFE8B923),
-            surface: Color(0xFF1E1E1E),
+            primary: AppColors.gold,
+            surface: AppColors.darkSurface,
             onSurface: Colors.white,
           ),
-          dialogBackgroundColor: const Color(0xFF1E1E1E),
+          dialogBackgroundColor: AppColors.darkSurface,
         ),
         child: child!,
       ),
@@ -180,7 +185,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/permissions/action'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'permissionId': id,
           'status': status,
@@ -199,7 +204,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                 Text(status == 'Approved' ? 'تمت الموافقة ✅' : 'تم الرفض ❌'),
               ],
             ),
-            backgroundColor: status == 'Approved' ? Colors.green : Colors.red,
+            backgroundColor: status == 'Approved' ? AppColors.success : AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -215,7 +220,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.darkSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -238,7 +243,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Icon(Icons.filter_list, color: Color(0xFFE8B923), size: 20),
+                  const Icon(Icons.filter_list, color: AppColors.gold, size: 20),
                   const SizedBox(width: 10),
                   Text(
                     'تصفية الطلبات',
@@ -329,7 +334,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
         Navigator.pop(context);
       },
       backgroundColor: Colors.grey[800],
-      selectedColor: const Color(0xFFE8B923),
+      selectedColor: AppColors.gold,
       checkmarkColor: Colors.black,
     );
   }
@@ -346,7 +351,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.calendar_today, size: 12, color: const Color(0xFFE8B923)),
+            Icon(Icons.calendar_today, size: 12, color: AppColors.gold),
             const SizedBox(width: 4),
             Text(label, style: GoogleFonts.cairo(color: Colors.white, fontSize: 11)),
           ],
@@ -358,17 +363,18 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      drawer: buildAppDrawer(currentRoute: 'frm_MyPermissions'),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8B923).withOpacity(0.1),
+                color: AppColors.gold.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.lock_open_rounded, color: Color(0xFFE8B923), size: 18),
+              child: const Icon(Icons.lock_open_rounded, color: AppColors.gold, size: 18),
             ),
             const SizedBox(width: 10),
             Text(
@@ -377,12 +383,11 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const AppDrawerMenuButton(),
         actions: [
           if (isManager)
             IconButton(
@@ -392,9 +397,9 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: const Color(0xFFE8B923),
+          labelColor: AppColors.gold,
           unselectedLabelColor: Colors.grey,
-          indicatorColor: const Color(0xFFE8B923),
+          indicatorColor: AppColors.gold,
           labelStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12),
           tabs: const [
             Tab(text: 'قيد الانتظار'),
@@ -415,7 +420,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: fetchPermissions,
-                        color: const Color(0xFFE8B923),
+                        color: AppColors.gold,
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: filteredPermissions.length,
@@ -439,8 +444,8 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
         },
         label: Text('طلب جديد', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add),
-        backgroundColor: const Color(0xFFE8B923),
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.gold,
+        foregroundColor: AppColors.navy,
       ),
     );
   }
@@ -450,11 +455,11 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          _buildStatItem('في الانتظار', pendingCount.toString(), Icons.hourglass_empty, Colors.orange),
+          _buildStatItem('في الانتظار', pendingCount.toString(), Icons.hourglass_empty, AppColors.warning),
           const SizedBox(width: 8),
-          _buildStatItem('مقبول', approvedCount.toString(), Icons.check_circle, Colors.green),
+          _buildStatItem('مقبول', approvedCount.toString(), Icons.check_circle, AppColors.success),
           const SizedBox(width: 8),
-          _buildStatItem('مرفوض', rejectedCount.toString(), Icons.cancel, Colors.red),
+          _buildStatItem('مرفوض', rejectedCount.toString(), Icons.cancel, AppColors.error),
         ],
       ),
     );
@@ -462,22 +467,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
 
   Widget _buildStatItem(String label, String value, IconData icon, Color color) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 4),
-            Text(value, style: GoogleFonts.cairo(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-            Text(label, style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 8)),
-          ],
-        ),
-      ),
+      child: AppStatCard(label: label, value: value, color: color, icon: icon),
     );
   }
 
@@ -489,7 +479,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
         decoration: InputDecoration(
           hintText: 'بحث باسم الموظف...',
           hintStyle: GoogleFonts.cairo(color: Colors.grey[600]),
-          prefixIcon: const Icon(Icons.search, color: Color(0xFFE8B923), size: 18),
+          prefixIcon: const Icon(Icons.search, color: AppColors.gold, size: 18),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, color: Colors.grey, size: 16),
@@ -500,7 +490,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                 )
               : null,
           filled: true,
-          fillColor: Colors.white.withOpacity(0.05),
+          fillColor: Colors.white.withValues(alpha: 0.05),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -513,16 +503,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(color: Color(0xFFE8B923)),
-          const SizedBox(height: 16),
-          Text('جاري تحميل الطلبات...', style: GoogleFonts.cairo(color: Colors.grey[400])),
-        ],
-      ),
-    );
+    return const AppLoading(message: 'جاري تحميل الطلبات...');
   }
 
   Widget _buildPermissionCard(dynamic item, int index) {
@@ -533,20 +514,20 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
     // ترجمة النوع
     String typeAr = type;
     IconData icon = Icons.info;
-    Color typeColor = const Color(0xFFE8B923);
+    Color typeColor = AppColors.gold;
     
     if (type == 'LateIn') { 
       typeAr = 'تأخير صباحي'; 
       icon = Icons.timer_off; 
-      typeColor = Colors.orange;
+      typeColor = AppColors.warning;
     } else if (type == 'EarlyOut') { 
       typeAr = 'انصراف مبكر'; 
       icon = Icons.exit_to_app; 
-      typeColor = Colors.blue;
+      typeColor = AppColors.info;
     } else if (type == 'Errands') { 
       typeAr = 'مأمورية'; 
       icon = Icons.work; 
-      typeColor = Colors.purple;
+      typeColor = AppStatus.editPending;
     }
 
     return Card(
@@ -555,9 +536,9 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
       elevation: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: AppColors.darkSurface,
+          borderRadius: AppRadius.all(AppRadius.lg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Column(
           children: [
@@ -565,8 +546,8 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: typeColor.withOpacity(0.05),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                color: typeColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
               ),
               child: Row(
                 children: [
@@ -576,7 +557,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
+                        color: typeColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Center(
@@ -594,7 +575,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
+                        color: typeColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(icon, color: typeColor, size: 18),
@@ -682,7 +663,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.02),
+                      color: Colors.white.withValues(alpha: 0.02),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -714,8 +695,8 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: status == 'Approved' 
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.red.withOpacity(0.1),
+                              ? AppColors.success.withValues(alpha: 0.1)
+                              : AppColors.error.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -723,14 +704,14 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                             Icon(
                               status == 'Approved' ? Icons.info : Icons.warning,
                               size: 12,
-                              color: status == 'Approved' ? Colors.green : Colors.red,
+                              color: status == 'Approved' ? AppColors.success : AppColors.error,
                             ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 item['ManagerComment'],
                                 style: GoogleFonts.cairo(
-                                  color: status == 'Approved' ? Colors.green : Colors.red,
+                                  color: status == 'Approved' ? AppColors.success : AppColors.error,
                                   fontSize: 11,
                                 ),
                               ),
@@ -755,7 +736,7 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                         icon: const Icon(Icons.check, size: 16),
                         label: const Text('موافقة'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: AppColors.success,
                           foregroundColor: Colors.white,
                           textStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                           shape: RoundedRectangleBorder(
@@ -771,8 +752,8 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
                         icon: const Icon(Icons.close, size: 16),
                         label: const Text('رفض'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
-                          side: const BorderSide(color: Colors.redAccent),
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
                           textStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -790,70 +771,31 @@ class _PermissionsListScreenState extends State<PermissionsListScreen> with Sing
   }
 
   Widget _buildStatusBadge(String status) {
-    Color color = Colors.orange;
+    Color color = AppColors.warning;
     String text = 'قيد الانتظار';
     IconData icon = Icons.hourglass_empty;
 
     if (status == 'Approved') { 
-      color = Colors.green; 
+      color = AppColors.success; 
       text = 'مقبول';
       icon = Icons.check_circle;
     }
     if (status == 'Rejected') { 
-      color = Colors.red; 
+      color = AppColors.error; 
       text = 'مرفوض';
       icon = Icons.cancel;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 10),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: GoogleFonts.cairo(color: color, fontSize: 9, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
+    return StatusBadge(label: text, color: color, icon: icon, small: true);
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox, size: 60, color: Colors.grey[800]),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد طلبات',
-            style: GoogleFonts.cairo(color: Colors.grey[600], fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'اسحب لأسفل للتحديث أو أضف طلب جديد',
-            style: GoogleFonts.cairo(color: Colors.grey[700], fontSize: 12),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: fetchPermissions,
-            icon: const Icon(Icons.refresh),
-            label: const Text('تحديث'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
-              foregroundColor: Colors.black,
-            ),
-          ),
-        ],
-      ),
+    return AppEmpty(
+      message: 'لا توجد طلبات',
+      hint: 'اسحب لأسفل للتحديث أو أضف طلب جديد',
+      icon: Icons.inbox,
+      onRefresh: fetchPermissions,
+      refreshLabel: 'تحديث',
     );
   }
 }

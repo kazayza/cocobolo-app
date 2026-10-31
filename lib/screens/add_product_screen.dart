@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -7,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../constants.dart';
 import '../services/permission_service.dart';
 import 'package:file_picker/file_picker.dart';
+import '../core/auth/session_service.dart';
 
 class AddProductScreen extends StatefulWidget {
   final String username;
@@ -161,19 +165,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> fetchDropdownData() async {
     try {
       // جلب المجموعات
-      final groupsRes = await http.get(Uri.parse('$baseUrl/api/products/groups'));
+      final groupsRes = await http.get(Uri.parse('$baseUrl/api/products/groups'), headers: SessionService.instance.authHeaders);
       if (groupsRes.statusCode == 200) {
         setState(() => productGroups = jsonDecode(groupsRes.body));
       }
 
       // جلب العملاء
-      final customersRes = await http.get(Uri.parse('$baseUrl/api/customers-list'));
+      final customersRes = await http.get(Uri.parse('$baseUrl/api/customers-list'), headers: SessionService.instance.authHeaders);
       if (customersRes.statusCode == 200) {
         setState(() => customers = jsonDecode(customersRes.body));
       }
 
             // جلب نسب الربح
-      final marginsRes = await http.get(Uri.parse('$baseUrl/api/pricing/margins'));
+      final marginsRes = await http.get(Uri.parse('$baseUrl/api/pricing/margins'), headers: SessionService.instance.authHeaders);
       if (marginsRes.statusCode == 200) {
         final margins = jsonDecode(marginsRes.body);
         if (margins != null) {
@@ -330,14 +334,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Text(
           _isEditing ? 'تعديل المنتج' : 'إضافة منتج جديد',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.black),
+          style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: const Color(0xFFE8B923),
-        iconTheme: const IconThemeData(color: Colors.black),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
       ),
       body: Form(
@@ -402,19 +408,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFFFFD700), size: 24),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+    return AppSectionHeader(
+      title: title,
+      icon: icon,
+      accent: AppColors.gold,
     );
   }
 
@@ -437,13 +434,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ? selectedPricingType
     : null;    
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           // اسم المنتج
@@ -547,21 +541,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: 'العميل (اختياري)',
-          labelStyle: GoogleFonts.cairo(color: Colors.grey),
-          prefixIcon: const Icon(Icons.person, color: Color(0xFFFFD700)),
+          labelStyle: GoogleFonts.cairo(color: AppColors.neutral),
+          prefixIcon: const Icon(Icons.person, color: AppColors.gold),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (selectedCustomerId != null)
                 IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                  icon: const Icon(Icons.clear, color: AppColors.neutral, size: 20),
                   onPressed: () => setState(() => selectedCustomerId = null),
                 ),
-              const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              const Icon(Icons.arrow_drop_down, color: AppColors.neutral),
             ],
           ),
           filled: true,
-          fillColor: Colors.white.withOpacity(0.08),
+          fillColor: Colors.white.withValues(alpha: 0.08),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -574,7 +568,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               child: Text(
                 displayText,
                 style: GoogleFonts.cairo(
-                  color: selectedCustomerId != null ? Colors.white : Colors.grey,
+                  color: selectedCustomerId != null ? Colors.white : AppColors.neutral,
                   fontSize: 14,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -584,7 +578,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               const SizedBox(width: 8),
               Text(
                 displayPhone,
-                style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 12),
+                style: GoogleFonts.cairo(color: AppColors.neutralLight, fontSize: 12),
               ),
             ],
           ],
@@ -602,7 +596,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1A),
+            backgroundColor: AppColors.darkSurface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text(
               'اختر العميل',
@@ -620,11 +614,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     autofocus: true,
                     decoration: InputDecoration(
                       hintText: 'ابحث باسم العميل أو رقم التليفون...',
-                      hintStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 13),
-                      prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
+                      hintStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 13),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                       suffixIcon: searchController.text.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                              icon: const Icon(Icons.clear, color: AppColors.neutral, size: 20),
                               onPressed: () {
                                 searchController.clear();
                                 setDialogState(() {
@@ -634,14 +628,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             )
                           : null,
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white.withValues(alpha: 0.1),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                        borderSide: const BorderSide(color: AppColors.gold),
                       ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
@@ -671,12 +665,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
                         color: selectedCustomerId == null
-                            ? const Color(0xFFFFD700).withOpacity(0.15)
-                            : Colors.white.withOpacity(0.05),
+                            ? AppColors.gold.withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: selectedCustomerId == null
-                              ? const Color(0xFFFFD700).withOpacity(0.3)
+                              ? AppColors.gold.withValues(alpha: 0.3)
                               : Colors.transparent,
                         ),
                       ),
@@ -686,19 +680,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.2),
+                              color: AppColors.neutral.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.public, color: Colors.grey, size: 20),
+                            child: const Icon(Icons.public, color: AppColors.neutral, size: 20),
                           ),
                           const SizedBox(width: 12),
                           Text(
                             'منتج عام',
-                            style: GoogleFonts.cairo(color: Colors.grey, fontSize: 14),
+                            style: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 14),
                           ),
                           const Spacer(),
                           if (selectedCustomerId == null)
-                            const Icon(Icons.check_circle, color: Color(0xFFFFD700), size: 20),
+                            const Icon(Icons.check_circle, color: AppColors.gold, size: 20),
                         ],
                       ),
                     ),
@@ -711,7 +705,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         ? Center(
                             child: Text(
                               'لا توجد نتائج',
-                              style: GoogleFonts.cairo(color: Colors.grey),
+                              style: GoogleFonts.cairo(color: AppColors.neutral),
                             ),
                           )
                         : ListView.builder(
@@ -733,12 +727,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? const Color(0xFFFFD700).withOpacity(0.15)
+                                        ? AppColors.gold.withValues(alpha: 0.15)
                                         : Colors.transparent,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color: isSelected
-                                          ? const Color(0xFFFFD700).withOpacity(0.3)
+                                          ? AppColors.gold.withValues(alpha: 0.3)
                                           : Colors.transparent,
                                     ),
                                   ),
@@ -748,12 +742,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                         width: 36,
                                         height: 36,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFFD700).withOpacity(0.15),
+                                          color: AppColors.gold.withValues(alpha: 0.15),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: const Icon(
                                           Icons.person,
-                                          color: Color(0xFFFFD700),
+                                          color: AppColors.gold,
                                           size: 20,
                                         ),
                                       ),
@@ -775,7 +769,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                               Text(
                                                 phone,
                                                 style: GoogleFonts.cairo(
-                                                  color: Colors.grey[400],
+                                                  color: AppColors.neutralLight,
                                                   fontSize: 12,
                                                 ),
                                               ),
@@ -783,7 +777,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                         ),
                                       ),
                                       if (isSelected)
-                                        const Icon(Icons.check_circle, color: Color(0xFFFFD700), size: 20),
+                                        const Icon(Icons.check_circle, color: AppColors.gold, size: 20),
                                     ],
                                   ),
                                 ),
@@ -807,13 +801,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final saleOnly = perm.canSeeSaleOnlyProductPricing;  // Sales + SalesManager
     final isFactory = perm.isFactory;                     // للتحكم في سلوك الحفظ
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           // ── كاروسيل الباقات الثلاث (يمين/شمال) ──
@@ -831,7 +822,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     costController: _purchasePriceCClassController,
                     saleController: _salePriceCClassController,
                     marginController: _cclassMarginController,
-                    color: const Color(0xFF42A5F5),
+                    color: AppColors.infoLight,
                     showFull: showFull,
                     costOnly: costOnly,
                     saleOnly: saleOnly,
@@ -844,7 +835,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     costController: _purchasePriceController,
                     saleController: _salePriceController,
                     marginController: _premiumMarginController,
-                    color: const Color(0xFFFFD700),
+                    color: AppColors.gold,
                     showFull: showFull,
                     costOnly: costOnly,
                     saleOnly: saleOnly,
@@ -857,7 +848,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     costController: _purchasePriceEliteController,
                     saleController: _salePriceEliteController,
                     marginController: _eliteMarginController,
-                    color: Colors.greenAccent,
+                    color: AppColors.successLight,
                     showFull: showFull,
                     costOnly: costOnly,
                     saleOnly: saleOnly,
@@ -891,7 +882,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     height: 7,
                     decoration: BoxDecoration(
                       color: i == _pricingPage
-                          ? const Color(0xFFFFD700)
+                          ? AppColors.gold
                           : Colors.white38,
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -928,19 +919,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر التكلفة',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
-            prefixIcon: const Icon(Icons.money_off, color: Color(0xFFFFD700), size: 18),
+            labelStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 12),
+            prefixIcon: const Icon(Icons.money_off, color: AppColors.gold, size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
+            suffixStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 11),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFFD700)),
+              borderSide: const BorderSide(color: AppColors.gold),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
@@ -960,17 +951,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'نسبة الربح %',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
-            prefixIcon: const Icon(Icons.percent, color: Color(0xFFFFD700), size: 18),
+            labelStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 12),
+            prefixIcon: const Icon(Icons.percent, color: AppColors.gold, size: 18),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFFD700)),
+              borderSide: const BorderSide(color: AppColors.gold),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           ),
@@ -990,12 +981,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر البيع',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            labelStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 12),
             prefixIcon: Icon(Icons.attach_money, color: color, size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
+            suffixStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 11),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -1021,12 +1012,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
           style: GoogleFonts.cairo(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'سعر البيع (عرض فقط)',
-            labelStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 12),
+            labelStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 12),
             prefixIcon: Icon(Icons.visibility, color: color, size: 18),
             suffixText: 'ج.م',
-            suffixStyle: GoogleFonts.cairo(color: Colors.grey, fontSize: 11),
+            suffixStyle: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 11),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: Colors.white.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -1041,9 +1032,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1076,13 +1067,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildDescriptionSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           _buildTextField(
@@ -1104,13 +1092,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildComponentsSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           // إضافة مكون جديد
@@ -1123,9 +1108,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   style: GoogleFonts.cairo(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'اسم المكون',
-                    hintStyle: GoogleFonts.cairo(color: Colors.grey),
+                    hintStyle: GoogleFonts.cairo(color: AppColors.neutral),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
+                    fillColor: Colors.white.withValues(alpha: 0.08),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -1143,9 +1128,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   style: GoogleFonts.cairo(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'العدد',
-                    hintStyle: GoogleFonts.cairo(color: Colors.grey),
+                    hintStyle: GoogleFonts.cairo(color: AppColors.neutral),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
+                    fillColor: Colors.white.withValues(alpha: 0.08),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -1157,7 +1142,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: _addComponent,
-                icon: const Icon(Icons.add_circle, color: Color(0xFFFFD700), size: 32),
+                icon: const Icon(Icons.add_circle, color: AppColors.gold, size: 32),
               ),
             ],
           ),
@@ -1175,7 +1160,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -1184,14 +1169,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withOpacity(0.2),
+                        color: AppColors.gold.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Center(
                         child: Text(
                           '${comp['qty']}',
                           style: GoogleFonts.cairo(
-                            color: const Color(0xFFFFD700),
+                            color: AppColors.gold,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1206,7 +1191,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                     IconButton(
                       onPressed: () => _removeComponent(index),
-                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                      icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 22),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
@@ -1238,13 +1223,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildImagesSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           // زر إضافة صورة
@@ -1254,10 +1236,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
             child: Container(
               height: 100,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                  color: AppColors.gold.withValues(alpha: 0.3),
                   style: BorderStyle.solid,
                 ),
               ),
@@ -1265,11 +1247,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.add_photo_alternate, color: Color(0xFFFFD700), size: 36),
+                    const Icon(Icons.add_photo_alternate, color: AppColors.gold, size: 36),
                     const SizedBox(height: 8),
                     Text(
                       'إضافة صورة',
-                      style: GoogleFonts.cairo(color: Colors.grey),
+                      style: GoogleFonts.cairo(color: AppColors.neutral),
                     ),
                   ],
                 ),
@@ -1310,7 +1292,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
-                                color: Colors.red,
+                                color: AppColors.error,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.close, color: Colors.white, size: 16),
@@ -1330,13 +1312,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildPDFSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.lg,
+      color: Colors.white.withValues(alpha: 0.05),
       child: Column(
         children: [
           // لو فيه PDF قديم
@@ -1344,12 +1323,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
+                  const Icon(Icons.picture_as_pdf, color: AppColors.error, size: 32),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1357,7 +1336,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
                     ),
                   ),
-                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  const Icon(Icons.check_circle, color: AppColors.success, size: 20),
                 ],
               ),
             ),
@@ -1368,12 +1347,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
+                  const Icon(Icons.picture_as_pdf, color: AppColors.error, size: 32),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1383,7 +1362,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                    icon: const Icon(Icons.close, color: AppColors.error, size: 20),
                     onPressed: () {
                       setState(() {
                         _pdfBase64 = null;
@@ -1403,10 +1382,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               child: Container(
                 height: 60,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.red.withOpacity(0.3),
+                    color: AppColors.error.withValues(alpha: 0.3),
                     style: BorderStyle.solid,
                   ),
                 ),
@@ -1414,11 +1393,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.upload_file, color: Colors.red, size: 24),
+                      const Icon(Icons.upload_file, color: AppColors.error, size: 24),
                       const SizedBox(width: 10),
                       Text(
                         _pdfBase64 != null ? 'تغيير ملف PDF' : 'إرفاق ملف PDF',
-                        style: GoogleFonts.cairo(color: Colors.grey),
+                        style: GoogleFonts.cairo(color: AppColors.neutral),
                       ),
                     ],
                   ),
@@ -1494,34 +1473,49 @@ class _AddProductScreenState extends State<AddProductScreen> {
     String? suffixText,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.cairo(
+                color: AppColors.neutralLight,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
       style: GoogleFonts.cairo(color: Colors.white),
       validator: validator,
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-        prefixIcon: Icon(icon, color: const Color(0xFFFFD700)),
+        prefixIcon: Icon(icon, color: AppColors.gold),
         suffixText: suffixText,
-        suffixStyle: GoogleFonts.cairo(color: Colors.grey),
+        suffixStyle: GoogleFonts.cairo(color: AppColors.neutral),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white.withValues(alpha: 0.08),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+          borderSide: const BorderSide(color: AppColors.gold),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
+        ),
+      ],
     );
   }
 
@@ -1538,21 +1532,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
       items: items,
       onChanged: onChanged,
       validator: validator,
-      dropdownColor: const Color(0xFF1A1A1A),
+      dropdownColor: AppColors.darkSurface,
       style: GoogleFonts.cairo(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.cairo(color: Colors.grey),
-        prefixIcon: Icon(icon, color: const Color(0xFFFFD700)),
+        labelStyle: GoogleFonts.cairo(color: AppColors.neutral),
+        prefixIcon: Icon(icon, color: AppColors.gold),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white.withValues(alpha: 0.08),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+          borderSide: const BorderSide(color: AppColors.gold),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
@@ -1566,22 +1560,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _saveProduct,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFE8B923),
+          backgroundColor: AppColors.gold,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.black)
+            ? const CircularProgressIndicator(color: AppColors.navy)
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.save, color: Colors.black),
+                  const Icon(Icons.save, color: AppColors.navy),
                   const SizedBox(width: 10),
                   Text(
                     _isEditing ? 'حفظ التعديلات' : 'إضافة المنتج',
                     style: GoogleFonts.cairo(
-                      color: Colors.black,
+                      color: AppColors.navy,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1607,7 +1601,7 @@ Future<void> _saveProduct() async {
       if (perm.isFactory && _isEditing) {
         final res = await http.put(
           Uri.parse('$baseUrl/api/pricing/products/${widget.productId}/cost'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
           body: jsonEncode({
             'purchasePrice': double.tryParse(_purchasePriceController.text) ?? 0,
             'purchasePriceElite': double.tryParse(_purchasePriceEliteController.text) ?? 0,
@@ -1660,13 +1654,13 @@ Future<void> _saveProduct() async {
       if (_isEditing) {
         res = await http.put(
           Uri.parse('$baseUrl/api/products/${widget.productId}'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
           body: jsonEncode(productData),
         );
       } else {
         res = await http.post(
           Uri.parse('$baseUrl/api/products'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
           body: jsonEncode(productData),
         );
       }
@@ -1680,7 +1674,7 @@ Future<void> _saveProduct() async {
         if (components.isNotEmpty) {
           await http.post(
             Uri.parse('$baseUrl/api/products/$productId/components'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
             body: jsonEncode({
               'components': components.map((c) => <String, dynamic>{
                 'componentName': c['name'],
@@ -1700,6 +1694,10 @@ Future<void> _saveProduct() async {
               'POST',
               Uri.parse('$baseUrl/api/products/$productId/images'),
             );
+            if (SessionService.instance.hasToken) {
+              request.headers['Authorization'] =
+                  'Bearer ${SessionService.instance.accessToken}';
+            }
             request.files.add(await http.MultipartFile.fromPath(
               'image',
               filePath,
@@ -1714,7 +1712,7 @@ Future<void> _saveProduct() async {
             // fallback للـ base64 (لو المسار مش متاح)
             await http.post(
               Uri.parse('$baseUrl/api/products/$productId/images'),
-              headers: {'Content-Type': 'application/json'},
+              headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
               body: jsonEncode({
                 'imageBase64': img['base64'],
                 'imageNote': img['note'],
@@ -1723,16 +1721,29 @@ Future<void> _saveProduct() async {
           }
         }
 
-        // رفع PDF لو موجود
+        // رفع PDF لو موجود — تُفحص الاستجابة فعليًا: فشل الرفع خطأ صريح
+        // ولا يُعلن نجاح الحفظ وكأن الملف حُفظ (POST /api/products/:id/pdf)
         if (_pdfBase64 != null) {
-          await http.post(
+          final pdfResponse = await http.post(
             Uri.parse('$baseUrl/api/products/$productId/pdf'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
             body: jsonEncode({
               'pdfBase64': _pdfBase64,
-              'createdBy': widget.username,
             }),
           );
+          bool pdfOk = pdfResponse.statusCode >= 200 && pdfResponse.statusCode < 300;
+          String pdfMessage = 'فشل رفع ملف PDF (${pdfResponse.statusCode})';
+          try {
+            final pdfBody = jsonDecode(pdfResponse.body);
+            if (pdfBody is Map) {
+              if (pdfBody['success'] == false) pdfOk = false;
+              if (pdfBody['message'] != null) pdfMessage = pdfBody['message'].toString();
+            }
+          } catch (_) {}
+          if (!pdfOk) {
+            _showError('تم حفظ المنتج لكن $pdfMessage');
+            return;
+          }
         }
 
         _showSuccess(_isEditing ? 'تم تعديل المنتج بنجاح' : 'تم إضافة المنتج بنجاح');
@@ -1758,7 +1769,7 @@ Future<void> _saveProduct() async {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -1773,7 +1784,7 @@ Future<void> _saveProduct() async {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

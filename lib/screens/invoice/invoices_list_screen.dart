@@ -4,12 +4,16 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/home/widgets/home_accent.dart';
+import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
 import '../../services/permission_service.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/invoice_service.dart';
 import '../../core/network/api_client.dart';
 import 'invoice_details_screen.dart';
 import 'add_invoice_screen.dart';
 
+import '../../widgets/app_drawer.dart';
 /// ─────────────────────────────────────────────────────────────
 ///  إدارة الفواتير — نسخة مطابقة لصفحة SalesList في بلازور
 ///  - كروت إحصائيات (إجمالي/مبيعات/محصل/متبقي/اليوم/متأخرة)
@@ -254,13 +258,13 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
   (Color, String) _statusInfo(String? status) {
     switch (status) {
       case 'Paid':
-        return (const Color(0xFF43A047), 'مدفوعة');
+        return (AppColors.success, 'مدفوعة');
       case 'PartiallyPaid':
-        return (const Color(0xFFFF9800), 'مدفوعة جزئياً');
+        return (AppColors.warning, 'مدفوعة جزئياً');
       case 'Cancelled':
-        return (const Color(0xFFE53935), 'ملغاة');
+        return (AppColors.error, 'ملغاة');
       default:
-        return (const Color(0xFF2196F3), 'مفتوحة');
+        return (AppColors.info, 'مفتوحة');
     }
   }
 
@@ -284,8 +288,12 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frm_PartiesInvoices'),
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: const Text('إدارة الفواتير'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -295,7 +303,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
         ],
       ),
       body: _isLoading && _invoices.isEmpty
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
           ? _buildError(theme)
           : !_canSeeInvoices
@@ -304,6 +312,8 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
       floatingActionButton: _canAdd
           ? FloatingActionButton.extended(
               onPressed: _openAddInvoice,
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
               icon: const Icon(Icons.add_rounded),
               label: const Text('فاتورة جديدة'),
             )
@@ -312,52 +322,13 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 60,
-            color: theme.colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _loadData);
   }
 
   Widget _buildNoPermission(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.lock_rounded,
-            size: 60,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'ليس لديك صلاحية لعرض هذه الفواتير',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.lock_rounded,
+      message: 'ليس لديك صلاحية لعرض هذه الفواتير',
     );
   }
 
@@ -423,7 +394,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
           Row(
             children: [
               Expanded(
-                child: _StatCard(
+                child: AppStatCard(
                   label: 'إجمالي الفواتير',
                   value: '${_stats['TotalCount'] ?? _invoices.length}',
                   color: HomeAccent.indigo,
@@ -434,10 +405,10 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
               const SizedBox(width: 8),
               if (_canSeeAmounts)
                 Expanded(
-                  child: _StatCard(
+                  child: AppStatCard(
                     label: 'إجمالي المبيعات',
                     value: _fmtCompact(_stats['TotalSales']),
-                    color: const Color(0xFF43A047),
+                    color: AppColors.success,
                     icon: Icons.trending_up_rounded,
                     tooltip: '${_fmt(_stats['TotalSales'])} ج.م',
                     onTap: null,
@@ -445,10 +416,10 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                 ),
               const SizedBox(width: 8),
               Expanded(
-                child: _StatCard(
+                child: AppStatCard(
                   label: 'فواتير اليوم',
                   value: '${_stats['TodayCount'] ?? 0}',
-                  color: const Color(0xFF2196F3),
+                  color: AppColors.info,
                   icon: Icons.today_rounded,
                   onTap: null,
                 ),
@@ -461,10 +432,10 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
             children: [
               if (_canSeeAmounts) ...[
                 Expanded(
-                  child: _StatCard(
+                  child: AppStatCard(
                     label: 'المحصّل',
                     value: _fmtCompact(_stats['TotalPaid']),
-                    color: const Color(0xFF26A69A),
+                    color: HomeAccent.teal,
                     icon: Icons.check_circle_rounded,
                     tooltip: '${_fmt(_stats['TotalPaid'])} ج.م',
                     onTap: null,
@@ -472,10 +443,10 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _StatCard(
+                  child: AppStatCard(
                     label: 'المتبقي',
                     value: _fmtCompact(_stats['TotalRemaining']),
-                    color: const Color(0xFFE53935),
+                    color: AppColors.error,
                     icon: Icons.schedule_rounded,
                     tooltip: '${_fmt(_stats['TotalRemaining'])} ج.م',
                     onTap: null,
@@ -483,20 +454,20 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                 ),
               ] else ...[
                 Expanded(
-                  child: _StatCard(
+                  child: AppStatCard(
                     label: 'مفتوحة',
                     value: '${_stats['OpenCount'] ?? 0}',
-                    color: const Color(0xFF2196F3),
+                    color: AppColors.info,
                     icon: Icons.lock_open_rounded,
                     onTap: null,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _StatCard(
+                  child: AppStatCard(
                     label: 'مدفوعة',
                     value: '${_stats['PaidCount'] ?? 0}',
-                    color: const Color(0xFF43A047),
+                    color: AppColors.success,
                     icon: Icons.check_circle_rounded,
                     onTap: null,
                   ),
@@ -504,10 +475,10 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
               ],
               const SizedBox(width: 8),
               Expanded(
-                child: _StatCard(
+                child: AppStatCard(
                   label: 'متأخرة',
                   value: '${_stats['OverdueCount'] ?? 0}',
-                  color: const Color(0xFFFF9800),
+                  color: AppColors.warning,
                   icon: Icons.warning_amber_rounded,
                   selected: _isOverdue == true,
                   onTap: () {
@@ -595,7 +566,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                 alpha: 0.4,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.all(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.symmetric(
@@ -663,7 +634,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest
                           .withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.all(AppRadius.md),
                     ),
                     child: Row(
                       children: [
@@ -713,7 +684,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest
                           .withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.all(AppRadius.md),
                     ),
                     child: Row(
                       children: [
@@ -781,7 +752,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF9800).withValues(alpha: 0.15),
+                      color: AppColors.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
@@ -789,7 +760,7 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFF57C00),
+                        color: AppStatus.overdue,
                       ),
                     ),
                   ),
@@ -824,101 +795,15 @@ class _SalesInvoicesScreenState extends State<SalesInvoicesScreen> {
   }
 
   Widget _buildEmpty(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.receipt_long_rounded,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد فواتير مطابقة',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.receipt_long_rounded,
+      message: 'لا توجد فواتير مطابقة',
     );
-  }
-}
+  }}
 
 // ═══════════════════════════════════════════════════════════
 // Widgets مساعدة
 // ═══════════════════════════════════════════════════════════
-
-/// كارت إحصائية
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  final String? tooltip;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-    this.tooltip,
-    this.selected = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: 0.18)
-              : theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected
-                ? color
-                : theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// زر تبويب
 class _TabBtn extends StatelessWidget {
@@ -1009,7 +894,7 @@ class _FilterField extends StatelessWidget {
           color: theme.colorScheme.surfaceContainerHighest.withValues(
             alpha: 0.4,
           ),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppRadius.all(AppRadius.md),
         ),
         child: Row(
           children: [
@@ -1099,22 +984,22 @@ class _InvoiceCard extends StatelessWidget {
     final IconData statusIcon;
     switch (status) {
       case 'Paid':
-        statusColor = const Color(0xFF43A047);
+        statusColor = AppColors.success;
         statusText = 'مدفوعة';
         statusIcon = Icons.check_circle_rounded;
         break;
       case 'PartiallyPaid':
-        statusColor = const Color(0xFFFF9800);
+        statusColor = AppColors.warning;
         statusText = 'مدفوعة جزئياً';
         statusIcon = Icons.payment_rounded;
         break;
       case 'Cancelled':
-        statusColor = const Color(0xFFE53935);
+        statusColor = AppColors.error;
         statusText = 'ملغاة';
         statusIcon = Icons.cancel_rounded;
         break;
       default:
-        statusColor = const Color(0xFF2196F3);
+        statusColor = AppColors.info;
         statusText = 'مفتوحة';
         statusIcon = Icons.lock_open_rounded;
     }
@@ -1136,7 +1021,7 @@ class _InvoiceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: overdue
-              ? const Color(0xFFFF9800).withValues(alpha: 0.5)
+              ? AppColors.warning.withValues(alpha: 0.5)
               : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
         boxShadow: [
@@ -1158,30 +1043,23 @@ class _InvoiceCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: overdue
-                    ? const Color(0xFFFF9800).withValues(alpha: 0.12)
+                    ? AppColors.warning.withValues(alpha: 0.12)
                     : statusColor.withValues(alpha: 0.08),
               ),
               child: Row(
                 children: [
-                  Icon(statusIcon, size: 15, color: statusColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    statusText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  StatusBadge(
+                    label: statusText,
+                    color: statusColor,
+                    icon: statusIcon,
+                    small: true,
                   ),
                   if (overdue) ...[
                     const SizedBox(width: 6),
-                    Text(
-                      'متأخرة',
-                      style: TextStyle(
-                        color: const Color(0xFFF57C00),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    const StatusBadge(
+                      label: 'متأخرة',
+                      color: AppStatus.overdue,
+                      small: true,
                     ),
                   ],
                   const Spacer(),
@@ -1313,13 +1191,9 @@ class _InvoiceCard extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              _fmt(invoice['GrandTotal']),
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
+                            AmountText(
+                              value: _fmt(invoice['GrandTotal']),
+                              size: 15,
                             ),
                             Text(
                               'ج.م',
@@ -1336,14 +1210,14 @@ class _InvoiceCard extends StatelessWidget {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981)
+                                  color: AppStatus.profit
                                       .withValues(alpha: 0.10),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   'ربح ${_fmt(invoice['GrossProfit'])} ج',
                                   style: const TextStyle(
-                                    color: Color(0xFF059669),
+                                    color: AppStatus.profit,
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -1364,14 +1238,14 @@ class _InvoiceCard extends StatelessWidget {
                           horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
                         color: (editStatus == 1
-                                ? const Color(0xFF9C27B0)
-                                : const Color(0xFF2196F3))
+                                ? AppStatus.editPending
+                                : AppColors.info)
                             .withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: (editStatus == 1
-                                  ? const Color(0xFF9C27B0)
-                                  : const Color(0xFF2196F3))
+                                  ? AppStatus.editPending
+                                  : AppColors.info)
                               .withValues(alpha: 0.3),
                         ),
                       ),
@@ -1383,8 +1257,8 @@ class _InvoiceCard extends StatelessWidget {
                                 : Icons.check_circle_rounded,
                             size: 14,
                             color: editStatus == 1
-                                ? const Color(0xFF9C27B0)
-                                : const Color(0xFF2196F3),
+                                ? AppStatus.editPending
+                                : AppColors.info,
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -1398,8 +1272,8 @@ class _InvoiceCard extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: editStatus == 1
-                                    ? const Color(0xFF9C27B0)
-                                    : const Color(0xFF2196F3),
+                                    ? AppStatus.editPending
+                                    : AppColors.info,
                               ),
                             ),
                           ),
@@ -1427,7 +1301,7 @@ class _InvoiceCard extends StatelessWidget {
                           label: _date(invoice['DueDate']),
                           theme: theme,
                           color: overdue
-                              ? const Color(0xFFF57C00)
+                              ? AppStatus.overdue
                               : null,
                         ),
                       if (canSeeAmounts && remaining > 0)
@@ -1435,7 +1309,7 @@ class _InvoiceCard extends StatelessWidget {
                           icon: Icons.payments_outlined,
                           label: 'متبقي ${_fmt(remaining)}',
                           theme: theme,
-                          color: const Color(0xFFE53935),
+                          color: AppColors.error,
                           bold: true,
                         ),
                       _BottomItem(
@@ -1445,8 +1319,8 @@ class _InvoiceCard extends StatelessWidget {
                         label: delivered ? 'تم التسليم' : 'قيد التسليم',
                         theme: theme,
                         color: delivered
-                            ? const Color(0xFF43A047)
-                            : const Color(0xFFF57C00),
+                            ? AppColors.success
+                            : AppStatus.overdue,
                       ),
                     ],
                   ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import '../services/permission_service.dart';
+import '../widgets/design_kit.dart';
 import 'reports/crm_dashboard_screen.dart';
 import 'products_screen.dart';
 import 'price_list_screen.dart';
@@ -84,24 +87,20 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background(isDark),
       appBar: AppBar(
         title: Text(
           'كل التطبيقات',
           style: GoogleFonts.cairo(
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black),
+              fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
         elevation: 0,
-        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
       ),
       body: visibleItems.isEmpty
-          ? Center(
-              child: Text('لا توجد تطبيقات متاحة',
-                  style: GoogleFonts.cairo(color: Colors.grey)))
+          ? const Center(child: AppEmpty(message: 'لا توجد تطبيقات متاحة'))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               itemCount: visibleItems.length,
@@ -127,15 +126,15 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
       curve: Curves.easeInOut,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(
-          color: isExpanded ? item.color.withOpacity(0.5) : Colors.transparent,
+          color: isExpanded ? item.color.withValues(alpha: 0.5) : Colors.transparent,
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -151,8 +150,8 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
               });
             },
             borderRadius: BorderRadius.vertical(
-              top: const Radius.circular(16),
-              bottom: Radius.circular(isExpanded ? 0 : 16),
+              top: Radius.circular(AppRadius.lg),
+              bottom: Radius.circular(isExpanded ? 0 : AppRadius.lg),
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -162,8 +161,8 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: item.color.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      color: item.color.withValues(alpha: 0.15),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                     ),
                     child: Icon(item.icon, color: item.color, size: 24),
                   ),
@@ -240,11 +239,11 @@ class _AllAppsScreenState extends State<AllAppsScreen> {
   Widget _buildSubButton(SubMenuItem sub, Color color, bool isDark) {
     return InkWell(
       onTap: () => _navigateToScreen(sub.formName),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadius.all(AppRadius.sm),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF252525) : const Color(0xFFF8F9FA),
-          borderRadius: BorderRadius.circular(12),
+          color: isDark ? AppColors.darkCard : AppColors.lightInputFill,
+          borderRadius: AppRadius.all(AppRadius.sm),
           border:
               Border.all(color: isDark ? Colors.white10 : Colors.transparent),
         ),

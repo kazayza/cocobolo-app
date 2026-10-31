@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
 import 'stock_entry_screen.dart';
 
+import '../../widgets/app_drawer.dart';
 class StockLevelsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -174,11 +177,12 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(
+        drawer: buildAppDrawer(currentRoute: 'frm_StockLevels'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             'أرصدة المخزون',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
@@ -236,13 +240,13 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
                     icon: Icons.warning_amber_rounded,
                     label: 'رصيد منخفض',
                     value: '$_lowCount',
-                    color: const Color(0xFFF59E0B),
+                    color: AppColors.warning,
                   ),
                   InventoryHeroStat(
                     icon: Icons.remove_shopping_cart_rounded,
                     label: 'نفد الرصيد',
                     value: '$_outCount',
-                    color: const Color(0xFFFB7185),
+                    color: AppColors.errorLight,
                   ),
                 ],
               ),
@@ -331,11 +335,7 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.all(48),
-                  child: Center(child: CircularProgressIndicator()),
-                )
+              if (_loading) const AppLoading()
               else if (_error != null)
                 _errorCard()
               else if (_rows.isEmpty)
@@ -434,7 +434,7 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
       title: 'تعذر تحميل الأرصدة',
       subtitle: _error,
       icon: Icons.error_outline_rounded,
-      color: Colors.red,
+      color: AppColors.error,
       child: Align(
         alignment: Alignment.centerRight,
         child: FilledButton.icon(
@@ -470,10 +470,10 @@ class _StockLevelCard extends StatelessWidget {
     final dark = ThemeService().isDarkMode;
     final quantity = _int(row['Quantity']);
     final color = quantity == 0
-        ? const Color(0xFFDC2626)
+        ? AppColors.error
         : quantity <= 5
-            ? const Color(0xFFD97706)
-            : const Color(0xFF059669);
+            ? AppStatus.overdue
+            : AppStatus.profit;
     final lastUpdated = DateTime.tryParse('${row['LastUpdatedAt'] ?? ''}');
 
     return Container(
@@ -541,13 +541,10 @@ class _StockLevelCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Text(
-                  NumberFormat('#,###').format(quantity),
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+                AmountText(
+                  value: NumberFormat('#,###').format(quantity),
+                  color: color,
+                  size: 18,
                 ),
                 Text(
                   quantity == 0
@@ -573,11 +570,11 @@ class _StockLevelCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: Colors.grey),
+        Icon(icon, size: 12, color: AppColors.neutral),
         const SizedBox(width: 3),
         Text(
           text,
-          style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey),
+          style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral),
         ),
       ],
     );

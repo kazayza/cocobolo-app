@@ -7,7 +7,9 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../services/app_colors.dart';
 import '../services/factory_purchase_service.dart';
 import '../services/theme_service.dart';
+import '../services/design_tokens.dart';
 import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import 'invoice/invoice_details_screen.dart';
 
 class FactoryPurchaseFormScreen extends StatefulWidget {
@@ -338,6 +340,9 @@ class _FactoryPurchaseFormScreenState extends State<FactoryPurchaseFormScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(_isDark),
       appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text('فاتورة شراء مصنع جديدة',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -483,26 +488,16 @@ class _FactoryPurchaseFormScreenState extends State<FactoryPurchaseFormScreen> {
     required Widget child,
     Widget? trailing,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      color: AppColors.card(_isDark),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, color: AppColors.goldDark, size: 19),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(title,
-                style: GoogleFonts.cairo(
-                    color: AppColors.text(_isDark),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800)),
-          ),
-          if (trailing != null) trailing,
-        ]),
+        AppSectionHeader(
+          title: title,
+          icon: icon,
+          accent: AppColors.goldDark,
+          trailing: trailing,
+        ),
         const Divider(height: 20),
         child,
       ]),
@@ -855,11 +850,10 @@ class _FactoryPurchaseFormScreenState extends State<FactoryPurchaseFormScreen> {
         Row(children: [
           _smallInfo(Icons.schedule_rounded, '${item.periodDays} يوم'),
           const Spacer(),
-          Text(_money(item.total),
-              style: GoogleFonts.cairo(
-                  color: AppColors.goldDark,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12)),
+          AmountText(
+              value: _money(item.total),
+              color: AppColors.goldDark,
+              size: 12),
         ]),
       ]),
     );
@@ -1039,11 +1033,10 @@ class _FactoryPurchaseFormScreenState extends State<FactoryPurchaseFormScreen> {
                   fontSize: 10.5,
                   fontWeight: bold ? FontWeight.w800 : FontWeight.w500)),
         ),
-        Text(_money(value),
-            style: GoogleFonts.cairo(
-                color: color ?? AppColors.text(_isDark),
-                fontSize: bold ? 13 : 11,
-                fontWeight: bold ? FontWeight.w900 : FontWeight.w700)),
+        AmountText(
+            value: _money(value),
+            color: color ?? AppColors.text(_isDark),
+            size: bold ? 13 : 11),
       ]),
     );
   }

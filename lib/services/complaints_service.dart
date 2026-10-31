@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../constants.dart';
 import '../models/complaint_model.dart';
+import '../core/auth/session_service.dart';
 
 class ComplaintsService {
   // ===================================
@@ -46,7 +47,7 @@ class ComplaintsService {
 
       final response = await http.get(
         Uri.parse('$baseUrl/api/complaints$queryString'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -68,7 +69,7 @@ class ComplaintsService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/complaints/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -116,7 +117,7 @@ class ComplaintsService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/complaints'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -140,7 +141,7 @@ class ComplaintsService {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/api/complaints/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
 
@@ -162,7 +163,7 @@ class ComplaintsService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/api/complaints/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -183,7 +184,7 @@ class ComplaintsService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/complaints/types'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -214,7 +215,7 @@ class ComplaintsService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/complaints/$complaintId/escalate'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -236,7 +237,7 @@ class ComplaintsService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/complaints/$complaintId/followups'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -271,7 +272,7 @@ class ComplaintsService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/complaints/$complaintId/followups'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -291,11 +292,11 @@ class ComplaintsService {
   // ===================================
   // تعديل متابعة
   // ===================================
-  static Future<bool> updateFollowUp(int id, Map<String, dynamic> data) async {
+  static Future<bool> updateFollowUp(int complaintId, int id, Map<String, dynamic> data) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/api/complaints/followups/$id'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/api/complaints/$complaintId/followups/$id'),
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
 
@@ -313,11 +314,11 @@ class ComplaintsService {
   // ===================================
   // حذف متابعة
   // ===================================
-  static Future<bool> deleteFollowUp(int id) async {
+  static Future<bool> deleteFollowUp(int complaintId, int id) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/api/complaints/followups/$id'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/api/complaints/$complaintId/followups/$id'),
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
@@ -357,7 +358,7 @@ class ComplaintsService {
 
       final uri = Uri.parse('$baseUrl/api/complaints/stats')
           .replace(queryParameters: params.isEmpty ? null : params);
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is Map) {
@@ -382,7 +383,7 @@ class ComplaintsService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/complaints/$complaintId/assign'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'assignedTo': assignedTo,
           'updatedBy': updatedBy,
@@ -408,7 +409,7 @@ class ComplaintsService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/complaints/$complaintId/status'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'newStatus': newStatus,
           'solution': solution,
@@ -434,7 +435,7 @@ class ComplaintsService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/complaints/$complaintId/rate'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'satisfactionLevel': satisfactionLevel,
           'updatedBy': updatedBy,
@@ -452,7 +453,7 @@ static Future<List<Map<String, dynamic>>> searchClients(String query) async {
   try {
     final response = await http.get(
       Uri.parse('$baseUrl/api/clients/search?q=$query'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
     );
 
     if (response.statusCode == 200) {
@@ -473,7 +474,7 @@ static Future<List<Map<String, dynamic>>> getActiveEmployees() async {
   try {
     final response = await http.get(
       Uri.parse('$baseUrl/api/employees/active'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
     );
 
     if (response.statusCode == 200) {
@@ -500,7 +501,7 @@ static Future<List<ComplaintAttachmentModel>> getAttachments(int complaintId) as
   try {
     final response = await http.get(
       Uri.parse('$baseUrl/api/complaints/$complaintId/attachments'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
     );
 
     if (response.statusCode == 200) {
@@ -533,6 +534,10 @@ static Future<int?> uploadAttachment(
       'POST',
       Uri.parse('$baseUrl/api/complaints/$complaintId/attachments'),
     );
+    if (SessionService.instance.hasToken) {
+      request.headers['Authorization'] =
+          'Bearer ${SessionService.instance.accessToken}';
+    }
     request.files.add(http.MultipartFile.fromBytes('file', bytes,
         filename: fileName, contentType: MediaType.parse(mimeType)));
     if (uploadedByUserId != null) {
@@ -560,7 +565,7 @@ static Future<bool> deleteAttachment(int complaintId, int attachmentId) async {
   try {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/complaints/$complaintId/attachments/$attachmentId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
     );
 
     if (response.statusCode == 200) {

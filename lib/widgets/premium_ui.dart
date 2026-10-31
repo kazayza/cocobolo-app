@@ -525,7 +525,7 @@ class PremiumActionButton extends StatelessWidget {
         return Colors.white;
       case ButtonStyleType.soft:
       case ButtonStyleType.ghost:
-        return color ?? (isDark ? AppColors.goldDark : AppColors.navy);
+        return color ?? (isDark ? AppColors.gold : AppColors.navy);
     }
   }
 
@@ -535,7 +535,7 @@ class PremiumActionButton extends StatelessWidget {
         return Colors.white;
       case ButtonStyleType.soft:
       case ButtonStyleType.ghost:
-        return color ?? (isDark ? AppColors.goldDark : AppColors.navy);
+        return color ?? (isDark ? AppColors.gold : AppColors.navy);
     }
   }
 }

@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,6 +12,9 @@ import 'add_lead_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 class LeadsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -91,20 +93,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
       _perms.isGeneralManager;
 
   final List<Map<String, dynamic>> _statuses = [
-    {'label': 'الكل', 'icon': Icons.all_inclusive, 'color': Colors.blueGrey},
-    {'label': 'جديد', 'icon': Icons.fiber_new_rounded, 'color': Colors.blue},
+    {'label': 'الكل', 'icon': Icons.all_inclusive, 'color': AppColors.neutral},
+    {'label': 'جديد', 'icon': Icons.fiber_new_rounded, 'color': AppColors.info},
     {
       'label': 'تم التواصل',
       'icon': Icons.phone_callback,
-      'color': Colors.orange,
+      'color': AppColors.warning,
     },
     {
       'label': 'تم الإسناد',
       'icon': Icons.assignment_ind,
-      'color': Colors.purple,
+      'color': AppStatus.editPending,
     },
-    {'label': 'محول', 'icon': Icons.check_circle, 'color': Colors.green},
-    {'label': 'مرفوض', 'icon': Icons.cancel, 'color': Colors.red},
+    {'label': 'محول', 'icon': Icons.check_circle, 'color': AppColors.success},
+    {'label': 'مرفوض', 'icon': Icons.cancel, 'color': AppColors.error},
   ];
 
   final List<Map<String, dynamic>> _dateFilters = [
@@ -267,7 +269,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.cairo()),
-        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
+        backgroundColor: ok ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -311,9 +313,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: ThemeService().isDarkMode
-          ? const Color(0xFF1e293b)
-          : Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -334,7 +334,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   ),
                   Text(
                     lead['FullName'] ?? '',
-                    style: GoogleFonts.cairo(fontSize: 13, color: Colors.grey),
+                    style: GoogleFonts.cairo(
+                      fontSize: 13,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
@@ -415,9 +418,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final go = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: ThemeService().isDarkMode
-          ? const Color(0xFF1e293b)
-          : Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -492,7 +493,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
+                            backgroundColor: AppColors.success,
                             foregroundColor: Colors.white,
                           ),
                           onPressed: empId == null
@@ -556,7 +557,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   'سيتم إرسال طلب للمدير العام (GeneralManager) للموافقة على الرفض.',
                   style: GoogleFonts.cairo(
                     fontSize: 12,
-                    color: Colors.orange.shade800,
+                    color: AppStatus.overdue,
                   ),
                 ),
               ),
@@ -580,7 +581,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
             child: Text('إلغاء', style: GoogleFonts.cairo()),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(c, true),
             child: Text(
               _perms.canRejectLeadDirectly ? 'رفض' : 'إرسال الطلب',
@@ -913,29 +914,29 @@ class _LeadsScreenState extends State<LeadsScreen> {
         return Theme(
           data: isDark
               ? ThemeData.dark().copyWith(
-                  colorScheme: const ColorScheme.dark(
-                    primary: Color(0xFF60a5fa),
-                    onPrimary: Color(0xFF0f172a),
-                    surface: Color(0xFF1e293b),
+                  colorScheme: ColorScheme.dark(
+                    primary: AppColors.infoLight,
+                    onPrimary: AppColors.navyDark,
+                    surface: AppColors.darkSurface,
                     onSurface: Colors.white,
                   ),
-                  dialogBackgroundColor: const Color(0xFF1e293b),
+                  dialogBackgroundColor: AppColors.darkSurface,
                   textButtonTheme: TextButtonThemeData(
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF60a5fa),
+                      foregroundColor: AppColors.infoLight,
                     ),
                   ),
                 )
               : ThemeData.light().copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: Color(0xFF2563eb),
+                  colorScheme: ColorScheme.light(
+                    primary: AppColors.navy,
                     onPrimary: Colors.white,
                     surface: Colors.white,
-                    onSurface: Color(0xFF0f172a),
+                    onSurface: AppColors.navy,
                   ),
                   textButtonTheme: TextButtonThemeData(
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF2563eb),
+                      foregroundColor: AppColors.navy,
                     ),
                   ),
                 ),
@@ -967,17 +968,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
   Color _getStatusColor(String? status) {
     switch (status) {
       case 'جديد':
-        return Colors.blue;
+        return AppColors.info;
       case 'تم التواصل':
-        return Colors.orange;
+        return AppColors.warning;
       case 'تم الإسناد':
-        return Colors.purple;
+        return AppStatus.editPending;
       case 'محول':
-        return Colors.green;
+        return AppColors.success;
       case 'مرفوض':
-        return Colors.red;
+        return AppColors.error;
       default:
-        return Colors.grey;
+        return AppColors.neutral;
     }
   }
 
@@ -1006,27 +1007,46 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final isDark = ThemeService().isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0f172a)
-          : const Color(0xFFF4F7FB),
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      drawer: buildAppDrawer(currentRoute: 'frm_MyLeads'),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
+        title: Row(
           children: [
-            Text(
-              _screenTitle,
-              style: GoogleFonts.cairo(
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.people_alt_rounded,
+                color: AppColors.gold,
+                size: 20,
               ),
             ),
-            if (_isMyLeads)
-              Text(
-                _perms.fullName?.isNotEmpty == true
-                    ? 'المسندة إليك — ${_perms.fullName}'
-                    : 'Leads المسندة لك للمتابعة اليومية',
-                style: GoogleFonts.cairo(fontSize: 11, color: Colors.white70),
-              ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _screenTitle,
+                  style: GoogleFonts.cairo(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+                if (_isMyLeads)
+                  Text(
+                    _perms.fullName?.isNotEmpty == true
+                        ? 'المسندة إليك — ${_perms.fullName}'
+                        : 'Leads المسندة لك للمتابعة اليومية',
+                    style: GoogleFonts.cairo(
+                      fontSize: 10,
+                      color: Colors.white70,
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
         backgroundColor: AppColors.navy,
@@ -1079,7 +1099,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _fetchLeads,
-          color: const Color(0xFF2563eb),
+          color: AppColors.gold,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
@@ -1092,9 +1112,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               if (_isLoading)
                 const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF2563eb)),
-                  ),
+                  child: AppLoading(),
                 )
               else if (_leads.isEmpty)
                 SliverFillRemaining(
@@ -1125,17 +1143,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0f172a), Color(0xFF1e3a8a), Color(0xFF2563eb)],
+          gradient: LinearGradient(
+            colors: AppGradients.identityHeader,
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0f172a).withOpacity(0.2),
+              color: AppColors.navy.withValues(alpha: 0.25),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -1153,11 +1171,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: _selectedStatus == 'الكل'
-                      ? Colors.white.withOpacity(0.15)
+                      ? Colors.white.withValues(alpha: 0.15)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   border: _selectedStatus == 'الكل'
-                      ? Border.all(color: Colors.white.withOpacity(0.25))
+                      ? Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.5),
+                        )
                       : null,
                 ),
                 child: Row(
@@ -1166,15 +1186,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
+                        color: AppColors.gold.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.16),
+                          color: AppColors.gold.withValues(alpha: 0.35),
                         ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.people_alt_rounded,
-                        color: Colors.white70,
+                        color: AppColors.gold,
                         size: 22,
                       ),
                     ),
@@ -1209,13 +1229,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.gold,
+                          borderRadius: BorderRadius.circular(AppRadius.xs),
                         ),
                         child: Text(
                           'مفعّل',
                           style: GoogleFonts.cairo(
-                            color: Colors.white,
+                            color: AppColors.navy,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1261,12 +1281,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Colors.white.withOpacity(0.18)
-                            : Colors.white.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(16),
+                            ? Colors.white.withValues(alpha: 0.18)
+                            : Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                         border: isSelected
                             ? Border.all(
-                                color: color.withOpacity(0.6),
+                                color: color.withValues(alpha: 0.6),
                                 width: 1.5,
                               )
                             : Border.all(color: Colors.transparent),
@@ -1321,27 +1341,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
   // FILTER SECTION
   // ══════════════════════════════════════════════
   Widget _buildFilterSection(bool isDark) {
+    final scheme = Theme.of(context).colorScheme;
+    final chipAccent = isDark ? AppColors.gold : AppColors.navy;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e293b) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        radius: AppRadius.xl,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            AppSectionHeader(
+              title: 'البحث والفلاتر',
+              icon: Icons.tune_rounded,
+              accent: AppColors.gold,
+            ),
+            const SizedBox(height: AppSpacing.md),
             // Search row
             Row(
               children: [
@@ -1349,14 +1364,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   child: Container(
                     height: 46,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF0f172a)
-                          : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(14),
+                      color: scheme.surfaceContainerHighest.withValues(
+                        alpha: 0.45,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF334155)
-                            : const Color(0xFFe4eaf3),
+                        color: scheme.outlineVariant.withValues(alpha: 0.5),
                       ),
                     ),
                     child: TextField(
@@ -1368,25 +1381,25 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       onSubmitted: (_) => _fetchLeads(),
                       style: GoogleFonts.cairo(
                         fontSize: 13,
-                        color: isDark ? Colors.white : const Color(0xFF0f172a),
+                        color: scheme.onSurface,
                       ),
                       decoration: InputDecoration(
                         hintText: 'اسم · موبايل · مدينة · نوع مشروع · حملة...',
                         hintStyle: GoogleFonts.cairo(
                           fontSize: 12,
-                          color: const Color(0xFF94a3b8),
+                          color: scheme.onSurfaceVariant,
                         ),
-                        prefixIcon: const Icon(
+                        prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: Color(0xFF94a3b8),
+                          color: scheme.onSurfaceVariant,
                           size: 20,
                         ),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.close_rounded,
                                   size: 18,
-                                  color: Color(0xFF94a3b8),
+                                  color: scheme.onSurfaceVariant,
                                 ),
                                 onPressed: () {
                                   _searchController.clear();
@@ -1452,17 +1465,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF2563eb).withOpacity(0.12)
-                              : (isDark
-                                    ? const Color(0xFF0f172a)
-                                    : const Color(0xFFF8FAFC)),
+                              ? chipAccent.withValues(alpha: 0.12)
+                              : scheme.surfaceContainerHighest.withValues(
+                                  alpha: 0.45,
+                                ),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF2563eb)
-                                : (isDark
-                                      ? const Color(0xFF334155)
-                                      : const Color(0xFFe4eaf3)),
+                                ? chipAccent
+                                : scheme.outlineVariant.withValues(alpha: 0.5),
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
@@ -1473,8 +1484,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               icon,
                               size: 13,
                               color: isSelected
-                                  ? const Color(0xFF2563eb)
-                                  : const Color(0xFF94a3b8),
+                                  ? chipAccent
+                                  : scheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -1489,10 +1500,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                     ? FontWeight.w800
                                     : FontWeight.w600,
                                 color: isSelected
-                                    ? const Color(0xFF2563eb)
-                                    : (isDark
-                                          ? Colors.white70
-                                          : const Color(0xFF334155)),
+                                    ? chipAccent
+                                    : scheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1531,17 +1540,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? color.withOpacity(0.15)
-                              : (isDark
-                                    ? const Color(0xFF0f172a)
-                                    : const Color(0xFFF8FAFC)),
+                              ? color.withValues(alpha: 0.15)
+                              : scheme.surfaceContainerHighest.withValues(
+                                  alpha: 0.45,
+                                ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
                                 ? color
-                                : (isDark
-                                      ? const Color(0xFF334155)
-                                      : const Color(0xFFe4eaf3)),
+                                : scheme.outlineVariant.withValues(alpha: 0.5),
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
@@ -1553,7 +1560,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               size: 14,
                               color: isSelected
                                   ? color
-                                  : const Color(0xFF94a3b8),
+                                  : scheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 5),
                             Text(
@@ -1565,9 +1572,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                     : FontWeight.w600,
                                 color: isSelected
                                     ? color
-                                    : (isDark
-                                          ? Colors.white70
-                                          : const Color(0xFF334155)),
+                                    : scheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1650,15 +1655,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Text(
                     'حسابك غير مربوط بموظف (employeeID). تواصل مع الإدارة لربط المستخدم بموظف حتى تظهر My Leads.',
                     style: GoogleFonts.cairo(
                       fontSize: 11.5,
-                      color: Colors.orange.shade900,
+                      color: AppStatus.overdue,
                     ),
                   ),
                 ),
@@ -1676,7 +1683,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
     required bool active,
     required VoidCallback onTap,
   }) {
-    final color = const Color(0xFF0ea5e9);
+    final scheme = Theme.of(context).colorScheme;
+    final color = AppColors.info;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1684,24 +1692,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: active
-              ? color.withOpacity(0.12)
-              : (isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC)),
-          borderRadius: BorderRadius.circular(12),
+              ? color.withValues(alpha: 0.12)
+              : scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
             color: active
                 ? color
-                : (isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3)),
+                : scheme.outlineVariant.withValues(alpha: 0.5),
             width: active ? 1.5 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 14,
-              color: active ? color : const Color(0xFF94a3b8),
-            ),
+            Icon(icon, size: 14, color: active ? color : scheme.onSurfaceVariant),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -1711,9 +1715,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 style: GoogleFonts.cairo(
                   fontSize: 11.5,
                   fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                  color: active
-                      ? color
-                      : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                  color: active ? color : scheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -1721,7 +1723,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
             Icon(
               Icons.expand_more_rounded,
               size: 16,
-              color: active ? color : const Color(0xFF94a3b8),
+              color: active ? color : scheme.onSurfaceVariant,
             ),
           ],
         ),
@@ -1745,8 +1747,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
           maxHeight: MediaQuery.of(ctx).size.height * 0.65,
         ),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e293b) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadius.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1756,7 +1760,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFcbd5e1),
+                color: Theme.of(ctx).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -1787,7 +1791,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     trailing: sel
                         ? const Icon(
                             Icons.check_circle,
-                            color: Color(0xFF2563eb),
+                            color: AppColors.info,
                           )
                         : null,
                     onTap: () {
@@ -1817,8 +1821,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
           maxHeight: MediaQuery.of(ctx).size.height * 0.7,
         ),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e293b) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadius.xxl),
+          ),
         ),
         child: Column(
           children: [
@@ -1827,7 +1833,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFcbd5e1),
+                color: Theme.of(ctx).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -1846,7 +1852,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 _selectedEmployeeId == null
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
-                color: const Color(0xFF2563eb),
+                color: AppColors.info,
               ),
               title: Text(
                 'كل الموظفين',
@@ -1872,7 +1878,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       sel
                           ? Icons.radio_button_checked
                           : Icons.radio_button_unchecked,
-                      color: const Color(0xFF2563eb),
+                      color: AppColors.info,
                     ),
                     title: Text(
                       '${e['FullName'] ?? ''}',
@@ -1907,6 +1913,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
     bool badge = false,
     required VoidCallback onTap,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = isDark ? AppColors.gold : AppColors.navy;
     return GestureDetector(
       onTap: onTap,
       child: Stack(
@@ -1916,21 +1924,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0f172a) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
                 color: badge
-                    ? const Color(0xFF2563eb).withOpacity(0.5)
-                    : (isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFe4eaf3)),
+                    ? accent.withValues(alpha: 0.5)
+                    : scheme.outlineVariant.withValues(alpha: 0.5),
               ),
             ),
             child: Icon(
               icon,
-              color: badge
-                  ? const Color(0xFF2563eb)
-                  : (isDark ? Colors.white70 : const Color(0xFF64748b)),
+              color: badge ? accent : scheme.onSurfaceVariant,
               size: 20,
             ),
           ),
@@ -1941,15 +1945,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
               child: Container(
                 width: 18,
                 height: 18,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2563eb),
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
                 child: Center(
                   child: Text(
                     '$_activeFilterCount',
                     style: GoogleFonts.cairo(
-                      color: Colors.white,
+                      color: isDark ? AppColors.navy : Colors.white,
                       fontSize: 9,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1966,6 +1967,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
   // RESULTS BAR
   // ══════════════════════════════════════════════
   Widget _buildResultsBar(bool isDark) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Column(
@@ -1980,7 +1982,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   text: TextSpan(
                     style: GoogleFonts.cairo(
                       fontSize: 12,
-                      color: const Color(0xFF64748b),
+                      color: scheme.onSurfaceVariant,
                     ),
                     children: [
                       const TextSpan(text: 'عرض '),
@@ -1988,9 +1990,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         text: '${_leads.length}',
                         style: GoogleFonts.cairo(
                           fontWeight: FontWeight.w900,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF0f172a),
+                          color: scheme.onSurface,
                         ),
                       ),
                       const TextSpan(text: ' عميل محتمل'),
@@ -2006,21 +2006,19 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1e293b) : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    color: scheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
                     border: Border.all(
-                      color: isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFe4eaf3),
+                      color: scheme.outlineVariant.withValues(alpha: 0.5),
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.sort_rounded,
                         size: 13,
-                        color: Color(0xFF64748b),
+                        color: scheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 3),
                       Text(
@@ -2028,9 +2026,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         style: GoogleFonts.cairo(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? Colors.white70
-                              : const Color(0xFF334155),
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -2062,7 +2058,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       label: _dateFilter == 'مخصص' && _customDateRange != null
                           ? '${_customDateRange!.start.day}/${_customDateRange!.start.month} - ${_customDateRange!.end.day}/${_customDateRange!.end.month}'
                           : _dateFilter,
-                      color: const Color(0xFF2563eb),
+                      color: AppColors.info,
                       isDark: isDark,
                       onRemove: () {
                         setState(() {
@@ -2075,7 +2071,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   if (_selectedCity != 'الكل')
                     _buildActiveFilterChip(
                       label: _selectedCity,
-                      color: const Color(0xFF0ea5e9),
+                      color: AppColors.info,
                       isDark: isDark,
                       onRemove: () {
                         setState(() => _selectedCity = 'الكل');
@@ -2085,7 +2081,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   if (_selectedProjectType != 'الكل')
                     _buildActiveFilterChip(
                       label: _selectedProjectType,
-                      color: const Color(0xFF8b5cf6),
+                      color: AppStatus.editPending,
                       isDark: isDark,
                       onRemove: () {
                         setState(() => _selectedProjectType = 'الكل');
@@ -2095,7 +2091,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   if (_canPickEmployee && _selectedEmployeeId != null)
                     _buildActiveFilterChip(
                       label: _selectedEmployeeLabel,
-                      color: const Color(0xFF059669),
+                      color: AppStatus.profit,
                       isDark: isDark,
                       onRemove: () {
                         setState(() => _selectedEmployeeId = null);
@@ -2105,14 +2101,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   if (_isMyLeads)
                     _buildActiveFilterChip(
                       label: 'مسنَدة لي',
-                      color: const Color(0xFF7C3AED),
+                      color: AppStatus.editPending,
                       isDark: isDark,
                       onRemove: () {},
                     ),
                   if (_searchController.text.trim().isNotEmpty)
                     _buildActiveFilterChip(
                       label: '"${_searchController.text.trim()}"',
-                      color: const Color(0xFF64748b),
+                      color: AppColors.neutral,
                       isDark: isDark,
                       onRemove: () {
                         _searchController.clear();
@@ -2129,19 +2125,21 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF450a0a)
-                            : const Color(0xFFfef2f2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFfca5a5)),
+                        color: AppColors.error.withValues(
+                          alpha: isDark ? 0.18 : 0.08,
+                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.35),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.restart_alt_rounded,
                             size: 13,
-                            color: Color(0xFFdc2626),
+                            color: AppColors.error,
                           ),
                           const SizedBox(width: 3),
                           Text(
@@ -2149,7 +2147,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             style: GoogleFonts.cairo(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFFdc2626),
+                              color: AppColors.error,
                             ),
                           ),
                         ],
@@ -2175,9 +2173,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
       margin: const EdgeInsets.only(left: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2197,7 +2195,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               width: 16,
               height: 16,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.close_rounded, size: 10, color: color),
@@ -2212,84 +2210,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
   // EMPTY STATE
   // ══════════════════════════════════════════════
   Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(32),
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e293b) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFe4eaf3),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF0f172a)
-                    : const Color(0xFFf1f5f9),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(
-                Icons.search_off_rounded,
-                size: 32,
-                color: Color(0xFF94a3b8),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'لا توجد نتائج مطابقة',
-              style: GoogleFonts.cairo(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF0f172a),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'جرّب تغيير كلمات البحث أو إعادة تعيين الفلاتر.',
-              style: GoogleFonts.cairo(
-                fontSize: 13,
-                color: const Color(0xFF64748b),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 18),
-            if (_hasActiveFilters)
-              ElevatedButton.icon(
-                onPressed: _clearAllFilters,
-                icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                label: Text(
-                  'مسح الفلاتر',
-                  style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563eb),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+    return AppEmpty(
+      icon: Icons.search_off_rounded,
+      message: 'لا توجد نتائج مطابقة',
+      hint: 'جرّب تغيير كلمات البحث أو إعادة تعيين الفلاتر.',
+      onRefresh: _hasActiveFilters ? _clearAllFilters : null,
+      refreshLabel: 'مسح الفلاتر',
     );
   }
 
@@ -2306,44 +2232,30 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _openDetail(lead),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── شريط الحالة المتدرج ─────────────────────
-              Container(
-                height: 5,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerRight,
-                    end: Alignment.centerLeft,
-                    colors: [statusColor, statusColor.withValues(alpha: 0.25)],
-                  ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        radius: AppRadius.xxl,
+        onTap: () => _openDetail(lead),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── شريط الحالة المتدرج ─────────────────────
+            Container(
+              height: 5,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [statusColor, statusColor.withValues(alpha: 0.25)],
                 ),
               ),
+            ),
 
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -2351,20 +2263,13 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // أفاتار بتدرج لون الحالة
+                        // أفاتار الهوية: كحلي بحرف ذهبي
                         Container(
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                statusColor,
-                                Color.lerp(statusColor, Colors.black, 0.25)!,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(14),
+                            color: AppColors.navy,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                           child: Center(
                             child: Text(
@@ -2372,7 +2277,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               style: GoogleFonts.cairo(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w900,
-                                color: Colors.white,
+                                color: AppColors.gold,
                               ),
                             ),
                           ),
@@ -2442,40 +2347,11 @@ class _LeadsScreenState extends State<LeadsScreen> {
                         ),
                         const SizedBox(width: 8),
                         // شارة الحالة (Pill)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: statusColor.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: statusColor,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                status,
-                                style: GoogleFonts.cairo(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
+                        StatusBadge(
+                          label: status,
+                          color: statusColor,
+                          icon: statusIcon,
+                          small: true,
                         ),
                       ],
                     ),
@@ -2568,20 +2444,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           children: [
                             if (phone.isNotEmpty) ...[
                               _buildQuickAction(
-                                icon: Icons.phone_rounded,
-                                color: Colors.green,
+                                icon: Icons.call_rounded,
+                                color: AppColors.success,
                                 isDark: isDark,
                                 tooltip: 'اتصال',
                                 onTap: () => _launchTel(phone),
                               ),
                               const SizedBox(width: 8),
-                              _buildQuickAction(
-                                icon: FontAwesomeIcons.whatsapp.data,
-                                color: const Color(0xFF25D366),
-                                isDark: isDark,
-                                tooltip: 'واتساب',
-                                onTap: () => _launchWa(phone),
-                              ),
+                              WhatsAppChip(onTap: () => _launchWa(phone)),
                               const SizedBox(width: 8),
                             ],
                             if (_canEditLead &&
@@ -2589,7 +2459,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 status != LeadsService.statusRejected) ...[
                               _buildQuickAction(
                                 icon: Icons.assignment_ind_rounded,
-                                color: Colors.purple,
+                                color: AppStatus.editPending,
                                 isDark: isDark,
                                 tooltip: 'إسناد',
                                 onTap: () => _quickAssign(lead),
@@ -2600,7 +2470,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               )) ...[
                                 _buildQuickAction(
                                   icon: Icons.transform_rounded,
-                                  color: Colors.teal,
+                                  color: AppStatus.profit,
                                   isDark: isDark,
                                   tooltip: 'تحويل',
                                   onTap: () => _quickConvert(lead),
@@ -2609,7 +2479,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               ],
                               _buildQuickAction(
                                 icon: Icons.cancel_outlined,
-                                color: Colors.red,
+                                color: AppColors.error,
                                 isDark: isDark,
                                 tooltip: _perms.canRejectLeadDirectly
                                     ? 'رفض'
@@ -2620,7 +2490,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             ],
                             _buildQuickAction(
                               icon: Icons.open_in_new_rounded,
-                              color: const Color(0xFF2563eb),
+                              color: AppColors.info,
                               isDark: isDark,
                               tooltip: 'التفاصيل',
                               onTap: () => _openDetail(lead),
@@ -2635,7 +2505,6 @@ class _LeadsScreenState extends State<LeadsScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -2645,45 +2514,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
     required bool isDark,
     bool highlight = false,
   }) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 190),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: highlight
-            ? scheme.primary.withValues(alpha: isDark ? 0.18 : 0.10)
-            : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: highlight
-              ? scheme.primary.withValues(alpha: 0.4)
-              : scheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 12.5,
-            color: highlight ? scheme.primary : scheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.cairo(
-                fontSize: 10.5,
-                fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
-                color: highlight ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final label = text.runes.length > 30
+        ? '${String.fromCharCodes(text.runes.take(30))}…'
+        : text;
+    return StatusBadge(
+      label: label,
+      color: highlight ? AppColors.gold : AppColors.neutral,
+      icon: icon,
+      small: true,
     );
   }
 
@@ -2694,29 +2532,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
     required String tooltip,
     required VoidCallback onTap,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: color.withValues(alpha: isDark ? 0.16 : 0.10),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          splashColor: color.withValues(alpha: 0.25),
-          highlightColor: color.withValues(alpha: 0.12),
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withValues(alpha: isDark ? 0.35 : 0.25),
-              ),
-            ),
-            child: Icon(icon, size: 17, color: color),
-          ),
-        ),
-      ),
+    return AppIconChip(
+      icon: icon,
+      color: color,
+      size: 17,
+      tooltip: tooltip,
+      onTap: onTap,
     );
   }
 
@@ -2729,8 +2550,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1e293b) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadius.xxxl),
+          ),
         ),
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -2741,7 +2564,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFcbd5e1),
+                color: Theme.of(ctx).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -2750,7 +2573,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
               style: GoogleFonts.cairo(
                 fontSize: 16,
                 fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF0f172a),
+                color: Theme.of(ctx).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 14),
@@ -2761,8 +2584,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
                   color: _sortBy == option
-                      ? const Color(0xFF2563eb)
-                      : const Color(0xFF94a3b8),
+                      ? AppColors.info
+                      : Theme.of(ctx).colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
                 title: Text(
@@ -2771,7 +2594,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     fontWeight: _sortBy == option
                         ? FontWeight.w800
                         : FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF0f172a),
+                    color: Theme.of(ctx).colorScheme.onSurface,
                   ),
                 ),
                 onTap: () {
@@ -2814,7 +2637,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
         style: GoogleFonts.cairo(
           fontSize: 14,
           fontWeight: FontWeight.w800,
-          color: isDark ? Colors.white : const Color(0xFF0f172a),
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -2833,15 +2656,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: selected
-                ? color.withOpacity(0.15)
-                : (isDark ? const Color(0xFF0f172a) : const Color(0xFFF8FAFC)),
+                ? color.withValues(alpha: 0.15)
+                : Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: selected
                   ? color
-                  : (isDark
-                        ? const Color(0xFF334155)
-                        : const Color(0xFFe4eaf3)),
+                  : Theme.of(context).colorScheme.outlineVariant.withValues(
+                      alpha: 0.5,
+                    ),
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -2852,7 +2678,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 Icon(
                   icon,
                   size: 15,
-                  color: selected ? color : const Color(0xFF94a3b8),
+                  color: selected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 6),
               ],
@@ -2864,7 +2690,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     color: selected
                         ? color
-                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -2886,9 +2712,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
             minChildSize: 0.45,
             builder: (ctx, scrollController) => Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1e293b) : Colors.white,
+                color: Theme.of(ctx).colorScheme.surface,
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
+                  top: Radius.circular(AppRadius.xxxl),
                 ),
               ),
               child: Column(
@@ -2898,7 +2724,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFcbd5e1),
+                      color: Theme.of(ctx).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -2915,9 +2741,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           style: GoogleFonts.cairo(
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0f172a),
+                            color: Theme.of(ctx).colorScheme.onSurface,
                           ),
                         ),
                         TextButton(
@@ -2938,7 +2762,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             style: GoogleFonts.cairo(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFFdc2626),
+                              color: AppColors.error,
                             ),
                           ),
                         ),
@@ -2976,7 +2800,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             return choiceChip(
                               label: c,
                               selected: tempCity == c,
-                              color: const Color(0xFF0ea5e9),
+                              color: AppColors.info,
                               icon: Icons.location_city_rounded,
                               onTap: () => setSheetState(() => tempCity = c),
                             );
@@ -2991,7 +2815,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             return choiceChip(
                               label: c,
                               selected: tempProject == c,
-                              color: const Color(0xFF8b5cf6),
+                              color: AppStatus.editPending,
                               icon: Icons.category_rounded,
                               onTap: () => setSheetState(() => tempProject = c),
                             );
@@ -3006,7 +2830,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             choiceChip(
                               label: 'كل المصادر',
                               selected: tempSourceId == null,
-                              color: const Color(0xFF0ea5e9),
+                              color: AppColors.info,
                               icon: Icons.contact_phone_rounded,
                               onTap: () =>
                                   setSheetState(() => tempSourceId = null),
@@ -3020,7 +2844,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 label: label,
                                 selected: tempSourceId ==
                                     (s['SourceID'] as num?)?.toInt(),
-                                color: const Color(0xFF0ea5e9),
+                                color: AppColors.info,
                                 icon: Icons.contact_phone_rounded,
                                 onTap: () => setSheetState(() =>
                                     tempSourceId =
@@ -3038,7 +2862,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             choiceChip(
                               label: 'كل الحملات',
                               selected: tempAdTypeId == null,
-                              color: const Color(0xFF8b5cf6),
+                              color: AppStatus.editPending,
                               icon: Icons.campaign_rounded,
                               onTap: () =>
                                   setSheetState(() => tempAdTypeId = null),
@@ -3052,7 +2876,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 label: label,
                                 selected: tempAdTypeId ==
                                     (a['AdTypeID'] as num?)?.toInt(),
-                                color: const Color(0xFF8b5cf6),
+                                color: AppStatus.editPending,
                                 icon: Icons.campaign_rounded,
                                 onTap: () => setSheetState(() =>
                                     tempAdTypeId =
@@ -3071,7 +2895,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               choiceChip(
                                 label: 'كل الموظفين',
                                 selected: tempEmp == null,
-                                color: const Color(0xFF059669),
+                                color: AppStatus.profit,
                                 icon: Icons.groups_rounded,
                                 onTap: () =>
                                     setSheetState(() => tempEmp = null),
@@ -3085,7 +2909,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                                 return choiceChip(
                                   label: '${m['FullName'] ?? ''}',
                                   selected: tempEmp != null && tempEmp == idInt,
-                                  color: const Color(0xFF059669),
+                                  color: AppStatus.profit,
                                   icon: Icons.person_rounded,
                                   onTap: () =>
                                       setSheetState(() => tempEmp = idInt),
@@ -3105,7 +2929,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             return choiceChip(
                               label: label,
                               selected: tempDate == label,
-                              color: const Color(0xFF2563eb),
+                              color: AppColors.info,
                               icon: icon,
                               onTap: () {
                                 if (label == 'مخصص') {
@@ -3127,7 +2951,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                             return choiceChip(
                               label: option,
                               selected: tempSort == option,
-                              color: const Color(0xFF2563eb),
+                              color: AppColors.info,
                               onTap: () =>
                                   setSheetState(() => tempSort = option),
                             );
@@ -3141,9 +2965,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     decoration: BoxDecoration(
                       border: Border(
                         top: BorderSide(
-                          color: isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFe4eaf3),
+                          color: Theme.of(
+                            ctx,
+                          ).colorScheme.outlineVariant.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
@@ -3169,10 +2993,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                           Navigator.pop(ctx);
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563eb),
+                          backgroundColor: AppColors.navy,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                           elevation: 0,
                         ),

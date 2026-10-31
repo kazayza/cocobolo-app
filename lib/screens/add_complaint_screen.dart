@@ -4,6 +4,8 @@ import '../models/complaint_model.dart';
 import '../services/complaints_service.dart';
 import '../services/theme_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 
 class AddComplaintScreen extends StatefulWidget {
   final int userId;
@@ -171,20 +173,21 @@ class _AddComplaintScreenState extends State<AddComplaintScreen> {
   // ===================================
   PreferredSizeWidget _buildAppBar(bool isDark) {
     return AppBar(
-      backgroundColor: isDark ? AppColors.navy : Colors.white,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
       elevation: 0,
       title: Text(
         _isEditing ? 'تعديل الشكوى' : 'شكوى جديدة',
         style: GoogleFonts.cairo(
           fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white : AppColors.navy,
+          color: Colors.white,
         ),
       ),
       centerTitle: true,
       leading: IconButton(
-        icon: Icon(
+        icon: const Icon(
           Icons.close,
-          color: isDark ? Colors.white : AppColors.navy,
+          color: Colors.white,
         ),
         onPressed: () => Navigator.pop(context),
       ),
@@ -217,9 +220,7 @@ class _AddComplaintScreenState extends State<AddComplaintScreen> {
   // Loading
   // ===================================
   Widget _buildLoading(bool isDark) {
-    return Center(
-      child: CircularProgressIndicator(color: AppColors.gold),
-    );
+    return const AppLoading();
   }
 
   // ===================================
@@ -289,13 +290,13 @@ class _AddComplaintScreenState extends State<AddComplaintScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _isEditing
-                  ? AppColors.inputFill(isDark).withOpacity(0.5)
+                  ? AppColors.inputFill(isDark).withValues(alpha: 0.5)
                   : AppColors.inputFill(isDark),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _selectedPartyId == null
                     ? Colors.transparent
-                    : AppColors.gold.withOpacity(0.5),
+                    : AppColors.gold.withValues(alpha: 0.5),
               ),
             ),
             child: Row(
@@ -467,7 +468,7 @@ setSheetState(() {
                               Navigator.pop(context);
                             },
                             leading: CircleAvatar(
-                              backgroundColor: AppColors.gold.withOpacity(0.2),
+                              backgroundColor: AppColors.gold.withValues(alpha: 0.2),
                               child: Icon(
                                 Icons.person,
                                 color: AppColors.gold,
@@ -624,10 +625,10 @@ setSheetState(() {
   // ===================================
   Widget _buildPrioritySelector(bool isDark) {
     final priorities = [
-      {'id': 1, 'name': 'عالية جداً', 'color': Colors.red.shade700},
-      {'id': 2, 'name': 'عالية', 'color': Colors.orange},
-      {'id': 3, 'name': 'متوسطة', 'color': Colors.amber.shade700},
-      {'id': 4, 'name': 'منخفضة', 'color': Colors.green},
+      {'id': 1, 'name': 'عالية جداً', 'color': AppColors.error},
+      {'id': 2, 'name': 'عالية', 'color': AppColors.warning},
+      {'id': 3, 'name': 'متوسطة', 'color': AppStatus.overdue},
+      {'id': 4, 'name': 'منخفضة', 'color': AppColors.success},
     ];
 
     return Column(
@@ -750,12 +751,12 @@ setSheetState(() {
   // ===================================
   Widget _buildStatusSelector(bool isDark) {
     final statuses = [
-      {'id': 1, 'name': 'جديدة', 'color': Colors.blue},
-      {'id': 2, 'name': 'قيد الحل', 'color': Colors.orange},
-      {'id': 3, 'name': 'انتظار', 'color': Colors.amber},
-      {'id': 4, 'name': 'محلولة', 'color': Colors.green},
-      {'id': 5, 'name': 'مرفوضة', 'color': Colors.red},
-      {'id': 6, 'name': 'مصعدة', 'color': Colors.purple},
+      {'id': 1, 'name': 'جديدة', 'color': AppColors.info},
+      {'id': 2, 'name': 'قيد الحل', 'color': AppColors.warning},
+      {'id': 3, 'name': 'انتظار', 'color': AppColors.warning},
+      {'id': 4, 'name': 'محلولة', 'color': AppColors.success},
+      {'id': 5, 'name': 'مرفوضة', 'color': AppColors.error},
+      {'id': 6, 'name': 'مصعدة', 'color': AppStatus.editPending},
     ];
 
     return Column(
@@ -880,7 +881,7 @@ setSheetState(() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -891,7 +892,7 @@ setSheetState(() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),

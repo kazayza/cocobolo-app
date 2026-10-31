@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -23,20 +25,9 @@ class CrmTasksSummary extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -66,7 +57,7 @@ class CrmTasksSummary extends StatelessWidget {
                               '✅',
                               'مكتملة',
                               summary.completed,
-                              const Color(0xFF66BB6A),
+                              AppColors.successLight,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -75,7 +66,7 @@ class CrmTasksSummary extends StatelessWidget {
                               '⏳',
                               'جارية',
                               summary.inProgress,
-                              const Color(0xFF42A5F5),
+                              AppColors.infoLight,
                             ),
                           ),
                         ],
@@ -97,7 +88,7 @@ class CrmTasksSummary extends StatelessWidget {
                               '🔴',
                               'متأخرة',
                               summary.overdue,
-                              const Color(0xFFEF5350),
+                              AppColors.errorLight,
                             ),
                           ),
                         ],
@@ -169,7 +160,7 @@ class CrmTasksSummary extends StatelessWidget {
             color.withOpacity(0.04),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
@@ -212,12 +203,12 @@ class CrmTasksSummary extends StatelessWidget {
     final total = summary.totalTasks;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,7 +233,7 @@ class CrmTasksSummary extends StatelessWidget {
                   if (summary.highPriority > 0)
                     Expanded(
                       flex: summary.highPriority,
-                      child: Container(color: const Color(0xFFEF5350)),
+                      child: Container(color: AppColors.errorLight),
                     ),
                   if (summary.normalPriority > 0)
                     Expanded(
@@ -252,7 +243,7 @@ class CrmTasksSummary extends StatelessWidget {
                   if (summary.lowPriority > 0)
                     Expanded(
                       flex: summary.lowPriority,
-                      child: Container(color: const Color(0xFF66BB6A)),
+                      child: Container(color: AppColors.successLight),
                     ),
                 ],
               ),
@@ -270,7 +261,7 @@ class CrmTasksSummary extends StatelessWidget {
                 'عالية',
                 summary.highPriority,
                 total,
-                const Color(0xFFEF5350),
+                AppColors.errorLight,
               ),
               _buildPriorityItem(
                 '🟡',
@@ -284,7 +275,7 @@ class CrmTasksSummary extends StatelessWidget {
                 'منخفضة',
                 summary.lowPriority,
                 total,
-                const Color(0xFF66BB6A),
+                AppColors.successLight,
               ),
             ],
           ),
@@ -335,12 +326,12 @@ class CrmTasksSummary extends StatelessWidget {
   // === حسب النوع ===
   Widget _buildByType() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

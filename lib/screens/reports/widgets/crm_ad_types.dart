@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 import 'crm_section_header.dart';
 
@@ -31,20 +33,9 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isDark ? AppColors.darkCard : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider(widget.isDark)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        radius: AppRadius.lg,
         child: Column(
           children: [
             CrmSectionHeader(
@@ -90,7 +81,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.all(AppRadius.xs),
       ),
       child: Row(
         children: [
@@ -150,7 +141,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
           color: isSelected
               ? barColor.withOpacity(widget.isDark ? 0.1 : 0.05)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
           border: isSelected
               ? Border.all(color: barColor.withOpacity(0.3))
               : null,
@@ -212,7 +203,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
                   child: Text(
                     '${item.won}',
                     style: GoogleFonts.cairo(
-                      color: const Color(0xFF66BB6A),
+                      color: AppColors.successLight,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -246,16 +237,12 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
                 // إيراد
                 Expanded(
                   flex: 2,
-                  child: Text(
-                    _formatCurrency(item.actualRevenue),
-                    style: GoogleFonts.cairo(
-                      color: item.actualRevenue > 0
-                          ? const Color(0xFF66BB6A)
-                          : AppColors.textHint(widget.isDark),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: AmountText(
+                    value: _formatCurrency(item.actualRevenue),
+                    size: 10,
+                    color: item.actualRevenue > 0
+                        ? AppColors.successLight
+                        : AppColors.textHint(widget.isDark),
                   ),
                 ),
               ],
@@ -309,7 +296,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
         widget.adTypes.indexWhere((a) => a.adTypeId == item.adTypeId));
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -317,18 +304,18 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
             barColor.withOpacity(widget.isDark ? 0.04 : 0.02),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(color: barColor.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildDetailItem('❌', 'خاسرة', '${item.lost}', const Color(0xFFEF5350)),
+          _buildDetailItem('❌', 'خاسرة', '${item.lost}', AppColors.errorLight),
           _buildDetailDivider(),
           _buildDetailItem(
               '💰', 'متوسط الصفقة',
               item.won > 0 ? _formatCurrency(item.actualRevenue / item.won) : '0',
-              const Color(0xFF42A5F5)),
+              AppColors.infoLight),
         ],
       ),
     ).animate().fadeIn(duration: 300.ms).scale(
@@ -380,12 +367,12 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
     );
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: widget.isDark
             ? Colors.white.withOpacity(0.05)
             : AppColors.lightBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
       ),
       child: Column(
         children: [
@@ -404,7 +391,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
                 child: Text(
                   '${best.name} (${best.conversionRate.toStringAsFixed(0)}%)',
                   style: GoogleFonts.cairo(
-                    color: const Color(0xFF66BB6A),
+                    color: AppColors.successLight,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -431,7 +418,7 @@ class _CrmAdTypesState extends State<CrmAdTypes> {
                     child: Text(
                       '${highestRevenue.name} (${_formatCurrency(highestRevenue.actualRevenue)} ج.م)',
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFF42A5F5),
+                        color: AppColors.infoLight,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),

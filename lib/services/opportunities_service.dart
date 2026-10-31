@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 class OpportunitiesService {
 
@@ -13,7 +14,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/stages'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -26,7 +27,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/sources'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -39,7 +40,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/statuses'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -52,7 +53,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/ad-types'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -65,7 +66,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/categories'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -78,7 +79,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/lost-reasons'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -91,7 +92,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/task-types'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -104,7 +105,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/employees'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -135,7 +136,7 @@ class OpportunitiesService {
       final uri = Uri.parse('$baseUrl/api/opportunities')
           .replace(queryParameters: params.isNotEmpty ? params : null);
 
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -148,7 +149,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data != null) {
@@ -166,7 +167,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
       return jsonDecode(res.body);
@@ -180,7 +181,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/create-with-client'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
       return jsonDecode(res.body);
@@ -194,7 +195,7 @@ class OpportunitiesService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
       return jsonDecode(res.body);
@@ -208,7 +209,7 @@ class OpportunitiesService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId/stage'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
       return jsonDecode(res.body);
@@ -222,7 +223,7 @@ class OpportunitiesService {
     try {
       final res = await http.delete(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId'),
-      );
+       headers: SessionService.instance.authHeaders,);
       return jsonDecode(res.body);
     } catch (e) {
       throw Exception('خطأ في حذف الفرصة: $e');
@@ -238,7 +239,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/search-by-phone?phone=$phone'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return {'found': false};
     } catch (e) {
@@ -251,7 +252,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/search-clients?q=$query'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -264,7 +265,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/check-open/$partyId'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return {'hasOpen': false};
     } catch (e) {
@@ -281,7 +282,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/summary'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return {};
     } catch (e) {
@@ -294,7 +295,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/pipeline-summary'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return {};
     } catch (e) {
@@ -311,7 +312,7 @@ class OpportunitiesService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/interactions/opportunity/$opportunityId'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) return jsonDecode(res.body);
       return [];
     } catch (e) {
@@ -335,7 +336,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId/request-closure'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'requestedStageId': requestedStageId,
           'lostReasonId': lostReasonId,
@@ -353,7 +354,7 @@ class OpportunitiesService {
   /// جلب طلب معلق لفرصة معينة
   Future<Map<String, dynamic>?> getPendingClosureRequest(int opportunityId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$opportunityId/closure-request'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$opportunityId/closure-request'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data == null) return null;
@@ -366,7 +367,7 @@ class OpportunitiesService {
   /// كل طلبات الإغلاق المعلقة (للمدير)
   Future<List<dynamic>> getPendingClosureRequests() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/closure-requests/pending'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/closure-requests/pending'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -381,7 +382,7 @@ class OpportunitiesService {
       final q = <String, String>{};
       if (status != null && status != 'all') q['status'] = status;
       final uri = Uri.parse('$baseUrl/api/opportunities/closure-requests').replace(queryParameters: q.isEmpty ? null : q);
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is List) return data;
@@ -399,7 +400,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/closure-requests/$requestId/approve'),
-        headers: {'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
         body: jsonEncode({'userName': userName, 'actorRole': actorRole, 'reviewNotes': reviewNotes}),
       );
       return jsonDecode(res.body);
@@ -413,7 +414,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/closure-requests/$requestId/reject'),
-        headers: {'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json', if (actorRole != null) 'x-user-role': actorRole},
         body: jsonEncode({'userName': userName, 'actorRole': actorRole, 'reviewNotes': reviewNotes}),
       );
       return jsonDecode(res.body);
@@ -427,7 +428,7 @@ class OpportunitiesService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId/execute-closure'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({'userName': userName}),
       );
       return jsonDecode(res.body);

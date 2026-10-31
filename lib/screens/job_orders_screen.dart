@@ -12,11 +12,15 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 import '../services/job_order_service.dart';
 import '../services/theme_service.dart';
 import 'invoice/invoice_details_screen.dart';
 import 'job_order_details_screen.dart';
 
+import '../widgets/app_drawer.dart';
 class JobOrdersScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -152,15 +156,17 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        drawer: buildAppDrawer(currentRoute: 'frm_JobOrders'),
         backgroundColor: AppColors.background(_isDark),
         body: NestedScrollView(
           headerSliverBuilder:
               (BuildContext context, bool innerBoxIsScrolled) => <Widget>[
-            SliverAppBar(
+            SliverAppBar( leading: const AppDrawerMenuButton(),
               pinned: true,
               expandedHeight: 242,
               backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
+              elevation: 0,
               title: Text(
                 'أوامر التشغيل',
                 style: GoogleFonts.cairo(
@@ -222,11 +228,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: <Color>[
-            Color(0xFF0F172A),
-            Color(0xFF1E3A8A),
-            Color(0xFF3B82F6)
-          ],
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -290,13 +292,13 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                         Icons.list_alt_rounded, AppColors.gold),
                     const SizedBox(width: 8),
                     _stat('غير مسلّمة', _stats['UndeliveredCount'],
-                        Icons.pending_actions_rounded, Colors.orange),
+                        Icons.pending_actions_rounded, AppColors.warning),
                     const SizedBox(width: 8),
                     _stat('متأخرة', _stats['OverdueCount'],
-                        Icons.warning_amber_rounded, Colors.red),
+                        Icons.warning_amber_rounded, AppColors.error),
                     const SizedBox(width: 8),
                     _stat('بها بدائل', _stats['WithAlternativesCount'],
-                        Icons.tune_rounded, Colors.green),
+                        Icons.tune_rounded, AppColors.success),
                   ],
                 ),
               ),
@@ -347,21 +349,11 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
   }
 
   Widget _controls() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 7),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider(_isDark)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: _isDark ? 0.12 : 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 7),
+      child: AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.xl,
       child: Column(
         children: <Widget>[
           Row(
@@ -428,6 +420,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -452,7 +445,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
     return ChoiceChip(
       selected: active,
       label: Text(label, style: GoogleFonts.cairo(fontSize: 9.5)),
-      selectedColor: value == 'overdue' ? Colors.red : Colors.blue,
+      selectedColor: value == 'overdue' ? AppColors.error : AppColors.info,
       labelStyle: TextStyle(color: active ? Colors.white : _secondaryTextColor),
       onSelected: (_) {
         setState(() => _due = active ? 'all' : value);
@@ -463,33 +456,16 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
 
   Widget _body() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.gold),
-      );
+      return const AppLoading();
     }
     if (_error != null) {
-      return Center(
-        child: FilledButton.icon(
-          onPressed: _load,
-          icon: const Icon(Icons.refresh_rounded),
-          label: Text('إعادة المحاولة: $_error', style: GoogleFonts.cairo()),
-        ),
-      );
+      return AppError(message: _error!, onRetry: _load);
     }
     if (_rows.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: <Widget>[
-          const SizedBox(height: 100),
-          const Icon(Icons.factory_outlined,
-              size: 70, color: AppColors.goldDark),
-          Text(
-            'لا توجد أوامر تشغيل مطابقة',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.cairo(
-                color: _textColor, fontWeight: FontWeight.w800),
-          ),
-        ],
+      return AppEmpty(
+        message: 'لا توجد أوامر تشغيل مطابقة',
+        icon: Icons.factory_outlined,
+        onRefresh: _load,
       );
     }
     return RefreshIndicator(
@@ -533,10 +509,10 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
         DateUtils.dateOnly(due.toLocal())
             .isBefore(DateUtils.dateOnly(DateTime.now()));
     final color = delivered
-        ? Colors.green
+        ? AppColors.success
         : overdue
-            ? Colors.red
-            : Colors.orange;
+            ? AppColors.error
+            : AppColors.warning;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -557,7 +533,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: (purchase ? Colors.purple : Colors.blue)
+                      color: (purchase ? AppStatus.editPending : AppColors.info)
                           .withValues(alpha: 0.11),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -565,7 +541,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                       purchase
                           ? Icons.local_shipping_rounded
                           : Icons.factory_rounded,
-                      color: purchase ? Colors.purple : Colors.blue,
+                      color: purchase ? AppStatus.editPending : AppColors.info,
                     ),
                   ),
                   const SizedBox(width: 9),
@@ -636,12 +612,9 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                     ),
                   ),
                   if (_can('canSeeAmounts') && row['GrandTotal'] != null)
-                    Text(
-                      '${_money(row['GrandTotal'])} ج',
-                      style: GoogleFonts.cairo(
-                        color: AppColors.goldDark,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    AmountText(
+                      value: '${_money(row['GrandTotal'])} ج',
+                      color: AppColors.goldDark,
                     ),
                 ],
               ),
@@ -696,7 +669,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
                       tooltip: 'فتح الفاتورة',
                       onPressed: () => _openInvoice(id, purchase),
                       icon: const Icon(Icons.receipt_long_rounded,
-                          color: Colors.green),
+                          color: AppColors.success),
                     ),
                 ],
               ),
@@ -708,22 +681,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
   }
 
   Widget _badge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.cairo(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
+    return StatusBadge(label: label, color: color, small: true);
   }
 
   Widget _info(IconData icon, String label) {
@@ -865,7 +823,11 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
   }
 
   Future<void> _editDueDate(Map<String, dynamic> row) async {
-    DateTime? due = DateTime.tryParse('${row['DueDate'] ?? ''}')?.toLocal();
+    // نافذة التعديل تفتح بالتاريخ الحقيقي (RealDueDate) لا المعروض المخفي،
+    // كما في بلازور JobOrders.razor:1125 — حتى لا يُكتب تاريخ مخفي فوق الحقيقي.
+    DateTime? due =
+        DateTime.tryParse('${row['RealDueDate'] ?? row['DueDate'] ?? ''}')
+            ?.toLocal();
     final notes = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1155,7 +1117,7 @@ class _JobOrdersScreenState extends State<JobOrdersScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(text, style: GoogleFonts.cairo()),
-        backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor: error ? AppColors.error : AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );

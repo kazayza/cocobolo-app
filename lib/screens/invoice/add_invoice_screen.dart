@@ -13,7 +13,10 @@ import '../../services/inventory_service.dart';
 import '../../services/invoice_service.dart';
 import '../../core/network/api_client.dart';
 import '../../widgets/crm_design_system.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import 'invoice_details_screen.dart';
+import '../../core/auth/session_service.dart';
 
 class AddInvoiceScreen extends StatefulWidget {
   final int userId;
@@ -44,6 +47,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
   List<dynamic> _cashBoxes = [];
   List<dynamic> _availableProducts = [];
   List<dynamic> _advances = [];
+  String? _advancesError;
 
   // Selected
   Map<String, dynamic>? _selectedParty;
@@ -171,11 +175,11 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
 
       try {
         http.Response res =
-            await http.get(Uri.parse('$baseUrl/api/cashbox/active'));
+            await http.get(Uri.parse('$baseUrl/api/cashbox/active'), headers: SessionService.instance.authHeaders);
         if (res.statusCode == 200) {
           cashBoxes = jsonDecode(res.body) as List;
         } else {
-          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'));
+          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'), headers: SessionService.instance.authHeaders);
           if (fallback.statusCode == 200) {
             final all = jsonDecode(fallback.body) as List;
             cashBoxes = all
@@ -188,7 +192,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         }
       } catch (_) {
         try {
-          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'));
+          final fallback = await http.get(Uri.parse('$baseUrl/api/cashbox'), headers: SessionService.instance.authHeaders);
           if (fallback.statusCode == 200) {
             cashBoxes = jsonDecode(fallback.body) as List;
           }
@@ -279,6 +283,11 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
             selectedAlternativeId:
                 d['SelectedAlternativeID'] ?? d['SelectedAlternativeId'],
             availableStock: _safeInt(d['AvailableStock']),
+            deliveryDate: d['DeliveryDate'] == null
+                ? null
+                : DateTime.tryParse(d['DeliveryDate'].toString()),
+            deliveryDateIsCustom:
+                d['DeliveryDateIsCustom'] == true || d['DeliveryDateIsCustom'] == 1,
             isShowroom: d['Customer'] == null,
             onChanged: _onTotalsChanged,
             isEditMode: !_canFullEdit,
@@ -333,7 +342,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         if (body is Map && body['data'] is List) return body['data'] as List;
       }
       final fallback = await http.get(Uri.parse(
-          '$baseUrl/api/clients/search?q=${Uri.encodeComponent(query.trim())}'));
+          '$baseUrl/api/clients/search?q=${Uri.encodeComponent(query.trim())}'), headers: SessionService.instance.authHeaders);
       if (fallback.statusCode == 200) {
         final decoded = jsonDecode(fallback.body);
         if (decoded is List) return decoded;
@@ -364,7 +373,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
       if (_selectedWarehouseId != null) {
         url += '&warehouseId=$_selectedWarehouseId';
       }
-      final fallback = await http.get(Uri.parse(url));
+      final fallback = await http.get(Uri.parse(url), headers: SessionService.instance.authHeaders);
       if (fallback.statusCode == 200) {
         final decoded = jsonDecode(fallback.body);
         if (decoded is List) return decoded;
@@ -376,18 +385,45 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
     return [];
   }
 
+  // الدفعات المقدمة غير المطبقة للعميل — GET /api/clients/:id/advances
+  // يعيد قائمة عارية (ChargeID/ChargeAmount/ChargeDescription).
+  // الفشل ظاهر الآن (رسالة خادم/اتصال في قسم العميل) بدل قائمة فارغة
+  // صامتة كانت تُخفي غياب المسار أو رفضه.
   Future<void> _loadAdvances(int partyId) async {
     if (partyId <= 0) return;
     try {
       final res = await http.get(Uri.parse(
-          '$baseUrl/api/clients/$partyId/advances?unappliedOnly=true'));
-      if (res.statusCode == 200 && mounted) {
+          '$baseUrl/api/clients/$partyId/advances?unappliedOnly=true'), headers: SessionService.instance.authHeaders);
+      if (!mounted) return;
+      if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         if (decoded is List) {
-          setState(() => _advances = decoded);
+          setState(() {
+            _advances = decoded;
+            _advancesError = null;
+          });
+        } else {
+          setState(() => _advancesError =
+              'استجابة غير متوقعة عند تحميل الدفعات المقدمة');
         }
+      } else {
+        var message = 'فشل تحميل الدفعات المقدمة (${res.statusCode})';
+        try {
+          final decoded = jsonDecode(res.body);
+          if (decoded is Map && decoded['message'] != null) {
+            message = decoded['message'].toString();
+          }
+        } catch (_) {
+          // جسم الخطأ ليس JSON — تبقى الرسالة الافتراضية بالحالة
+        }
+        setState(() => _advancesError = message);
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(
+            () => _advancesError = 'فشل الاتصال عند تحميل الدفعات المقدمة');
+      }
+    }
   }
 
   void _addProduct(Map<String, dynamic> prod) {
@@ -454,6 +490,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         _selectedParty = picked;
         _selectedAdvanceIds.clear();
         _advances = [];
+        _advancesError = null;
       });
       await _loadAdvances(partyId);
     }
@@ -524,7 +561,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.orange.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     border: Border.all(color: Colors.orange.withOpacity(0.25)),
                   ),
                   child: Text(
@@ -546,7 +583,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     hintText: 'اكتب سببًا واضحًا ليظهر في سجل التعديلات',
                     hintStyle: GoogleFonts.cairo(fontSize: 11),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
                   ),
                 ),
@@ -684,6 +721,16 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
       );
       return;
     }
+    if (!isEdit && _paidAmount > 0 && _selectedCashBoxId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('يرجى اختيار الخزينة عند تسجيل دفعة.',
+              style: GoogleFonts.cairo()),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
 
     String? fullEditReason;
     if (_canFullEdit) {
@@ -717,6 +764,10 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                       'pricingTier': it.pricingTier,
                       'selectedAlternativeId': it.selectedAlternativeId,
                       'notes': '',
+                      'deliveryDate': it.deliveryDateIsCustom
+                          ? it.deliveryDate?.toIso8601String()
+                          : null,
+                      'deliveryDateIsCustom': it.deliveryDateIsCustom,
                     })
                 .toList(),
             'newCharges': _charges
@@ -764,6 +815,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
           'totalChargesAmount': _chargesTotal,
           'grandTotal': _grandTotal,
           'paidAmount': _paidAmount,
+          'cashBoxId': _selectedCashBoxId,
           'paymentMethod': _paymentMethod,
           'notes': _notesCtrl.text.trim(),
           'details': _items
@@ -774,6 +826,10 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     'pricingTier': it.pricingTier,
                     'selectedAlternativeId': it.selectedAlternativeId,
                     'notes': '',
+                    'deliveryDate': it.deliveryDateIsCustom
+                        ? it.deliveryDate?.toIso8601String()
+                        : null,
+                    'deliveryDateIsCustom': it.deliveryDateIsCustom,
                   })
               .toList(),
           'charges': _charges
@@ -916,7 +972,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                             : 'تعديل فاتورة مبيعات')
                         : (isPurchase
                             ? 'فاتورة مشتريات جديدة'
-                            : 'نقطة بيع • فاتورة جديدة'),
+                            : 'فاتورة مبيعات جديدة'),
                     style: GoogleFonts.cairo(
                         fontWeight: FontWeight.w900, fontSize: 15),
                   ),
@@ -955,8 +1011,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         body: Stack(
           children: [
             _loading
-                ? Center(
-                    child: CircularProgressIndicator(color: AppColors.gold))
+                ? const AppLoading()
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(14, 14, 14, 40),
                     children: [
@@ -994,7 +1049,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
             color: AppColors.navy.withOpacity(0.25),
@@ -1048,7 +1103,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   border: Border.all(color: Colors.white.withOpacity(0.12)),
                 ),
                 child: Column(
@@ -1156,14 +1211,14 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isHighlighted
               ? AppColors.gold.withOpacity(0.18)
               : Colors.white.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
             color: isHighlighted
                 ? AppColors.gold.withOpacity(0.5)
@@ -1218,7 +1273,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(Icons.factory_rounded,
                   color: Colors.blue.shade600, size: 24),
@@ -1275,7 +1330,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                             AppColors.gold.withOpacity(0.08),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
                       child: Icon(Icons.person_add_alt_1_rounded,
                           color: AppColors.navy, size: 24),
@@ -1305,7 +1360,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                           horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: AppColors.navy,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
                       child: Row(
                         children: [
@@ -1340,7 +1395,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: AppColors.navy,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
                         ),
                         child: Text(
                           _safeInitial(
@@ -1404,6 +1459,35 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                         ),
                     ],
                   ),
+                  if (_advancesError != null && !isEdit) ...[
+                    const Divider(height: 22),
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded,
+                            size: 16, color: AppColors.error),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _advancesError!,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            final pid = _safeInt(_selectedParty?['PartyID'] ??
+                                _selectedParty?['PartyId'] ??
+                                _selectedParty?['id']);
+                            if (pid > 0) _loadAdvances(pid);
+                          },
+                          child: const Text('إعادة المحاولة'),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (_advances.isNotEmpty && !isEdit) ...[
                     const Divider(height: 22),
                     Align(
@@ -1499,7 +1583,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     ? Colors.white.withOpacity(0.03)
                     : const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding:
@@ -1543,7 +1627,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     ? Colors.white.withOpacity(0.03)
                     : const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding:
@@ -1616,7 +1700,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(AppRadius.sm)),
                   ),
                   onPressed: _openProductSearchSheet,
                   icon: Icon(Icons.add_circle_outline_rounded,
@@ -1633,7 +1717,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
           if (_items.isEmpty)
             InkWell(
               onTap: (!isEdit || _canFullEdit) ? _openProductSearchSheet : null,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               child: Container(
                 width: double.infinity,
                 padding:
@@ -1642,7 +1726,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                   color: _isDark
                       ? Colors.white.withOpacity(0.02)
                       : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   border: Border.all(
                     color: AppColors.gold.withOpacity(0.35),
                     style: BorderStyle.solid,
@@ -1689,7 +1773,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         color: _isDark
             ? Colors.white.withOpacity(0.03)
             : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
@@ -1704,7 +1788,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.navy,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: Text(
                   '#${idx + 1}',
@@ -1763,12 +1847,12 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     it.dispose();
                     _items.removeAt(idx);
                   }),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
                     ),
                     child: const Icon(Icons.delete_outline_rounded,
                         size: 18, color: Colors.red),
@@ -1784,7 +1868,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               color: _isDark
                   ? Colors.black.withOpacity(0.25)
                   : Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Row(
               children: [
@@ -1803,7 +1887,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   color: _isDark ? const Color(0xFF0F172A) : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                   border: Border.all(color: Colors.grey.withOpacity(0.25)),
                 ),
                 child: Row(
@@ -1857,7 +1941,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _isDark ? const Color(0xFF0F172A) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     border: Border.all(color: Colors.grey.withOpacity(0.25)),
                   ),
                   child: Column(
@@ -1889,7 +1973,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.navy.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -1910,6 +1994,57 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               ),
             ],
           ),
+          // Item 9 (Pkg1): per-line delivery date (sales only). Default
+          // inherits the header date; picking a date detaches the line.
+          if (!isPurchase) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Icon(Icons.event_rounded,
+                  size: 16, color: AppColors.goldDark),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'موعد تسليم البند: ${DateFormat('yyyy/MM/dd').format(it.deliveryDateIsCustom && it.deliveryDate != null ? it.deliveryDate! : (_dueDate ?? _transactionDate))}${it.deliveryDateIsCustom ? ' (موعد خاص)' : ''}',
+                  style: GoogleFonts.cairo(fontSize: 11),
+                ),
+              ),
+              if (it.deliveryDateIsCustom)
+                IconButton(
+                  icon: const Icon(Icons.undo_rounded, size: 18),
+                  tooltip: 'إرجاع البند لتاريخ الفاتورة',
+                  onPressed: it.isEditMode
+                      ? null
+                      : () => setState(() {
+                            it.deliveryDate = null;
+                            it.deliveryDateIsCustom = false;
+                          }),
+                ),
+              IconButton(
+                icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                tooltip: 'تعديل موعد البند',
+                onPressed: it.isEditMode
+                    ? null
+                    : () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: it.deliveryDateIsCustom &&
+                                  it.deliveryDate != null
+                              ? it.deliveryDate!
+                              : (_dueDate ?? _transactionDate),
+                          firstDate: DateTime(2020),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 730)),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            it.deliveryDate = picked;
+                            it.deliveryDateIsCustom = true;
+                          });
+                        }
+                      },
+              ),
+            ]),
+          ],
         ],
       ),
     );
@@ -1960,7 +2095,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.xs),
       child: Container(
         width: 28,
         height: 28,
@@ -1968,7 +2103,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
           color: isPlus
               ? AppColors.gold.withOpacity(0.2)
               : Colors.grey.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.xs),
         ),
         child: Icon(
           icon,
@@ -2033,7 +2168,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                   color: _isDark
                       ? Colors.white.withOpacity(0.03)
                       : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Row(
                   children: [
@@ -2098,7 +2233,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                   ? Colors.white.withOpacity(0.03)
                   : const Color(0xFFF8FAFC),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -2116,7 +2251,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         border: Border.all(color: AppColors.gold.withOpacity(0.35), width: 1.2),
         boxShadow: [
           BoxShadow(
@@ -2207,7 +2342,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.navy,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2220,13 +2355,10 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     fontSize: 13.5,
                   ),
                 ),
-                Text(
-                  '${NumberFormat('#,###').format(_grandTotal)} ج.م',
-                  style: GoogleFonts.cairo(
-                    color: AppColors.gold,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
+                AmountText(
+                  value: '${NumberFormat('#,###').format(_grandTotal)} ج.م',
+                  size: 18,
+                  color: AppColors.gold,
                 ),
               ],
             ),
@@ -2279,11 +2411,54 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                 filled: true,
                 fillColor: Colors.green.withOpacity(0.06),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide(color: Colors.green.withOpacity(0.3)),
                 ),
               ),
             ),
+            if (_paidAmount > 0) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int?>(
+                value: _selectedCashBoxId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'الخزينة',
+                  labelStyle: GoogleFonts.cairo(
+                      fontSize: 11.5, fontWeight: FontWeight.bold),
+                  prefixIcon: Icon(Icons.account_balance_wallet_rounded,
+                      size: 18, color: AppColors.gold),
+                  filled: true,
+                  fillColor: _isDark
+                      ? Colors.white.withOpacity(0.03)
+                      : const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                ),
+                items: [
+                  DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('اختر الخزينة...',
+                        style: GoogleFonts.cairo(fontSize: 12)),
+                  ),
+                  ..._cashBoxes
+                      .where((c) =>
+                          c['IsActive'] == true ||
+                          c['IsActive'] == 1 ||
+                          c['IsActive'] == null)
+                      .map((c) => DropdownMenuItem<int?>(
+                            value: _safeInt(c['CashBoxID'] ?? c['CashBoxId']),
+                            child: Text((c['CashBoxName'] ?? '').toString(),
+                                style: GoogleFonts.cairo(
+                                    fontSize: 12, fontWeight: FontWeight.bold)),
+                          )),
+                ],
+                onChanged: (v) => setState(() => _selectedCashBoxId = v),
+              ),
+            ],
           ] else ...[
             _receiptRow(
               'إجمالي المدفوع سابقاً',
@@ -2307,7 +2482,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               color: _remaining > 0
                   ? Colors.red.withOpacity(0.08)
                   : Colors.green.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
               border: Border.all(
                 color: _remaining > 0
                     ? Colors.red.withOpacity(0.25)
@@ -2352,7 +2527,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _paymentMethod = key),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
@@ -2362,7 +2537,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                 : (_isDark
                     ? Colors.white.withOpacity(0.04)
                     : const Color(0xFFF8FAFC)),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             border: Border.all(
               color: selected ? AppColors.gold : Colors.grey.withOpacity(0.25),
               width: selected ? 1.5 : 1,
@@ -2400,13 +2575,11 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
         Text(label,
             style: GoogleFonts.cairo(
                 fontSize: 12.5, color: AppColors.textSecondary(_isDark))),
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w800,
-            color: valueColor ?? AppColors.text(_isDark),
-          ),
+        AmountText(
+          value: value,
+          size: 13.5,
+          weight: FontWeight.w800,
+          color: valueColor ?? AppColors.text(_isDark),
         ),
       ],
     );
@@ -2438,13 +2611,11 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                     'الإجمالي (${_items.length} أصناف)',
                     style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey),
                   ),
-                  Text(
-                    '${NumberFormat('#,###').format(_grandTotal)} ج.م',
-                    style: GoogleFonts.cairo(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: _isDark ? AppColors.gold : AppColors.navy,
-                    ),
+                  AmountText(
+                    value:
+                        '${NumberFormat('#,###').format(_grandTotal)} ج.م',
+                    size: 18,
+                    color: _isDark ? AppColors.gold : AppColors.navy,
                   ),
                 ],
               ),
@@ -2457,7 +2628,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 26),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(AppRadius.lg)),
                 ),
                 onPressed: _saving ? null : _save,
                 icon: _saving
@@ -2543,7 +2714,7 @@ class _PartySearchSheetWidgetState extends State<_PartySearchSheetWidget> {
         height: MediaQuery.of(context).size.height * 0.82,
         decoration: BoxDecoration(
           color: widget.isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xxxl)),
         ),
         child: Column(
           children: [
@@ -2594,7 +2765,7 @@ class _PartySearchSheetWidgetState extends State<_PartySearchSheetWidget> {
                       ? Colors.white.withOpacity(0.05)
                       : const Color(0xFFF1F5F9),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -2633,7 +2804,7 @@ class _PartySearchSheetWidgetState extends State<_PartySearchSheetWidget> {
 
                             return ListTile(
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 side: BorderSide(
                                     color: Colors.grey.withOpacity(0.2)),
                               ),
@@ -2662,7 +2833,7 @@ class _PartySearchSheetWidgetState extends State<_PartySearchSheetWidget> {
                                           horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: Colors.teal.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(AppRadius.xs),
                                       ),
                                       child: Text(
                                         'مقدم: ${NumberFormat('#,###').format(advBal)} ج',
@@ -2765,7 +2936,7 @@ class _ProductSearchSheetWidgetState extends State<_ProductSearchSheetWidget> {
         height: MediaQuery.of(context).size.height * 0.86,
         decoration: BoxDecoration(
           color: widget.isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xxxl)),
         ),
         child: Column(
           children: [
@@ -2823,7 +2994,7 @@ class _ProductSearchSheetWidgetState extends State<_ProductSearchSheetWidget> {
                       ? Colors.white.withOpacity(0.05)
                       : const Color(0xFFF1F5F9),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -2873,7 +3044,7 @@ class _ProductSearchSheetWidgetState extends State<_ProductSearchSheetWidget> {
                                     : (widget.isDark
                                         ? Colors.white.withOpacity(0.03)
                                         : const Color(0xFFF8FAFC)),
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 border: Border.all(
                                   color: added
                                       ? Colors.green
@@ -2959,6 +3130,11 @@ class _InvoiceItem {
   final bool isShowroom;
   final VoidCallback onChanged;
   final bool isEditMode;
+  // Item 9 (Pkg1): per-line delivery scheduling — mirror of Blazor
+  // DeliveryScheduleResolver: null + not custom = inherits the invoice
+  // header date; setting a line date detaches it (custom).
+  DateTime? deliveryDate;
+  bool deliveryDateIsCustom = false;
 
   late final TextEditingController qtyCtrl;
   late final TextEditingController priceCtrl;
@@ -2976,7 +3152,11 @@ class _InvoiceItem {
     this.isShowroom = true,
     required this.onChanged,
     this.isEditMode = false,
+    DateTime? deliveryDate,
+    bool deliveryDateIsCustom = false,
   }) {
+    this.deliveryDate = deliveryDate;
+    this.deliveryDateIsCustom = deliveryDateIsCustom;
     qtyCtrl = TextEditingController(text: quantity.toStringAsFixed(0));
     priceCtrl = TextEditingController(text: unitPrice.toStringAsFixed(2));
     qtyCtrl.addListener(_onQtyChanged);

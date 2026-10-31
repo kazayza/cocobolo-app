@@ -12,10 +12,12 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import '../services/executive_cockpit_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/app_states.dart';
+import '../widgets/design_kit.dart';
 
+import '../widgets/app_drawer.dart';
 class ExecutiveCockpitScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -38,6 +40,11 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
   String? _error;
   String _period = 'month';
   String _employeeFilter = 'all';
+  int? _branchId;
+  List<Map<String, dynamic>> _branches = <Map<String, dynamic>>[];
+  DateTime? _customFrom;
+  DateTime? _customTo;
+  bool _snapshotBusy = false;
 
   bool get _isDark => ThemeService().isDarkMode;
   Map<String, dynamic> get _capabilities => _map(_data?['Capabilities']);
@@ -49,6 +56,7 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
     'month': 'الشهر',
     'quarter': 'ربع السنة',
     'year': 'السنة',
+    'custom': 'فترة مخصصة',
   };
 
   static const Map<String, String> _employeeFilters = <String, String>{
@@ -64,6 +72,13 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
   void initState() {
     super.initState();
     _load();
+    _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    final branches = await _service.getBranches();
+    if (!mounted) return;
+    setState(() => _branches = branches);
   }
 
   Map<String, dynamic> _map(dynamic value) {
@@ -96,7 +111,12 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
       _error = null;
     });
     try {
-      final result = await _service.getCockpit(period: _period);
+      final result = await _service.getCockpit(
+        period: _period,
+        branchId: _branchId,
+        from: _customFrom,
+        to: _customTo,
+      );
       if (!mounted) return;
       setState(() {
         _data = result;
@@ -112,8 +132,34 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
   }
 
   Future<void> _setPeriod(String value) async {
+    if (value == 'custom') {
+      final now = DateTime.now();
+      final picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2020),
+        lastDate: now,
+        initialDateRange: _customFrom != null && _customTo != null
+            ? DateTimeRange(start: _customFrom!, end: _customTo!)
+            : DateTimeRange(
+                start: DateTime(now.year, now.month, 1), end: now),
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        _period = 'custom';
+        _customFrom = picked.start;
+        _customTo = picked.end;
+      });
+      await _load();
+      return;
+    }
     if (_period == value) return;
     setState(() => _period = value);
+    await _load();
+  }
+
+  Future<void> _setBranch(int? branchId) async {
+    if (_branchId == branchId) return;
+    setState(() => _branchId = branchId);
     await _load();
   }
 
@@ -196,7 +242,7 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
                 if (loading)
                   const Padding(
                     padding: EdgeInsets.all(30),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: AppLoading(),
                   )
                 else if (error != null)
                   AppError(message: error!, onRetry: () {})
@@ -470,8 +516,13 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'frm_ExecutiveCockpit'),
       backgroundColor: AppColors.background(_isDark),
       appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: const AppDrawerMenuButton(),
         title: Text('لوحة القيادة التنفيذية',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800)),
         actions: [
@@ -500,6 +551,18 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
                 ),
               ],
             ),
+          if (_data != null)
+            IconButton(
+              onPressed: _snapshotBusy ? null : _saveSnapshot,
+              icon: const Icon(Icons.bookmark_add_rounded),
+              tooltip: 'حفظ لقطة',
+            ),
+          if (_data != null)
+            IconButton(
+              onPressed: _snapshotBusy ? null : _showSnapshots,
+              icon: const Icon(Icons.bookmarks_rounded),
+              tooltip: 'اللقطات المحفوظة',
+            ),
           IconButton(
             onPressed: _exporting ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
@@ -527,6 +590,12 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
               SliverToBoxAdapter(child: _sectionTitle('نبض الشركة')),
               SliverToBoxAdapter(child: _kpiGrid()),
               SliverToBoxAdapter(child: _pipeline()),
+              SliverToBoxAdapter(child: _sectionTitle('قائمة الدخل المصغرة')),
+              SliverToBoxAdapter(child: _miniPl()),
+              SliverToBoxAdapter(child: _sectionTitle('أعمار الذمم والمستحقات')),
+              SliverToBoxAdapter(child: _aging()),
+              SliverToBoxAdapter(child: _sectionTitle('التغطية التشغيلية')),
+              SliverToBoxAdapter(child: _coverage()),
               SliverToBoxAdapter(child: _sectionTitle('الاتجاهات والتوقعات')),
               SliverToBoxAdapter(child: _trendAndForecast()),
               SliverToBoxAdapter(child: _sectionTitle('الفروع والنشاط')),
@@ -566,12 +635,8 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[
-            AppColors.navyDark,
-            AppColors.navy,
-            AppColors.navyLight
-          ],
+        gradient: LinearGradient(
+          colors: AppGradients.identityHeader,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -609,6 +674,56 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
             _badge('${_int(_data?['DecisionsPending'])} قرار', AppColors.error),
         ]),
         const SizedBox(height: 14),
+        if (_branches.isNotEmpty) ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 7),
+                child: ChoiceChip(
+                  selected: _branchId == null,
+                  label: Text('كل الفروع',
+                      style: GoogleFonts.cairo(
+                          fontSize: 10,
+                          color: _branchId == null
+                              ? AppColors.navyDark
+                              : Colors.white70,
+                          fontWeight: FontWeight.w700)),
+                  selectedColor: AppColors.gold,
+                  backgroundColor: Colors.white.withValues(alpha: 0.07),
+                  side: BorderSide(
+                      color: _branchId == null
+                          ? AppColors.gold
+                          : Colors.white12),
+                  onSelected: (_) => _setBranch(null),
+                ),
+              ),
+              ..._branches.map((branch) {
+                final id = (branch['BranchId'] as num?)?.toInt();
+                final selected = _branchId == id;
+                return Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 7),
+                  child: ChoiceChip(
+                    selected: selected,
+                    label: Text('${branch['BranchNameAr'] ?? ''}',
+                        style: GoogleFonts.cairo(
+                            fontSize: 10,
+                            color: selected
+                                ? AppColors.navyDark
+                                : Colors.white70,
+                            fontWeight: FontWeight.w700)),
+                    selectedColor: AppColors.gold,
+                    backgroundColor: Colors.white.withValues(alpha: 0.07),
+                    side: BorderSide(
+                        color: selected ? AppColors.gold : Colors.white12),
+                    onSelected: (_) => _setBranch(id),
+                  ),
+                );
+              }),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -661,22 +776,7 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
 
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsets.fromLTRB(14, 15, 14, 8),
-        child: Row(children: [
-          Container(
-            width: 4,
-            height: 18,
-            decoration: BoxDecoration(
-              color: AppColors.gold,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(title,
-              style: GoogleFonts.cairo(
-                  color: AppColors.text(_isDark),
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w900)),
-        ]),
+        child: AppSectionHeader(title: title),
       );
 
   List<Map<String, dynamic>> _kpiRows() => <Map<String, dynamic>>[
@@ -688,7 +788,7 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
           'invert': false
         },
         {
-          'label': 'المحصّل',
+          'label': 'تحصيلات الفترة',
           'icon': Icons.account_balance_rounded,
           'color': AppColors.info,
           'data': _data?['Collected'],
@@ -709,11 +809,19 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
           'invert': true
         },
         {
-          'label': 'صافي التدفق',
+          'label': 'صافي الربح',
           'icon': Icons.currency_exchange_rounded,
           'color': Colors.purple,
           'data': _data?['Net'],
           'invert': false
+        },
+        {
+          'label': 'صافي حركة الخزينة',
+          'icon': Icons.account_balance_wallet_rounded,
+          'color': AppColors.info,
+          'data': {'Value': _data?['CashNet']},
+          'invert': false,
+          'instant': true
         },
         {
           'label': 'رصيد الخزائن',
@@ -748,15 +856,11 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
     final annualPct = _num(data['YearPct']);
     final invert = item['invert'] == true;
     final instant = item['instant'] == true;
-    return Container(
+    return SizedBox(
       width: width,
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: color.withValues(alpha: 0.27)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(item['icon'] as IconData, color: color, size: 19),
           const SizedBox(width: 6),
@@ -769,13 +873,10 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
           ),
         ]),
         const SizedBox(height: 8),
-        Text(_money(data['Value']),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.cairo(
-                color: AppColors.text(_isDark),
-                fontSize: 17,
-                fontWeight: FontWeight.w900)),
+        AmountText(
+            value: _money(data['Value']),
+            color: AppColors.text(_isDark),
+            size: 17),
         const SizedBox(height: 7),
         if (instant)
           Text('الرصيد اللحظي لكل الخزن',
@@ -786,7 +887,8 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
             _comparison(previousPct, invert, 'السابق'),
             _comparison(annualPct, invert, 'سنوي'),
           ]),
-      ]),
+        ]),
+      ),
     );
   }
 
@@ -958,11 +1060,10 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
                         style: GoogleFonts.cairo(
                             color: AppColors.textSecondary(_isDark),
                             fontSize: 10)),
-                    Text(_money(_data?['ForecastValue']),
-                        style: GoogleFonts.cairo(
-                            color: AppColors.text(_isDark),
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900)),
+                    AmountText(
+                        value: _money(_data?['ForecastValue']),
+                        color: AppColors.text(_isDark),
+                        size: 18),
                     Text('الشهر السابق: ${_money(_data?['LastMonthSales'])}',
                         style: GoogleFonts.cairo(
                             color: AppColors.textSecondary(_isDark),
@@ -1086,11 +1187,11 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700)),
                   ),
-                  Text('${row['value'] ?? ''}',
-                      style: GoogleFonts.cairo(
-                          color: AppColors.text(_isDark),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
+                  AmountText(
+                      value: '${row['value'] ?? ''}',
+                      color: AppColors.text(_isDark),
+                      size: 10,
+                      weight: FontWeight.w800),
                 ]),
                 const SizedBox(height: 4),
                 ClipRRect(
@@ -1180,11 +1281,10 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
                                   fontSize: 8.5)),
                         ]),
                   ),
-                  Text(_money(rows[index]['MonthSales']),
-                      style: GoogleFonts.cairo(
-                          color: color,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900)),
+                  AmountText(
+                      value: _money(rows[index]['MonthSales']),
+                      color: color,
+                      size: 11),
                 ]),
               ),
             ),
@@ -1455,11 +1555,10 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${row['value'] ?? 0}',
-                style: GoogleFonts.cairo(
-                    color: AppColors.text(_isDark),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900)),
+            AmountText(
+                value: '${row['value'] ?? 0}',
+                color: AppColors.text(_isDark),
+                size: 12),
             Text('${row['label'] ?? ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1565,16 +1664,8 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
         }),
       );
 
-  Widget _badge(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: GoogleFonts.cairo(
-                color: color, fontSize: 8.5, fontWeight: FontWeight.w800)),
-      );
+  Widget _badge(String text, Color color) =>
+      StatusBadge(label: text, color: color, small: true);
 
   Color _statusColor(String status) => switch (status) {
         'green' => AppColors.success,
@@ -1610,6 +1701,287 @@ class _ExecutiveCockpitScreenState extends State<ExecutiveCockpitScreen> {
   String _dateTime(dynamic value) {
     final date = DateTime.tryParse('${value ?? ''}');
     return date == null ? '—' : DateFormat('yyyy/MM/dd HH:mm').format(date);
+  }
+
+  // ══════════════ اللقطات المحفوظة (ExecutiveCockpitSnapshots) ══════════════
+  Future<void> _saveSnapshot() async {
+    setState(() => _snapshotBusy = true);
+    try {
+      await _service.saveSnapshot(
+        period: _period,
+        branchId: _branchId,
+        from: _customFrom,
+        to: _customTo,
+      );
+      if (mounted) _message('تم حفظ لقطة من لوحة القيادة الحالية');
+    } catch (error) {
+      if (mounted) {
+        _message(
+          error.toString().contains('SNAPSHOTS_TABLE_MISSING')
+              ? 'جدول اللقطات غير مُنشأ بعد في قاعدة البيانات'
+              : 'تعذر حفظ اللقطة',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _snapshotBusy = false);
+    }
+  }
+
+  Future<void> _showSnapshots() async {
+    setState(() => _snapshotBusy = true);
+    try {
+      final result = await _service.listSnapshots();
+      if (!mounted) return;
+      final items = _list(result['Items']);
+      final available = result['Available'] == true;
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (_) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('اللقطات المحفوظة',
+                    style: GoogleFonts.cairo(
+                        fontSize: 15, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 10),
+                if (!available)
+                  Text(
+                      'جدول اللقطات غير مُنشأ بعد — تُتاح الميزة بعد تشغيل سكربت إنشاء الجدول في قاعدة البيانات',
+                      style: GoogleFonts.cairo(fontSize: 12))
+                else if (items.isEmpty)
+                  Text('لا توجد لقطات محفوظة بعد',
+                      style: GoogleFonts.cairo(fontSize: 12))
+                else
+                  ...items.map((item) => ListTile(
+                        leading: const Icon(Icons.bookmark_rounded),
+                        title: Text('${item['Title'] ?? ''}',
+                            style: GoogleFonts.cairo(fontSize: 12.5)),
+                        subtitle: Text(
+                            '${item['PeriodLabel'] ?? ''} — بواسطة ${item['CreatedBy'] ?? ''} — ${_dateTime(item['CreatedAt'])}',
+                            style: GoogleFonts.cairo(fontSize: 10.5)),
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          final detail = await _service
+                              .getSnapshot(_int(item['SnapshotId']));
+                          if (!mounted) return;
+                          final payload = _map(detail['Data']);
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text('${item['Title'] ?? ''}',
+                                  style: GoogleFonts.cairo(
+                                      fontWeight: FontWeight.w800)),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('${payload['Story'] ?? ''}',
+                                      style: GoogleFonts.cairo(fontSize: 12)),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                      'المبيعات: ${_money(_map(payload['Sales'])['Value'])}',
+                                      style: GoogleFonts.cairo(fontSize: 12)),
+                                  Text(
+                                      'صافي الربح: ${_money(_map(payload['Net'])['Value'])}',
+                                      style: GoogleFonts.cairo(fontSize: 12)),
+                                  Text(
+                                      'رصيد الخزائن: ${_money(payload['CashBalance'])}',
+                                      style: GoogleFonts.cairo(fontSize: 12)),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: Text('إغلاق',
+                                      style: GoogleFonts.cairo()),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) _message('تعذر تحميل اللقطات المحفوظة', error: true);
+    } finally {
+      if (mounted) setState(() => _snapshotBusy = false);
+    }
+  }
+
+  // ══════════════ صف مفتاح/قيمة داخل بطاقة ══════════════
+  Widget _kvRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Expanded(
+          child: Text(label,
+              style: GoogleFonts.cairo(
+                  fontSize: 12,
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  color: AppColors.text(_isDark))),
+        ),
+        Text(value,
+            style: GoogleFonts.cairo(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.text(_isDark))),
+      ]),
+    );
+  }
+
+  Widget _cardBox(List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: AppCard(
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      ),
+    );
+  }
+
+  // ══════════════ قائمة الدخل المصغرة (MiniPl) ══════════════
+  Widget _miniPl() {
+    final pl = _map(_data?['MiniPl']);
+    if (pl.isEmpty) return const SizedBox.shrink();
+    final target = _map(pl['ProfitTarget']);
+    return _cardBox([
+      _kvRow('إجمالي الإيرادات', _money(pl['TotalRevenue'])),
+      _kvRow('تكلفة البضاعة المباعة', _money(pl['TotalCOGS'])),
+      _kvRow('إجمالي الربح', _money(pl['GrossProfit']), bold: true),
+      _kvRow('هامش الربح الإجمالي', '${_num(pl['GrossProfitMargin']).toStringAsFixed(1)}%'),
+      _kvRow('المصروفات التشغيلية', _money(pl['TotalOperatingExpenses'])),
+      _kvRow('صافي الربح', _money(pl['NetProfit']), bold: true),
+      _kvRow('هامش صافي الربح', '${_num(pl['NetProfitMargin']).toStringAsFixed(1)}%'),
+      _kvRow('مرتجعات الفترة', _money(_map(_data?['Sales'])['Returns'])),
+      if (target.isNotEmpty)
+        _kvRow('هدف الربح',
+            target['Achieved'] == true
+                ? 'محقق — ${target['Label'] ?? ''}'
+                : 'غير محقق — المتبقي ${_money(target['Remaining'])} للوصول إلى ${target['Label'] ?? ''}'),
+    ]);
+  }
+
+  // ══════════════ أعمار الذمم والمستحقات (Aging) ══════════════
+  Widget _aging() {
+    final aging = _map(_data?['Aging']);
+    if (aging.isEmpty) return const SizedBox.shrink();
+    List<Widget> buckets(List<Map<String, dynamic>> rows) => rows
+        .map((row) => _kvRow('${row['Label'] ?? ''}',
+            '${_money(row['Amount'])} (${_int(row['Count'])})'))
+        .toList();
+    return _cardBox([
+      _kvRow('إجمالي مستحقات العملاء', _money(aging['ReceivablesTotal']), bold: true),
+      ...buckets(_list(aging['Receivables'])),
+      const Divider(height: 18),
+      _kvRow('إجمالي مستحقات الموردين', _money(aging['PayablesTotal']), bold: true),
+      ...buckets(_list(aging['Payables'])),
+      const Divider(height: 18),
+      _kvRow('أكبر المدينين', '', bold: true),
+      ..._list(aging['TopDebtors']).map((row) => _kvRow(
+          '${row['Name'] ?? ''}', _money(row['Remaining']))),
+    ]);
+  }
+
+  // ══════════════ التغطية التشغيلية (Coverage) ══════════════
+  Widget _coverage() {
+    final quotations = _map(_data?['Quotations']);
+    final inventory = _map(_data?['Inventory']);
+    final jobOrders = _map(_data?['JobOrders']);
+    final deliveries = _map(_data?['Deliveries']);
+    final marketing = _map(_data?['Marketing']);
+    final b2b = _map(_data?['B2bBlock']);
+    final hr = _map(_data?['Hr']);
+    final pending = _map(_data?['Pending']);
+    final ignored = (_data?['BranchIgnoredSections'] is List)
+        ? (_data!['BranchIgnoredSections'] as List).map((e) => '$e').toList()
+        : <String>[];
+    Widget block(String key, String title, List<Widget> rows) {
+      if (ignored.contains(key)) return const SizedBox.shrink();
+      if (rows.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              style: GoogleFonts.cairo(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.goldDark)),
+          ...rows,
+          const Divider(height: 16),
+        ]),
+      );
+    }
+
+    return _cardBox([
+      block('quotations', 'عروض الأسعار', [
+        _kvRow('إجمالي الفترة', '${_int(quotations['Total'])}'),
+        _kvRow('تم تحويلها لفواتير', '${_int(quotations['Converted'])}'),
+        _kvRow('نسبة التحويل من القرارات', '${_num(quotations['ConversionPct']).toStringAsFixed(1)}%'),
+        _kvRow('مرسلة بانتظار الرد', '${_int(quotations['SentAwaiting'])}'),
+        _kvRow('مقبولة دون تحويل', '${_int(quotations['AcceptedNotConverted'])}'),
+        _kvRow('قيمة المقبولة دون تحويل', _money(quotations['AcceptedNotConvertedValue'])),
+        _kvRow('تنتهي خلال 7 أيام', '${_int(quotations['ExpiringSoon'])}'),
+      ]),
+      block('inventory', 'المخزون', [
+        _kvRow('قيمة المخزون', _money(inventory['StockValue'])),
+        _kvRow('أصناف نافدة', '${_int(inventory['OutCount'])}'),
+        _kvRow('أصناف منخفضة (1–5)', '${_int(inventory['LowCount'])}'),
+        _kvRow('أصناف راكدة منذ 90 يومًا', '${_int(inventory['DeadCount'])}'),
+        _kvRow('قيمة الأصناف الراكدة', _money(inventory['DeadValue'])),
+      ]),
+      block('joborders', 'أوامر الشغل', [
+        _kvRow('مفتوحة', '${_int(jobOrders['Open'])}'),
+        _kvRow('متأخرة', '${_int(jobOrders['Overdue'])}'),
+        _kvRow('بها بدائل', '${_int(jobOrders['WithAlternatives'])}'),
+        _kvRow('سُلّمت في الفترة', '${_int(jobOrders['DeliveredInPeriod'])}'),
+      ]),
+      block('deliveries', 'التسليمات', [
+        _kvRow('مخططة في الفترة', '${_int(deliveries['Planned'])}'),
+        _kvRow('مكتملة', '${_int(deliveries['Completed'])}'),
+        _kvRow('متأخرة عن موعدها', '${_int(deliveries['OverduePlanned'])}'),
+        _kvRow('نسبة الاكتمال', '${_num(deliveries['CompletionPct']).toStringAsFixed(1)}%'),
+        _kvRow('التزام الدفعات بالمواعيد', '${_num(deliveries['PunctualityPct']).toStringAsFixed(1)}%'),
+        _kvRow('في الصيانة حاليًا', '${_int(_map(deliveries['Outcomes'])['MaintenanceInLoop'])}'),
+      ]),
+      block('marketing', 'التسويق', [
+        _kvRow('عملاء محتملون جدد', '${_int(marketing['NewLeads'])}'),
+        _kvRow('فرص بيع', '${_int(marketing['Opportunities'])}'),
+        _kvRow('عملاء جدد', '${_int(marketing['NewCustomers'])}'),
+        _kvRow('مصروفات الإعلانات', _money(marketing['AdSpend'])),
+        _kvRow('تكلفة العميل المحتمل', _money(marketing['CostPerLead'])),
+        _kvRow('أفضل حملة', '${marketing['TopCampaign'] ?? '—'}'),
+        _kvRow('أفضل مصدر', '${marketing['TopSource'] ?? '—'}'),
+      ]),
+      block('b2b', 'طلبات الشركات (B2B)', [
+        _kvRow('إجمالي الفترة', '${_int(b2b['Total'])}'),
+        _kvRow('قيد الانتظار الآن', '${_int(b2b['PendingNow'])}'),
+        _kvRow('تحولت لعروض/فواتير', '${_int(b2b['Converted'])}'),
+        _kvRow('نسبة التحويل', '${_num(b2b['ConversionPct']).toStringAsFixed(1)}%'),
+        _kvRow('قيمة المحولة', _money(b2b['ConvertedValue'])),
+      ]),
+      block('hr', 'الموارد البشرية', [
+        _kvRow('موظفون نشطون', '${_int(hr['Active'])}'),
+        _kvRow('في إجازة', '${_int(hr['OnLeave'])}'),
+        _kvRow('حضور اليوم', '${_int(hr['PresentToday'])} / ${_int(hr['AttendanceBasis'])}'),
+        _kvRow('متأخرون اليوم', '${_int(hr['LateToday'])}'),
+        _kvRow('تكلفة أجور هذا الشهر', _money(hr['PayrollMonthCost'])),
+        _kvRow('قروض نشطة', '${_int(hr['ActiveLoans'])}'),
+      ]),
+      block('pending', 'قرارات واعتمادات معلقة', [
+        _kvRow('طلبات تعديل فواتير', '${_int(pending['InvoiceEdits'])}'),
+        _kvRow('اعتمادات إغلاق فواتير', '${_int(pending['ClosureApprovals'])}'),
+        _kvRow('طلبات تغيير أسعار', '${_int(pending['PriceChangeRequests'])}'),
+        _kvRow('تصاريح تسليم', '${_int(pending['DeliveryPermits'])}'),
+      ]),
+    ]);
   }
 }
 

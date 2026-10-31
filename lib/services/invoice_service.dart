@@ -129,6 +129,33 @@ class InvoiceService {
     _api.decode(response);
   }
 
+  /// إضافة دفعة لاحقة — حدّ المتبقي والخزينة الإلزامية ومجموعة طرق
+  /// الدفع القابلة للاختيار يفرضها الخادم (Advance تُرفض يدويًا)
+  Future<Map<String, dynamic>> addPayment(
+    int transactionId, {
+    required double amount,
+    required int cashBoxId,
+    String? paymentMethod,
+    String? notes,
+  }) async {
+    final response = await _api.post(
+      '/api/transactions/$transactionId/payments',
+      body: {
+        'amount': amount,
+        'cashBoxId': cashBoxId,
+        if (paymentMethod != null) 'paymentMethod': paymentMethod,
+        'notes': notes,
+      },
+    );
+    return Map<String, dynamic>.from(_api.decode(response) as Map);
+  }
+
+  /// إلغاء الفاتورة — الخادم يرفض المسددة بالكامل ويفرض صلاحية الإلغاء
+  Future<Map<String, dynamic>> cancelInvoice(int transactionId) async {
+    final response = await _api.post('/api/transactions/$transactionId/cancel');
+    return Map<String, dynamic>.from(_api.decode(response) as Map);
+  }
+
   Future<void> syncMirror(int mirrorTransactionId) async {
     final response = await _api.post(
       '/api/transactions/mirror/$mirrorTransactionId/sync',

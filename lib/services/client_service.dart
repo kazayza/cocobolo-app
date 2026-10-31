@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/client_model.dart';
 import '../constants.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/auth/session_service.dart';
 
 class ClientService {
   Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+    // التوكن مصدره الوحيد SessionService (Secure Storage).
+    return SessionService.instance.accessToken;
   }
 
   Future<List<ClientModel>> getActiveClients() async {

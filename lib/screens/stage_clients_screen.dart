@@ -10,6 +10,7 @@ import '../services/app_colors.dart';
 import '../services/theme_service.dart';
 import 'opportunity_detail_screen.dart';
 import 'add_interaction_screen.dart';
+import '../widgets/design_kit.dart';
 
 class StageClientsScreen extends StatefulWidget {
   final int stageId;
@@ -157,14 +158,13 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
   // ===================================
   @override
   Widget build(BuildContext context) {
-    final stageColor = _hexToColor(widget.stageColor);
-
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.background(_isDark),
         appBar: AppBar(
-          backgroundColor: _isDark ? AppColors.navy : stageColor,
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
           title: Column(
@@ -194,7 +194,7 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
             _buildFollowUpFilter(),
             Expanded(
               child: _isLoading
-                  ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+                  ? const AppLoading()
                   : _opportunities.isEmpty
                       ? _buildEmptyView()
                       : RefreshIndicator(
@@ -279,9 +279,9 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
   Widget _buildFollowUpFilter() {
     final filters = [
       {'label': 'الكل', 'value': null},
-      {'label': 'متأخر', 'value': 'Overdue', 'color': Colors.red},
-      {'label': 'اليوم', 'value': 'Today', 'color': Colors.orange},
-      {'label': 'قادم', 'value': 'Upcoming', 'color': Colors.green},
+      {'label': 'متأخر', 'value': 'Overdue', 'color': AppColors.error},
+      {'label': 'اليوم', 'value': 'Today', 'color': AppColors.warning},
+      {'label': 'قادم', 'value': 'Upcoming', 'color': AppColors.success},
     ];
 
     return Container(
@@ -351,22 +351,22 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
     IconData statusIcon;
     switch (followUpStatus) {
       case 'Overdue':
-        statusColor = Colors.red;
+        statusColor = AppColors.error;
         statusText = 'متأخر';
         statusIcon = Icons.warning_amber_rounded;
         break;
       case 'Today':
-        statusColor = Colors.orange;
+        statusColor = AppColors.warning;
         statusText = 'اليوم';
         statusIcon = Icons.today_rounded;
         break;
       case 'Tomorrow':
-        statusColor = Colors.blue;
+        statusColor = AppColors.info;
         statusText = 'غداً';
         statusIcon = Icons.event_rounded;
         break;
       case 'Upcoming':
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusText = 'قادم';
         statusIcon = Icons.upcoming_rounded;
         break;
@@ -396,12 +396,12 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
           color: AppColors.card(_isDark),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: statusColor.withOpacity(_isDark ? 0.3 : 0.15),
+            color: statusColor.withValues(alpha: _isDark ? 0.3 : 0.15),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(_isDark ? 0.3 : 0.04),
+              color: Colors.black.withValues(alpha: _isDark ? 0.3 : 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -415,7 +415,7 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: statusColor.withOpacity(_isDark ? 0.2 : 0.1),
+                  backgroundColor: statusColor.withValues(alpha: _isDark ? 0.2 : 0.1),
                   child: Text(
                     clientName.isNotEmpty ? clientName[0] : '?',
                     style: GoogleFonts.cairo(
@@ -457,28 +457,11 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(_isDark ? 0.2 : 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, size: 12, color: statusColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: GoogleFonts.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
+                StatusBadge(
+                  label: statusText,
+                  color: statusColor,
+                  icon: statusIcon,
+                  small: true,
                 ),
               ],
             ),
@@ -507,14 +490,14 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
                   ),
                   const SizedBox(width: 8),
                   _buildActionButton(
-                    icon: Icons.phone_rounded,
-                    color: const Color(0xFF27AE60),
+                    icon: Icons.call_rounded,
+                    color: AppColors.success,
                     onTap: () => _makeCall(phone1),
                   ),
                   const SizedBox(width: 8),
                   _buildActionButton(
                     icon: FontAwesomeIcons.whatsapp,
-                    color: const Color(0xFF25D366),
+                    color: AppColors.whatsapp,
                     onTap: () => _openWhatsApp(phone1),
                   ),
                 ],
@@ -582,9 +565,9 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(_isDark ? 0.2 : 0.1),
+          color: color.withValues(alpha: _isDark ? 0.2 : 0.1),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: compatIcon(icon, size: 18, color: color),
       ),
@@ -599,7 +582,7 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: chipColor.withOpacity(_isDark ? 0.15 : 0.08),
+        color: chipColor.withValues(alpha: _isDark ? 0.15 : 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -620,21 +603,9 @@ class _StageClientsScreenState extends State<StageClientsScreen> {
   // 📭 شاشة فارغة
   // ===================================
   Widget _buildEmptyView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_rounded, size: 80, color: AppColors.textHint(_isDark)),
-          const SizedBox(height: 16),
-          Text(
-            'لا يوجد عملاء في هذه المرحلة',
-            style: GoogleFonts.cairo(
-              fontSize: 16,
-              color: AppColors.textSecondary(_isDark),
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      icon: Icons.inbox_rounded,
+      message: 'لا يوجد عملاء في هذه المرحلة',
     );
   }
 

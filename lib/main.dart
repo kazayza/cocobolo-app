@@ -5,17 +5,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
-//import 'screens/home_screen.dart';
 import 'features/home/home_screen_v2.dart';
 import 'services/notification_service.dart';
 import 'services/profile_avatar_service.dart';
 import 'services/theme_service.dart';
 import 'services/app_colors.dart';
+import 'services/design_tokens.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/add_expense_screen.dart';
 import 'screens/products_screen.dart';
@@ -251,20 +250,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
         return MaterialApp(
           navigatorKey: navigatorKey,
+          navigatorObservers: [appRouteObserver],
           title: 'COCOBOLO',
           debugShowCheckedModeBanner: false,
           // ── الثيمات: نهاري + ليلي + وضع تلقائي حسب الاختيار ──
+          // عائلة الخط من اختيار المستخدم (ThemeService.fontFamily)
           theme: themeService.lightTheme.copyWith(
-            textTheme: GoogleFonts.cairoTextTheme(
+            textTheme: AppTextTheme.textThemeFor(
+              themeService.fontFamily,
               themeService.lightTheme.textTheme,
             ),
           ),
           darkTheme: themeService.darkTheme.copyWith(
-            textTheme: GoogleFonts.cairoTextTheme(
+            textTheme: AppTextTheme.textThemeFor(
+              themeService.fontFamily,
               themeService.darkTheme.textTheme,
             ),
           ),
           themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          // ── حجم الخط من اختيار المستخدم: معامل قياس على التطبيق كله ──
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                textScaler: TextScaler.linear(themeService.fontScale),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           // ═══ إضافة اللغة العربية ═══
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,

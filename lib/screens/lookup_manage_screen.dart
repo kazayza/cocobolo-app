@@ -6,8 +6,11 @@ import 'dart:convert';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import '../services/permission_service.dart';
+import '../core/auth/session_service.dart';
 
 // ===================================
 // 📦 Config Model
@@ -82,7 +85,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/lookups/${widget.config.apiPath}'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         setState(() {
           _items = jsonDecode(res.body);
@@ -112,7 +115,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
 
       final res = await http.post(
         Uri.parse('$baseUrl/api/lookups/${widget.config.apiPath}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -143,7 +146,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
 
       final res = await http.put(
         Uri.parse('$baseUrl/api/lookups/${widget.config.apiPath}/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
@@ -169,10 +172,10 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
         textDirection: ui.TextDirection.rtl,
         child: AlertDialog(
           backgroundColor: AppColors.card(_isDark),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.lg)),
           title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
               const SizedBox(width: 8),
               Text('تأكيد الحذف', style: GoogleFonts.cairo(color: AppColors.text(_isDark))),
             ],
@@ -189,7 +192,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: Text('حذف', style: GoogleFonts.cairo(color: Colors.white)),
@@ -204,7 +207,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
     try {
       final res = await http.delete(
         Uri.parse('$baseUrl/api/lookups/${widget.config.apiPath}/$id'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       final data = jsonDecode(res.body);
       if (data['success'] == true) {
@@ -228,7 +231,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
     final iconController = TextEditingController(text: item?['icon'] ?? '');
     Color selectedColor = item?['color'] != null 
         ? _hexToColor(item!['color']) 
-        : const Color(0xFF3498DB); 
+        : AppColors.info; 
 
     showDialog(
       context: context,
@@ -324,7 +327,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
                                       boxShadow: [
                                         if (selectedColor == color)
                                           BoxShadow(
-                                            color: color.withOpacity(0.4),
+                                            color: color.withValues(alpha: 0.4),
                                             blurRadius: 8,
                                             spreadRadius: 2,
                                           ),
@@ -406,15 +409,15 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
       filled: true,
       fillColor: AppColors.inputFill(_isDark),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         borderSide: BorderSide(color: widget.config.color, width: 2),
       ),
     );
@@ -434,12 +437,10 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background(_isDark),
         appBar: AppBar(
-          backgroundColor: _isDark ? AppColors.navy : Colors.white,
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
-          iconTheme: IconThemeData(
-            color: _isDark ? Colors.white : AppColors.navy,
-          ),
           title: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -450,15 +451,14 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
                 style: GoogleFonts.cairo(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: _isDark ? Colors.white : AppColors.navy,
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
           actions: [
             IconButton(
-              icon: Icon(Icons.refresh_rounded,
-                  color: _isDark ? Colors.white : AppColors.navy),
+              icon: const Icon(Icons.refresh_rounded),
               onPressed: _loadData,
             ),
           ],
@@ -466,19 +466,20 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
         floatingActionButton: canAdd
             ? FloatingActionButton.extended(
                 onPressed: () => _showFormDialog(),
-                backgroundColor: widget.config.color,
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.navy,
+                icon: const Icon(Icons.add_rounded, color: AppColors.navy),
                 label: Text(
                   'إضافة',
                   style: GoogleFonts.cairo(
-                    color: Colors.white,
+                    color: AppColors.navy,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ).animate().fadeIn(delay: 300.ms).scale()
             : null,
         body: _isLoading
-            ? Center(child: CircularProgressIndicator(color: widget.config.color))
+            ? const AppLoading()
             : _items.isEmpty
                 ? _buildEmptyView()
                 : RefreshIndicator(
@@ -522,13 +523,13 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card(_isDark),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(
-          color: itemColor.withOpacity(0.3),
+          color: itemColor.withValues(alpha: 0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.3 : 0.04),
+            color: Colors.black.withValues(alpha: _isDark ? 0.3 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -541,8 +542,8 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: itemColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+              color: itemColor.withValues(alpha: 0.2),
+              borderRadius: AppRadius.all(AppRadius.sm),
             ),
             child: Center(
               child: icon != null && icon.toString().isNotEmpty
@@ -595,7 +596,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
           if (canDelete)
             IconButton(
               icon: const Icon(Icons.delete_rounded,
-                  color: Colors.red, size: 20),
+                  color: AppColors.error, size: 20),
               onPressed: () => _deleteItem(item['id'], nameAr),
               tooltip: 'حذف',
             ),
@@ -611,7 +612,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
         children: [
           Icon(widget.config.icon,
               size: 80,
-              color: widget.config.color.withOpacity(0.3)),
+              color: widget.config.color.withValues(alpha: 0.3)),
           const SizedBox(height: 16),
           Text(
             'لا توجد بيانات',
@@ -632,7 +633,7 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: widget.config.color),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                 ),
               ),
             ),
@@ -652,9 +653,9 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.sm)),
       ),
     );
   }
@@ -669,9 +670,9 @@ class _LookupManageScreenState extends State<LookupManageScreen> {
             Expanded(child: Text(message, style: GoogleFonts.cairo())),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.all(AppRadius.sm)),
       ),
     );
   }

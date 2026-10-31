@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
+import '../../../widgets/design_kit.dart';
 import '../../../models/dashboard_model.dart';
 
 class CrmStoryCards extends StatefulWidget {
@@ -201,14 +203,10 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
           Center(
             child: Column(
               children: [
-                Text(
-                  _formatCurrency(kpi.currentActualRevenue),
-                  style: GoogleFonts.cairo(
-                    color: Colors.white,
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
-                    height: 1,
-                  ),
+                AmountText(
+                  value: _formatCurrency(kpi.currentActualRevenue),
+                  size: 38,
+                  color: Colors.white,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -491,10 +489,10 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
       child: Column(
@@ -534,7 +532,7 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.all(AppRadius.sm),
         border: Border.all(
           color: Colors.white.withOpacity(0.15),
           width: 0.5,
@@ -630,7 +628,7 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: AppRadius.all(AppRadius.xxxl),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
@@ -641,7 +639,7 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
                 end: Alignment.bottomRight,
                 colors: colors,
               ),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: AppRadius.all(AppRadius.xxxl),
               border: Border.all(
                 color: Colors.white.withOpacity(widget.isDark ? 0.15 : 0.25),
                 width: 1,
@@ -723,7 +721,7 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.all(AppRadius.md),
         border: Border.all(
           color: Colors.white.withOpacity(0.08),
         ),
@@ -787,8 +785,8 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: isGood
-            ? Colors.greenAccent.withOpacity(0.2)
-            : Colors.redAccent.withOpacity(0.2),
+            ? AppColors.successLight.withOpacity(0.2)
+            : AppColors.errorLight.withOpacity(0.2),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -796,14 +794,14 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
         children: [
           Icon(
             isPositive ? Icons.arrow_upward : Icons.arrow_downward,
-            color: isGood ? Colors.greenAccent : Colors.redAccent,
+            color: isGood ? AppColors.successLight : AppColors.errorLight,
             size: 12,
           ),
           const SizedBox(width: 2),
           Text(
             '${growth.abs().toStringAsFixed(0)}% عن السابق',
             style: GoogleFonts.cairo(
-              color: isGood ? Colors.greenAccent : Colors.redAccent,
+              color: isGood ? AppColors.successLight : AppColors.errorLight,
               fontSize: 10,
               fontWeight: FontWeight.bold,
             ),
@@ -824,13 +822,13 @@ class _CrmStoryCardsState extends State<CrmStoryCards> {
       children: [
         Icon(
           isPositive ? Icons.arrow_upward : Icons.arrow_downward,
-          color: isPositive ? Colors.greenAccent : Colors.redAccent,
+          color: isPositive ? AppColors.successLight : AppColors.errorLight,
           size: 10,
         ),
         Text(
           '${growth.abs().toStringAsFixed(0)}%',
           style: GoogleFonts.cairo(
-            color: isPositive ? Colors.greenAccent : Colors.redAccent,
+            color: isPositive ? AppColors.successLight : AppColors.errorLight,
             fontSize: 9,
             fontWeight: FontWeight.bold,
           ),

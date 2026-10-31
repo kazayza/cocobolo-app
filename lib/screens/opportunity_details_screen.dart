@@ -1,4 +1,5 @@
 import 'package:http/http.dart' as http;
+import '../services/app_colors.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,6 +16,9 @@ import '../services/icon_utils.dart';
 import '../services/opportunities_service.dart';
 import 'add_interaction_screen.dart';
 import 'add_opportunity_screen.dart';
+import '../core/auth/session_service.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 
 class OpportunityDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> opportunity;
@@ -89,7 +93,7 @@ class _OpportunityDetailsScreenState extends State<OpportunityDetailsScreen> {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/${currentOpp['OpportunityID']}'),
-      );
+       headers: SessionService.instance.authHeaders,);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data != null && mounted) {
@@ -225,7 +229,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
             Text('تم نسخ: $text', style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -237,21 +241,21 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   // ══════════════════════════════════════
 
   Color _getStageColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) return Colors.grey;
+    if (colorHex == null || colorHex.isEmpty) return AppColors.neutral;
     try {
       return Color(
           int.parse(colorHex.replaceFirst('#', '0xFF')));
     } catch (e) {
-      return Colors.grey;
+      return AppColors.neutral;
     }
   }
 
   Color _getStatusColor(String? status) {
     final s = (status ?? '').toLowerCase();
-    if (s.contains('مكتمل') || s.contains('closed')) return Colors.green;
-    if (s.contains('معلق') || s.contains('pending')) return Colors.orange;
-    if (s.contains('ملغي') || s.contains('cancelled')) return Colors.red;
-    return Colors.blue;
+    if (s.contains('مكتمل') || s.contains('closed')) return AppColors.success;
+    if (s.contains('معلق') || s.contains('pending')) return AppColors.warning;
+    if (s.contains('ملغي') || s.contains('cancelled')) return AppColors.error;
+    return AppColors.info;
   }
 
   // ══════════════════════════════════════
@@ -262,28 +266,89 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   Widget build(BuildContext context) {
     if (!_dateFormattingInitialized) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                  color: Color(0xFFFFD700)),
-              const SizedBox(height: 20),
-              Text('جاري التحميل...',
-                  style: GoogleFonts.cairo(color: Colors.white)),
-            ],
-          ),
-        ),
+        body: const AppLoading(message: 'جاري التحميل...'),
       );
     }
 
     Color stageColor = _isLost
-        ? Colors.red
+        ? AppColors.error
         : _getStageColor(currentOpp['StageColor']);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context, true),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.18),
+                borderRadius: AppRadius.all(AppRadius.sm),
+              ),
+              child: Icon(Icons.trending_up_rounded,
+                  color: AppColors.gold, size: 18),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'تفاصيل الفرصة',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    currentOpp['ClientName'] ?? 'بدون اسم',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.share_rounded, color: AppColors.gold),
+            onPressed: _shareOpportunity,
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, color: Colors.white),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddOpportunityScreen(
+                    userId: widget.userId,
+                    username: widget.username,
+                    opportunityToEdit: currentOpp,
+                  ),
+                ),
+              );
+              if (result == true) {
+                await _refreshOpportunityData();
+                await _loadTimeline();
+              }
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _buildEnhancedHeader(stageColor),
@@ -325,240 +390,272 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
       } catch (_) {}
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            stageColor.withOpacity(0.3),
-            const Color(0xFF1A1A1A),
+    final stageLabel =
+        currentOpp['StageNameAr'] ?? currentOpp['StageName'] ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppGradients.identityCard,
+          ),
+          borderRadius: AppRadius.all(AppRadius.xxl),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.navy.withValues(alpha: 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(25),
-          bottomRight: Radius.circular(25),
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── الصف العلوي ──
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── المرحلة + مدة الفتح ──
+            Row(
+              children: [
+                StatusBadge(
+                  label: stageLabel,
+                  color: stageColor,
+                  filled: true,
+                ),
+                const Spacer(),
+                if (daysOpen.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: AppRadius.all(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule_rounded,
+                            color: Colors.white70, size: 11),
+                        const SizedBox(width: 6),
+                        Text(
+                          'مفتوحة $daysOpen',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // ── معلومات العميل + القيمة المتوقعة ──
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        stageColor,
+                        stageColor.withValues(alpha: 0.55),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: _isLost
+                        ? const FaFaIcon(FontAwesomeIcons.xmark,
+                            color: Colors.white, size: 20)
+                        : Text(
+                            _getInitials(currentOpp['ClientName'] ?? 'CL'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currentOpp['ClientName'] ?? 'بدون اسم',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textDirection: ui.TextDirection.rtl,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'القيمة المتوقعة',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      AmountText(
+                        value: '${currentOpp['ExpectedValue'] ?? '0'} ج.م',
+                        size: 22,
+                        color: AppColors.gold,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // ── أزرار التواصل ──
+            Row(
+              children: [
+                const Icon(Icons.call_rounded,
+                    size: 12, color: Colors.white70),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    currentOpp['Phone1'] ?? '',
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 11.5),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                AppIconChip(
+                  icon: Icons.call_rounded,
+                  color: AppColors.success,
+                  tooltip: 'اتصال',
+                  onTap: () => _makePhoneCall(currentOpp['Phone1']),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                WhatsAppChip(
+                  onTap: () => _openWhatsApp(currentOpp['Phone1']),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                AppIconChip(
+                  icon: Icons.copy_rounded,
+                  color: Colors.white,
+                  tooltip: 'نسخ الرقم',
+                  onTap: () => _copyToClipboard(currentOpp['Phone1']),
+                ),
+              ],
+            ),
+            if (_hasValue(currentOpp['Phone2'])) ...[
+              const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
-                  _buildHeaderButton(
-                    icon: Icons.arrow_back_ios,
-                    color: Colors.white,
-                    onTap: () => Navigator.pop(context, true),
-                  ),
-                  const Spacer(),
-                  if (daysOpen.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const FaFaIcon(FontAwesomeIcons.clock,
-                              color: Colors.grey, size: 11),
-                          const SizedBox(width: 6),
-                          Text(
-                            'مفتوحة $daysOpen',
-                            style: GoogleFonts.cairo(
-                                color: Colors.grey[300], fontSize: 11),
-                          ),
-                        ],
-                      ),
+                  const Icon(Icons.call_rounded,
+                      size: 12, color: Colors.white70),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      currentOpp['Phone2'].toString(),
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 11.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  const SizedBox(width: 8),
-                  _buildHeaderButton(
-                    icon: Icons.share,
-                    color: const Color(0xFFFFD700),
-                    onTap: _shareOpportunity,
                   ),
-                  const SizedBox(width: 8),
-                  // ✅ زر التعديل - يحدث البيانات بدل ما يقفل الشاشة
-                  _buildHeaderButton(
-                    icon: FontAwesomeIcons.penToSquare,
-                    color: Colors.blue,
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddOpportunityScreen(
-                            userId: widget.userId,
-                            username: widget.username,
-                            opportunityToEdit: currentOpp,
-                          ),
-                        ),
-                      );
-                      if (result == true) {
-                        await _refreshOpportunityData();
-                        await _loadTimeline();
-                      }
-                    },
+                  AppIconChip(
+                    icon: Icons.call_rounded,
+                    color: AppColors.info,
+                    tooltip: 'اتصال',
+                    onTap: () => _makePhoneCall(currentOpp['Phone2']),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  AppIconChip(
+                    icon: Icons.copy_rounded,
+                    color: Colors.white,
+                    tooltip: 'نسخ الرقم',
+                    onTap: () => _copyToClipboard(currentOpp['Phone2']),
                   ),
                 ],
               ),
+            ],
 
-              const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.md),
 
-              // ── معلومات العميل ──
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
+            // ── المصدر + الحملة ──
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          _isLost ? Colors.red : _getStageColor(currentOpp['StageColor']),
-                          (_isLost ? Colors.red : _getStageColor(currentOpp['StageColor']))
-                              .withOpacity(0.5),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                     ),
-                    child: Center(
-                      child: _isLost
-                          ? const FaFaIcon(FontAwesomeIcons.xmark,
-                              color: Colors.white, size: 20)
-                          : Text(
-                              _getInitials(
-                                  currentOpp['ClientName'] ?? 'CL'),
-                              style: GoogleFonts.cairo(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          currentOpp['ClientName'] ?? 'بدون اسم',
-                          style: GoogleFonts.cairo(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textDirection: ui.TextDirection.rtl,
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (_isLost ? Colors.red : _getStageColor(currentOpp['StageColor']))
-                                .withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: (_isLost ? Colors.red : _getStageColor(currentOpp['StageColor']))
-                                  .withOpacity(0.5),
-                            ),
-                          ),
+                        _buildSourceIcon(currentOpp['SourceNameAr'] ??
+                            currentOpp['SourceName']),
+                        const SizedBox(width: 6),
+                        Text('المصدر: ',
+                            style: TextStyle(
+                                color:
+                                    Colors.white.withValues(alpha: 0.6),
+                                fontSize: 10)),
+                        Flexible(
                           child: Text(
-                            currentOpp['StageNameAr'] ??
-                                currentOpp['StageName'] ??
-                                '',
-                            style: GoogleFonts.cairo(
-                              color: _isLost
-                                  ? Colors.red
-                                  : _getStageColor(currentOpp['StageColor']),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            currentOpp['SourceNameAr'] ??
+                                currentOpp['SourceName'] ??
+                                '-',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── أزرار التواصل ──
-              Row(
-                children: [
-                  _buildMiniContactButton(
-                    icon: FontAwesomeIcons.phone,
-                    label: currentOpp['Phone1'] ?? '',
-                    color: Colors.green,
-                    onTap: () =>
-                        _makePhoneCall(currentOpp['Phone1']),
-                    onLongPress: () =>
-                        _copyToClipboard(currentOpp['Phone1']),
-                  ),
-                  if (_hasValue(currentOpp['Phone2'])) ...[
-                    const SizedBox(width: 6),
-                    _buildMiniContactButton(
-                      icon: FontAwesomeIcons.phone,
-                      label: currentOpp['Phone2'].toString(),
-                      color: Colors.blue,
-                      onTap: () =>
-                          _makePhoneCall(currentOpp['Phone2']),
-                      onLongPress: () =>
-                          _copyToClipboard(currentOpp['Phone2']),
-                    ),
-                  ],
-                  const SizedBox(width: 6),
-                  _buildMiniContactButton(
-                    icon: FontAwesomeIcons.whatsapp,
-                    label: 'واتساب',
-                    color: const Color(0xFF25D366),
-                    onTap: () =>
-                        _openWhatsApp(currentOpp['Phone1']),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // ── المصدر + الحملة ──
-              Row(
-                children: [
+                ),
+                if (_hasValue(currentOpp['AdTypeNameAr']) ||
+                    _hasValue(currentOpp['AdTypeName'])) ...[
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(10),
+                        color:
+                            AppStatus.editPending.withValues(alpha: 0.18),
+                        borderRadius: AppRadius.all(AppRadius.sm),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildSourceIcon(
-                              currentOpp['SourceNameAr'] ??
-                                  currentOpp['SourceName']),
+                          Icon(Icons.campaign_rounded,
+                              color: AppStatus.editPending, size: 11),
                           const SizedBox(width: 6),
-                          Text('المصدر: ',
-                              style: GoogleFonts.cairo(
-                                  color: Colors.grey[600],
+                          Text('الحملة: ',
+                              style: TextStyle(
+                                  color:
+                                      Colors.white.withValues(alpha: 0.6),
                                   fontSize: 10)),
                           Flexible(
                             child: Text(
-                              currentOpp['SourceNameAr'] ??
-                                  currentOpp['SourceName'] ??
+                              currentOpp['AdTypeNameAr'] ??
+                                  currentOpp['AdTypeName'] ??
                                   '-',
-                              style: GoogleFonts.cairo(
-                                  color: Colors.grey[300],
-                                  fontSize: 11),
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 11),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -567,48 +664,10 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                       ),
                     ),
                   ),
-                  if (_hasValue(currentOpp['AdTypeNameAr']) ||
-                      _hasValue(currentOpp['AdTypeName'])) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const FaFaIcon(FontAwesomeIcons.bullhorn,
-                                color: Colors.purple, size: 11),
-                            const SizedBox(width: 6),
-                            Text('الحملة: ',
-                                style: GoogleFonts.cairo(
-                                    color: Colors.grey[600],
-                                    fontSize: 10)),
-                            Flexible(
-                              child: Text(
-                                currentOpp['AdTypeNameAr'] ??
-                                    currentOpp['AdTypeName'] ??
-                                    '-',
-                                style: GoogleFonts.cairo(
-                                    color: Colors.purple[300],
-                                    fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -619,26 +678,9 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   // ══════════════════════════════════════
 
   Widget _buildLossBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF3D1515),
-            const Color(0xFF2A0E0E),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withOpacity(0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    final theme = Theme.of(context);
+    return AppCard(
+      color: AppColors.error.withValues(alpha: 0.07),
       child: Column(
         children: [
           // العنوان
@@ -647,46 +689,48 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.25),
+                  color: AppColors.error.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.cancel_rounded,
-                    color: Colors.red[300], size: 24),
+                    color: AppColors.error, size: 24),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'تم خسارة هذه الفرصة',
-                    style: GoogleFonts.cairo(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red[300],
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'تم خسارة هذه الفرصة',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.error,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'الفرصة مغلقة ولم تتحول لصفقة',
-                    style: GoogleFonts.cairo(
-                      fontSize: 12,
-                      color: Colors.red[200]?.withOpacity(0.7),
+                    Text(
+                      'الفرصة مغلقة ولم تتحول لصفقة',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
 
           // سبب الخسارة
           if (_lossReason.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.md),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
+                color: AppColors.error.withValues(alpha: 0.06),
+                borderRadius: AppRadius.all(AppRadius.md),
+                border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,14 +738,14 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   Row(
                     children: [
                       Icon(Icons.info_outline_rounded,
-                          size: 16, color: Colors.red[300]),
+                          size: 16, color: AppColors.error),
                       const SizedBox(width: 6),
                       Text(
                         'سبب الخسارة:',
-                        style: GoogleFonts.cairo(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Colors.red[300],
+                          color: AppColors.error,
                         ),
                       ),
                     ],
@@ -709,9 +753,9 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   const SizedBox(height: 4),
                   Text(
                     _lossReason,
-                    style: GoogleFonts.cairo(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.red[200],
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -722,39 +766,40 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
           // ملاحظات الخسارة
           if (_lossNotes.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                color: AppColors.warning.withValues(alpha: 0.07),
+                borderRadius: AppRadius.all(AppRadius.md),
+                border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.2)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.notes_rounded,
-                      size: 16, color: Colors.orange[300]),
-                  const SizedBox(width: 8),
+                      size: 16, color: AppColors.warning),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'تفاصيل الخسارة:',
-                          style: GoogleFonts.cairo(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange[300],
+                            color: AppColors.warning,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           _lossNotes,
-                          style: GoogleFonts.cairo(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Colors.orange[200],
+                            color: theme.colorScheme.onSurface,
                             height: 1.5,
                           ),
                         ),
@@ -768,27 +813,28 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
           // لو مفيش سبب
           if (_lossReason.isEmpty && _lossNotes.isEmpty) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: AppRadius.all(AppRadius.sm),
+                border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
                   Icon(Icons.warning_amber_rounded,
-                      size: 16, color: Colors.orange[400]),
-                  const SizedBox(width: 8),
+                      size: 16, color: AppColors.warning),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'لم يتم تسجيل سبب الخسارة',
-                      style: GoogleFonts.cairo(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.orange[400],
+                        color: AppColors.warning,
                       ),
                     ),
                   ),
@@ -814,44 +860,42 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     dynamic warningIcon;
 
     if (days >= 30) {
-      warningColor = Colors.red;
+      warningColor = AppColors.error;
       warningText = '⚠️ لم يتم التواصل منذ $days يوم!';
       warningIcon = FontAwesomeIcons.triangleExclamation;
     } else if (days >= 14) {
-      warningColor = Colors.orange;
+      warningColor = AppColors.warning;
       warningText = '⏰ لم يتم التواصل منذ $days يوم';
       warningIcon = FontAwesomeIcons.clockRotateLeft;
     } else {
-      warningColor = Colors.amber;
+      warningColor = AppStatus.overdue;
       warningText = '📌 آخر تواصل من $days أيام';
       warningIcon = FontAwesomeIcons.bell;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: warningColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: warningColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          compatIcon(warningIcon, color: warningColor, size: 16),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              warningText,
-              style: GoogleFonts.cairo(
-                color: warningColor,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        color: warningColor.withValues(alpha: 0.08),
+        child: Row(
+          children: [
+            compatIcon(warningIcon, color: warningColor, size: 16),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                warningText,
+                style: TextStyle(
+                  color: warningColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn().slideX(begin: 0.05);
+          ],
+        ),
+      ).animate().fadeIn().slideX(begin: 0.05),
+    );
   }
 
   // ══════════════════════════════════════
@@ -864,58 +908,50 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
     Color barColor;
     if (percentage >= 0.8) {
-      barColor = Colors.green;
+      barColor = AppColors.success;
     } else if (percentage >= 0.5) {
-      barColor = Colors.orange;
+      barColor = AppColors.warning;
     } else {
-      barColor = Colors.red;
+      barColor = AppColors.error;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              FaFaIcon(FontAwesomeIcons.chartPie,
-                  color: barColor, size: 14),
-              const SizedBox(width: 8),
-              Text(
-                'اكتمال البيانات',
-                style: GoogleFonts.cairo(
-                    color: Colors.grey, fontSize: 12),
-              ),
-              const Spacer(),
-              Text(
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppSectionHeader(
+              title: 'اكتمال البيانات',
+              icon: Icons.pie_chart_rounded,
+              accent: barColor,
+              trailing: Text(
                 '$percentInt%',
-                style: GoogleFonts.cairo(
+                style: TextStyle(
                   color: barColor,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.white.withOpacity(0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-              minHeight: 6,
             ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: 200.ms);
+            const SizedBox(height: AppSpacing.sm),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: percentage,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                minHeight: 6,
+              ),
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: 200.ms),
+    );
   }
 
   // ══════════════════════════════════════
@@ -925,7 +961,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   Widget _buildDetailsTab() {
     // حالة المتابعة
     String followUpText = 'غير محدد';
-    Color followUpColor = Colors.grey;
+    Color followUpColor = AppColors.neutral;
     dynamic followUpIcon = FontAwesomeIcons.calendar;
 
     if (currentOpp['NextFollowUpDate'] != null) {
@@ -944,19 +980,19 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         if (difference < 0) {
           followUpText =
               'متأخرة من ${difference.abs()} يوم ($dateStr)';
-          followUpColor = Colors.red;
+          followUpColor = AppColors.error;
           followUpIcon = FontAwesomeIcons.triangleExclamation;
         } else if (difference == 0) {
           followUpText = 'اليوم $dateStr';
-          followUpColor = Colors.orange;
+          followUpColor = AppColors.warning;
           followUpIcon = FontAwesomeIcons.bell;
         } else if (difference == 1) {
           followUpText = 'غداً $dateStr';
-          followUpColor = Colors.blue;
+          followUpColor = AppColors.info;
           followUpIcon = FontAwesomeIcons.clock;
         } else {
           followUpText = 'بعد $difference يوم ($dateStr)';
-          followUpColor = Colors.green;
+          followUpColor = AppColors.success;
           followUpIcon = FontAwesomeIcons.calendarCheck;
         }
       } catch (_) {}
@@ -986,14 +1022,14 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ✅ بانر الخسارة
           if (_isLost) ...[
             _buildLossBanner(),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
           ],
 
           // ✅ تنبيه بدون تواصل
@@ -1005,55 +1041,56 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
           // الإحصائيات
           Row(
             children: [
-              _buildStatCard(
-                value: '${currentOpp['ExpectedValue'] ?? '0'}',
-                label: 'القيمة المتوقعة',
-                icon: FontAwesomeIcons.coins,
-                color: const Color(0xFFFFD700),
+              Expanded(
+                child: AppStatCard(
+                  value: '${currentOpp['ExpectedValue'] ?? '0'}',
+                  label: 'القيمة المتوقعة',
+                  icon: Icons.payments_rounded,
+                  color: AppColors.gold,
+                ),
               ),
-              const SizedBox(width: 10),
-              _buildStatCard(
-                value: timeline.length.toString(),
-                label: 'التواصلات',
-                icon: FontAwesomeIcons.comments,
-                color: Colors.blue,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: AppStatCard(
+                  value: timeline.length.toString(),
+                  label: 'التواصلات',
+                  icon: Icons.forum_rounded,
+                  color: AppColors.info,
+                ),
               ),
-              const SizedBox(width: 10),
-              _buildStatCard(
-                value: currentOpp['FirstContactDate'] != null
-                    ? '${DateTime.parse(currentOpp['FirstContactDate']).day}/${DateTime.parse(currentOpp['FirstContactDate']).month}/${DateTime.parse(currentOpp['FirstContactDate']).year}'
-                    : '-',
-                label: 'أول تواصل',
-                icon: FontAwesomeIcons.calendarPlus,
-                color: Colors.cyan,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: AppStatCard(
+                  value: currentOpp['FirstContactDate'] != null
+                      ? '${DateTime.parse(currentOpp['FirstContactDate']).day}/${DateTime.parse(currentOpp['FirstContactDate']).month}/${DateTime.parse(currentOpp['FirstContactDate']).year}'
+                      : '-',
+                  label: 'أول تواصل',
+                  icon: Icons.event_available_rounded,
+                  color: AppColors.infoLight,
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
 
           // موعد المتابعة
           if (!_isLost)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: followUpColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: followUpColor.withOpacity(0.3)),
-              ),
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              color: followUpColor.withValues(alpha: 0.08),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: followUpColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
+                      color: followUpColor.withValues(alpha: 0.15),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                     ),
                     child: compatIcon(followUpIcon,
                         color: followUpColor, size: 18),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -1061,14 +1098,13 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                       children: [
                         Text(
                           'موعد المتابعة القادمة',
-                          style: GoogleFonts.cairo(
-                              color: followUpColor,
-                              fontSize: 12),
+                          style: TextStyle(
+                              color: followUpColor, fontSize: 12),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           followUpText,
-                          style: GoogleFonts.cairo(
+                          style: TextStyle(
                             color: followUpColor,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -1081,31 +1117,26 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
               ),
             ),
 
-          if (!_isLost) const SizedBox(height: 12),
+          if (!_isLost) const SizedBox(height: AppSpacing.md),
 
           // آخر تواصل
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.amber.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: Colors.amber.withOpacity(0.3)),
-            ),
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            color: AppColors.warning.withValues(alpha: 0.08),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.warning.withValues(alpha: 0.15),
+                    borderRadius: AppRadius.all(AppRadius.sm),
                   ),
-                  child: const FaIcon(
+                  child: FaIcon(
                       FontAwesomeIcons.clockRotateLeft,
-                      color: Colors.amber,
+                      color: AppColors.warning,
                       size: 18),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -1113,15 +1144,14 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                     children: [
                       Text(
                         'آخر تواصل',
-                        style: GoogleFonts.cairo(
-                            color: Colors.amber,
-                            fontSize: 12),
+                        style: TextStyle(
+                            color: AppColors.warning, fontSize: 12),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         lastContactText,
-                        style: GoogleFonts.cairo(
-                          color: Colors.amber,
+                        style: TextStyle(
+                          color: AppColors.warning,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1133,7 +1163,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
 
           // ✅ بيانات العميل (عنوان + إيميل)
           if (_hasValue(currentOpp['Address']) ||
@@ -1157,7 +1187,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
           if (_hasValue(currentOpp['Address']) ||
               _hasValue(currentOpp['Email']))
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.xl),
 
           // معلومات الفرصة
           _buildDetailSection(
@@ -1176,14 +1206,14 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   'فئة الاهتمام',
                   currentOpp['CategoryNameAr'] ?? '-',
                   FontAwesomeIcons.tags),
-              _buildDetailRow(
+              _buildAmountDetailRow(
                   'القيمة المتوقعة',
                   '${currentOpp['ExpectedValue'] ?? '0'} ج.م',
                   FontAwesomeIcons.coins),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
 
           // الحالة
           _buildDetailSection(
@@ -1194,7 +1224,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   'المرحلة',
                   currentOpp['StageNameAr'] ?? '-',
                   _isLost
-                      ? Colors.red
+                      ? AppColors.error
                       : _getStageColor(
                           currentOpp['StageColor'])),
               _buildStatusRow(
@@ -1209,26 +1239,26 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
 
           // ✅ الملاحظات
           if (_hasValue(currentOpp['Notes']))
             _buildNotesCard(
               title: 'ملخص التواصل',
               icon: FontAwesomeIcons.commentDots,
-              color: Colors.amber,
+              color: AppColors.warning,
               text: currentOpp['Notes'],
             ),
 
           if (_hasValue(currentOpp['Notes']))
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
           // ✅ التوجيهات
           if (_hasValue(currentOpp['Guidance']))
             _buildNotesCard(
               title: 'توجيهات المتابعة',
               icon: FontAwesomeIcons.compass,
-              color: Colors.cyan,
+              color: AppColors.infoLight,
               text: currentOpp['Guidance'],
             ),
 
@@ -1243,45 +1273,30 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   // ══════════════════════════════════════
 
   Widget _buildActivitiesTab() {
-    return _isLoading
-        ? const Center(
-            child: CircularProgressIndicator(
-                color: Color(0xFFFFD700)))
-        : timeline.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FaIcon(FontAwesomeIcons.calendarXmark,
-                        size: 50,
-                        color: Colors.grey.withOpacity(0.5)),
-                    const SizedBox(height: 20),
-                    Text('لا يوجد سجل تواصل',
-                        style: GoogleFonts.cairo(
-                            color: Colors.grey, fontSize: 16)),
-                    const SizedBox(height: 10),
-                    Text('ابدأ بإضافة أول تواصل',
-                        style: GoogleFonts.cairo(
-                            color: Colors.grey, fontSize: 12)),
-                  ],
-                ),
-              )
-            : RefreshIndicator(
-                color: const Color(0xFFFFD700),
-                backgroundColor: const Color(0xFF1A1A1A),
-                onRefresh: _loadTimeline,
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(20),
-                  itemCount: timeline.length,
-                  itemBuilder: (context, index) =>
-                      _buildTimelineCard(
-                          timeline[index], index),
-                ),
-              );
+    if (_isLoading) return const AppLoading();
+    if (timeline.isEmpty) {
+      return AppEmpty(
+        message: 'لا يوجد سجل تواصل',
+        hint: 'ابدأ بإضافة أول تواصل',
+        icon: Icons.event_busy_rounded,
+        onRefresh: _loadTimeline,
+      );
+    }
+    return RefreshIndicator(
+      color: AppColors.gold,
+      onRefresh: _loadTimeline,
+      child: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        itemCount: timeline.length,
+        itemBuilder: (context, index) =>
+            _buildTimelineCard(timeline[index], index),
+      ),
+    );
   }
 
   Widget _buildTimelineCard(dynamic item, int index) {
+    final theme = Theme.of(context);
     final date = DateTime.parse(item['InteractionDate']);
     final bool hasStageChange = item['StageBefore'] != null &&
         item['StageAfter'] != null &&
@@ -1289,7 +1304,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
     String contactType = 'تواصل';
     dynamic contactIcon = FontAwesomeIcons.comment;
-    Color contactColor = Colors.blue;
+    Color contactColor = AppColors.info;
 
     final statusId = item['StatusID'];
     final statusNameAr = item['StatusNameAr'] ?? '';
@@ -1298,27 +1313,27 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
       case 1:
         contactType = 'أول تواصل';
         contactIcon = FontAwesomeIcons.starOfLife;
-        contactColor = Colors.cyan;
+        contactColor = AppColors.infoLight;
         break;
       case 2:
         contactType = 'تم الاتصال';
         contactIcon = FontAwesomeIcons.phoneVolume;
-        contactColor = Colors.green;
+        contactColor = AppColors.success;
         break;
       case 4:
         contactType = 'عميل قديم';
         contactIcon = FontAwesomeIcons.userClock;
-        contactColor = Colors.orange;
+        contactColor = AppColors.warning;
         break;
       case 5:
         contactType = 'زيارة المعرض';
         contactIcon = FontAwesomeIcons.store;
-        contactColor = const Color(0xFF9C27B0);
+        contactColor = AppStatus.editPending;
         break;
       case 6:
         contactType = 'رسالة واتساب';
         contactIcon = FontAwesomeIcons.commentDots;
-        contactColor = const Color(0xFF25D366);
+        contactColor = AppColors.whatsapp;
         break;
       default:
         contactType = statusNameAr.isNotEmpty
@@ -1360,7 +1375,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: contactColor.withOpacity(0.2),
+                    color: contactColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                     border: Border.all(
                         color: contactColor, width: 2),
@@ -1374,248 +1389,243 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
                   Expanded(
                     child: Container(
                       width: 2,
-                      color: Colors.grey.withOpacity(0.3),
+                      color: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.5),
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: Colors.white.withOpacity(0.1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // الهيدر
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: contactColor.withOpacity(0.05),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: AppCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // الهيدر
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color:
+                            contactColor.withValues(alpha: 0.06),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Container(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3),
+                              decoration: BoxDecoration(
+                                color: contactColor
+                                    .withValues(alpha: 0.15),
+                                borderRadius:
+                                    AppRadius.all(AppRadius.pill),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  compatIcon(contactIcon,
+                                      color: contactColor,
+                                      size: 10),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      isFirstInteraction
+                                          ? 'أول تواصل'
+                                          : contactType,
+                                      style: TextStyle(
+                                        color: contactColor,
+                                        fontSize: 10,
+                                        fontWeight:
+                                            FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
                             padding:
                                 const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 3),
                             decoration: BoxDecoration(
-                              color: contactColor
-                                  .withOpacity(0.15),
+                              color: theme
+                                  .colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
                               borderRadius:
-                                  BorderRadius.circular(10),
+                                  AppRadius.all(AppRadius.pill),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                compatIcon(contactIcon,
-                                    color: contactColor,
-                                    size: 10),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    isFirstInteraction
-                                        ? 'أول تواصل'
-                                        : contactType,
-                                    style: GoogleFonts.cairo(
-                                      color: contactColor,
-                                      fontSize: 10,
-                                      fontWeight:
-                                          FontWeight.bold,
-                                    ),
-                                    maxLines: 1,
-                                    overflow:
-                                        TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            child: compatIcon(sourceIcon,
+                                color: theme
+                                    .colorScheme.onSurfaceVariant,
+                                size: 10),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white
-                                .withOpacity(0.05),
-                            borderRadius:
-                                BorderRadius.circular(10),
+                          const Spacer(),
+                          Text(
+                            '${date.day}/${date.month}/${date.year}',
+                            style: TextStyle(
+                                color: theme
+                                    .colorScheme.onSurfaceVariant,
+                                fontSize: 10),
                           ),
-                          child: compatIcon(sourceIcon,
-                              color: Colors.grey, size: 10),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${date.day}/${date.month}/${date.year}',
-                          style: GoogleFonts.cairo(
-                              color: Colors.grey,
-                              fontSize: 10),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // المحتوى
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const FaIcon(
-                                FontAwesomeIcons.userTie,
-                                color: Color(0xFFFFD700),
-                                size: 11),
-                            const SizedBox(width: 6),
+                    // المحتوى
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              FaIcon(
+                                  FontAwesomeIcons.userTie,
+                                  color: AppColors.gold,
+                                  size: 11),
+                              const SizedBox(width: 6),
+                              Text(
+                                item['EmployeeName'] ??
+                                    'النظام',
+                                style: TextStyle(
+                                    color: AppColors.gold,
+                                    fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          if (_hasValue(item['Summary']))
                             Text(
-                              item['EmployeeName'] ??
-                                  'النظام',
-                              style: GoogleFonts.cairo(
+                              item['Summary'],
+                              style: TextStyle(
                                   color:
-                                      const Color(0xFFFFD700),
-                                  fontSize: 12),
+                                      theme.colorScheme.onSurface,
+                                  fontSize: 13),
+                            ),
+                          if (hasStageChange) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Container(
+                              padding:
+                                  const EdgeInsets.all(AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.info
+                                    .withValues(alpha: 0.08),
+                                borderRadius:
+                                    AppRadius.all(AppRadius.sm),
+                                border: Border.all(
+                                    color: AppColors.info
+                                        .withValues(alpha: 0.25)),
+                              ),
+                              child: Row(
+                                children: [
+                                  FaIcon(
+                                      FontAwesomeIcons
+                                          .arrowRightArrowLeft,
+                                      size: 12,
+                                      color: AppColors.info),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Container(
+                                    padding: const EdgeInsets
+                                        .symmetric(
+                                        horizontal: 8,
+                                        vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.info
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: AppRadius.all(
+                                          AppRadius.xs),
+                                    ),
+                                    child: Text(
+                                      item['StageBefore']!,
+                                      style: TextStyle(
+                                          color: AppColors.info,
+                                          fontSize: 10),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets
+                                        .symmetric(horizontal: 6),
+                                    child: FaIcon(
+                                        FontAwesomeIcons
+                                            .arrowRight,
+                                        size: 10,
+                                        color: theme.colorScheme
+                                            .onSurfaceVariant),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets
+                                        .symmetric(
+                                        horizontal: 8,
+                                        vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: AppRadius.all(
+                                          AppRadius.xs),
+                                    ),
+                                    child: Text(
+                                      item['StageAfter']!,
+                                      style: TextStyle(
+                                          color: AppColors.success,
+                                          fontSize: 10),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 10),
-                        if (_hasValue(item['Summary']))
-                          Text(
-                            item['Summary'],
-                            style: GoogleFonts.cairo(
-                                color: Colors.white,
-                                fontSize: 13),
-                          ),
-                        if (hasStageChange) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding:
-                                const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blue
-                                  .withOpacity(0.1),
-                              borderRadius:
-                                  BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: Colors.blue
-                                      .withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const FaIcon(
-                                    FontAwesomeIcons
-                                        .arrowRightArrowLeft,
-                                    size: 12,
-                                    color: Colors.blue),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                      horizontal: 8,
-                                      vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue
-                                        .withOpacity(0.2),
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(6),
-                                  ),
-                                  child: Text(
-                                    item['StageBefore']!,
-                                    style: GoogleFonts.cairo(
-                                        color:
-                                            Colors.blue[200],
-                                        fontSize: 10),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                      horizontal: 6),
-                                  child: FaIcon(
+                          if (_hasValue(item['Notes'])) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Container(
+                              padding:
+                                  const EdgeInsets.all(AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning
+                                    .withValues(alpha: 0.06),
+                                borderRadius:
+                                    AppRadius.all(AppRadius.sm),
+                              ),
+                              child: Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  FaIcon(
                                       FontAwesomeIcons
-                                          .arrowRight,
-                                      size: 10,
-                                      color: Colors.grey),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                      horizontal: 8,
-                                      vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green
-                                        .withOpacity(0.2),
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(6),
+                                          .noteSticky,
+                                      size: 11,
+                                      color: AppColors.warning),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Text(
+                                      item['Notes']!,
+                                      style: TextStyle(
+                                          color: theme.colorScheme
+                                              .onSurfaceVariant,
+                                          fontSize: 12),
+                                    ),
                                   ),
-                                  child: Text(
-                                    item['StageAfter']!,
-                                    style: GoogleFonts.cairo(
-                                        color: Colors
-                                            .green[200],
-                                        fontSize: 10),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                        if (_hasValue(item['Notes'])) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding:
-                                const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.amber
-                                  .withOpacity(0.05),
-                              borderRadius:
-                                  BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                const FaIcon(
-                                    FontAwesomeIcons
-                                        .noteSticky,
-                                    size: 11,
-                                    color: Colors.amber),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    item['Notes']!,
-                                    style: GoogleFonts.cairo(
-                                        color:
-                                            Colors.grey[400],
-                                        fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1629,14 +1639,16 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   // ══════════════════════════════════════
 
   Widget _buildBottomBar() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: 16, vertical: 12),
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: theme.colorScheme.surface,
         border: Border(
           top: BorderSide(
-              color: Colors.white.withOpacity(0.1)),
+              color: theme.colorScheme.outlineVariant
+                  .withValues(alpha: 0.5)),
         ),
       ),
       child: SafeArea(
@@ -1644,30 +1656,30 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         child: Row(
           children: [
             Expanded(
-              child: _buildBottomButton(
-                icon: FontAwesomeIcons.phone,
+              child: AppButton(
+                icon: Icons.call_rounded,
                 label: 'اتصال',
-                color: Colors.green,
+                color: AppColors.success,
                 onTap: () =>
                     _makePhoneCall(currentOpp['Phone1']),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: _buildBottomButton(
+              child: _FaAppButton(
                 icon: FontAwesomeIcons.whatsapp,
                 label: 'واتساب',
-                color: const Color(0xFF25D366),
+                color: AppColors.whatsapp,
                 onTap: () =>
                     _openWhatsApp(currentOpp['Phone1']),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: _buildBottomButton(
-                icon: FontAwesomeIcons.plus,
+              child: AppButton(
+                icon: Icons.add_rounded,
                 label: 'تواصل',
-                color: const Color(0xFFFFD700),
+                color: AppColors.gold,
                 onTap: () async {
                   final result = await Navigator.push(
                     context,
@@ -1695,108 +1707,14 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     );
   }
 
-  Widget _buildBottomButton({
-    required dynamic icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            compatIcon(icon, color: color, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.cairo(
-                  color: color,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ══════════════════════════════════════
   //  🧩 Widgets مشتركة
   // ══════════════════════════════════════
 
-  Widget _buildHeaderButton(
-      {required dynamic icon,
-      required Color color,
-      required VoidCallback onTap}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: IconButton(
-        icon: compatIcon(icon, size: 18, color: color),
-        onPressed: onTap,
-        padding: EdgeInsets.zero,
-      ),
-    );
-  }
-
-  Widget _buildMiniContactButton({
-    required dynamic icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    VoidCallback? onLongPress,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              compatIcon(icon, size: 11, color: color),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  style: GoogleFonts.cairo(
-                      color: color, fontSize: 10),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSourceIcon(String? sourceName) {
     String name = (sourceName ?? '').toLowerCase();
     dynamic icon = FontAwesomeIcons.globe;
-    Color color = Colors.grey;
+    Color color = AppColors.neutralLight;
 
     if (name.contains('facebook') || name.contains('فيسبوك')) {
       icon = FontAwesomeIcons.facebook;
@@ -1804,7 +1722,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     } else if (name.contains('whatsapp') ||
         name.contains('واتساب')) {
       icon = FontAwesomeIcons.whatsapp;
-      color = const Color(0xFF25D366);
+      color = AppColors.whatsapp;
     } else if (name.contains('instagram') ||
         name.contains('انستجرام')) {
       icon = FontAwesomeIcons.instagram;
@@ -1821,28 +1739,29 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
         name.contains('هاتف') ||
         name.contains('مكالمة')) {
       icon = FontAwesomeIcons.phone;
-      color = Colors.green;
+      color = AppColors.success;
     } else if (name.contains('referral') ||
         name.contains('ترشيح')) {
       icon = FontAwesomeIcons.userGroup;
-      color = Colors.orange;
+      color = AppColors.warning;
     }
 
     return Container(
-      width: 36,
-      height: 36,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppRadius.all(AppRadius.xs),
       ),
       child: Center(
-          child: compatIcon(icon, color: color, size: 16)),
+          child: compatIcon(icon, color: color, size: 13)),
     );
   }
 
   Widget _buildTabBar() {
+    final theme = Theme.of(context);
     return Container(
-      color: const Color(0xFF1A1A1A),
+      color: theme.colorScheme.surface,
       child: Row(
         children: [
           _buildTabItem('تفاصيل الفرصة', 0),
@@ -1853,6 +1772,7 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
   }
 
   Widget _buildTabItem(String title, int index) {
+    final theme = Theme.of(context);
     bool isSelected = _selectedTab == index;
     return Expanded(
       child: GestureDetector(
@@ -1865,12 +1785,13 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
           );
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(vertical: AppSpacing.lg),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
                 color: isSelected
-                    ? const Color(0xFFFFD700)
+                    ? AppColors.gold
                     : Colors.transparent,
                 width: 3,
               ),
@@ -1879,10 +1800,10 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
           child: Center(
             child: Text(
               title,
-              style: GoogleFonts.cairo(
+              style: TextStyle(
                 color: isSelected
-                    ? const Color(0xFFFFD700)
-                    : Colors.grey,
+                    ? AppColors.gold
+                    : theme.colorScheme.onSurfaceVariant,
                 fontWeight: isSelected
                     ? FontWeight.bold
                     : FontWeight.normal,
@@ -1894,103 +1815,62 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     );
   }
 
-  Widget _buildStatCard(
-      {required String value,
-      required String label,
-      required dynamic icon,
-      required Color color}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                      child: compatIcon(icon,
-                          size: 14, color: color)),
-                ),
-                const Spacer(),
-                if (label == 'القيمة المتوقعة')
-                  Text('ج.م',
-                      style: GoogleFonts.cairo(
-                          color: Colors.grey, fontSize: 10)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: GoogleFonts.cairo(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.cairo(
-                  color: Colors.grey, fontSize: 10),
-            ),
-          ],
-        ),
+  Widget _buildDetailSection(
+      String title, dynamic icon, List<Widget> children) {
+    // مبنية على بطاقة النظام AppCard + ترويسة القسم الموحدة
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            title: title,
+            icon: (icon is IconData) ? icon : Icons.info_rounded,
+            accent: AppColors.gold,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          ...children,
+        ],
       ),
     );
   }
 
-  Widget _buildDetailSection(
-      String title, dynamic icon, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildAmountDetailRow(
+      String label, String value, dynamic icon) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700)
-                      .withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                    child: compatIcon(icon,
-                        color: const Color(0xFFFFD700),
-                        size: 16)),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: GoogleFonts.cairo(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+              borderRadius: AppRadius.all(AppRadius.xs),
+            ),
+            child: Center(
+                child: compatIcon(icon,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant)),
           ),
-          const SizedBox(height: 16),
-          ...children,
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 12)),
+                const SizedBox(height: 2),
+                AmountText(
+                    value: value,
+                    size: 14,
+                    color: theme.colorScheme.onSurface),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1998,34 +1878,38 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
   Widget _buildDetailRow(
       String label, String value, dynamic icon) {
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         children: [
           Container(
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+              borderRadius: AppRadius.all(AppRadius.xs),
             ),
             child: Center(
                 child: compatIcon(icon,
-                    size: 14, color: Colors.grey)),
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: GoogleFonts.cairo(
-                        color: Colors.grey, fontSize: 12)),
+                    style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 12)),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: GoogleFonts.cairo(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: theme.colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w600),
                 ),
@@ -2039,45 +1923,33 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
 
   Widget _buildStatusRow(
       String label, String value, Color color) {
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         children: [
           Container(
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: AppRadius.all(AppRadius.xs),
             ),
             child: Center(
                 child: FaFaIcon(FontAwesomeIcons.circle,
                     size: 14, color: color)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: GoogleFonts.cairo(
-                        color: Colors.grey, fontSize: 12)),
+                    style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 12)),
                 const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    value,
-                    style: GoogleFonts.cairo(
-                        color: color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
+                StatusBadge(label: value, color: color),
               ],
             ),
           ),
@@ -2093,49 +1965,31 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     required Color color,
     required String text,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
+    final theme = Theme.of(context);
+    return AppCard(
+      color: color.withValues(alpha: 0.06),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                    child:
-                        compatIcon(icon, size: 16, color: color)),
-              ),
-              const SizedBox(width: 12),
-              Text(title,
-                  style: GoogleFonts.cairo(
-                      color: color,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ],
+          AppSectionHeader(
+            title: title,
+            icon: (icon is IconData) ? icon : Icons.notes_rounded,
+            accent: color,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.05),
+              borderRadius: AppRadius.all(AppRadius.md),
             ),
             child: Text(
               text,
-              style: GoogleFonts.cairo(
-                  color: Colors.white70, fontSize: 14, height: 1.6),
+              style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 14,
+                  height: 1.6),
             ),
           ),
         ],
@@ -2177,5 +2031,59 @@ ${currentOpp['Notes'] != null && currentOpp['Notes'].toString().isNotEmpty ? '�
     } catch (e) {
       return '-';
     }
+  }
+}
+
+/// زر إجراء بأيقونة FontAwesome — مرآة AppButton شكليًا لأن أيقونات
+/// FontAwesome (FaIconData) لا تدخل في خانة IconData الخاصة بالكيت.
+class _FaAppButton extends StatelessWidget {
+  final String label;
+  final FaIconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FaAppButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.09),
+      borderRadius: AppRadius.all(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.all(AppRadius.lg),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.all(AppRadius.lg),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FaIcon(icon, size: 18, color: color),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

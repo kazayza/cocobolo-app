@@ -63,6 +63,15 @@ class DeliveryService {
     return _map(_map(_api.decode(response))['data']);
   }
 
+  /// مواعيد قسم «التسليمات القادمة — 10 أيام» في الرئيسية:
+  /// { appointments (بسقف 12), total, windowDays } — التواريخ بصيغة
+  /// عرض المستخدم الحالي (حقيقية أو مقنّعة) من الخادم نفسه.
+  Future<Map<String, dynamic>> getHomeUpcoming() async {
+    final response =
+        await _api.get('/api/delivery/home-upcoming', forceRefresh: true);
+    return _map(_map(_api.decode(response))['data']);
+  }
+
   Future<List<Map<String, dynamic>>> getEmployees() async {
     final response =
         await _api.get('/api/delivery/employees', forceRefresh: true);
@@ -121,5 +130,140 @@ class DeliveryService {
       'search': search,
     });
     return _list(_map(_api.decode(response))['data']);
+  }
+
+  // Item 1/3 (Pkg1): record delivery event with per-line dispositions.
+  // POST /api/delivery/:id/events — each item mirrors API normalizeRecordItem:
+  // transactionDetailId, quantity (batch qty), acceptedQty,
+  // returnedManufacturingQty, returnedHandlingQty, returnedModificationQty,
+  // dispositionNotes, agreedModificationPrice, maintenanceId.
+  Future<Map<String, dynamic>> recordEvent({
+    required int id,
+    required List<Map<String, dynamic>> items,
+    int? deliveryEmployeeId,
+    String? deliveryEmployeeName,
+    String? notes,
+    DateTime? deliveryDate,
+    String? eventGuid,
+  }) async {
+    final response = await _api.post('/api/delivery/$id/events', body: {
+      'items': items,
+      'deliveryEmployeeId': deliveryEmployeeId,
+      'deliveryEmployeeName': deliveryEmployeeName,
+      'notes': notes,
+      'deliveryDate': deliveryDate?.toIso8601String(),
+      'eventGuid': eventGuid,
+    });
+    return _map(_api.decode(response));
+  }
+
+  // Item 3 (Pkg1): batch coverage preview.
+  // POST /api/delivery/:id/events/coverage — figures are null from the
+  // server for users without amount permission.
+  Future<Map<String, dynamic>> getCoverage({
+    required int id,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _api.post('/api/delivery/$id/events/coverage',
+        body: {'items': items});
+    return _map(_map(_api.decode(response))['data']);
+  }
+
+  // Item 2 (Pkg1): void a delivery event (Admin/AccountManager only,
+  // mandatory reason) — POST /api/delivery/:id/events/:deliveryId/void
+  Future<Map<String, dynamic>> voidEvent({
+    required int id,
+    required int deliveryId,
+    required String reason,
+  }) async {
+    final response = await _api.post(
+        '/api/delivery/$id/events/$deliveryId/void',
+        body: {'reason': reason});
+    return _map(_api.decode(response));
+  }
+
+  Future<Map<String, dynamic>> getEvents(int id) async {
+    final response =
+        await _api.get('/api/delivery/$id/events', forceRefresh: true);
+    return _map(_map(_api.decode(response))['data']);
+  }
+
+  // Item 5 (Pkg2): delivery maintenance queue + transitions.
+  Future<Map<String, dynamic>> getMaintenanceQueue({
+    String? status,
+    String? reasonClass,
+    String? search,
+    bool includeTerminal = false,
+  }) async {
+    final response = await _api.get('/api/delivery/maintenance/queue',
+        forceRefresh: true,
+        query: {
+          'status': status,
+          'reasonClass': reasonClass,
+          'search': search,
+          'includeTerminal': includeTerminal,
+        });
+    return _map(_map(_api.decode(response))['data']);
+  }
+
+  Future<Map<String, dynamic>> maintenanceAction(
+      int maintenanceId, String action,
+      {Map<String, dynamic> body = const {}}) async {
+    final response = await _api
+        .post('/api/delivery/maintenance/$maintenanceId/$action', body: body);
+    return _map(_api.decode(response));
+  }
+
+  // Item 6 (Pkg2): schedule-change requests.
+  Future<Map<String, dynamic>> getScheduleRequests(int id) async {
+    final response = await _api.get('/api/delivery/$id/schedule-change-requests',
+        forceRefresh: true);
+    return _map(_map(_api.decode(response))['data']);
+  }
+
+  Future<Map<String, dynamic>> createScheduleRequest({
+    required int id,
+    required String reason,
+    DateTime? proposedDueDate,
+    List<Map<String, dynamic>> lines = const [],
+  }) async {
+    final response =
+        await _api.post('/api/delivery/$id/schedule-change-requests', body: {
+      'reason': reason,
+      'proposedDueDate': proposedDueDate?.toIso8601String(),
+      'lines': lines,
+    });
+    return _map(_api.decode(response));
+  }
+
+  Future<Map<String, dynamic>> withdrawScheduleRequest(int requestId) async {
+    final response = await _api
+        .post('/api/delivery/schedule-change-requests/$requestId/withdraw');
+    return _map(_api.decode(response));
+  }
+
+  Future<Map<String, dynamic>> getScheduleApproval(int requestId) async {
+    final response = await _api.get(
+        '/api/delivery/schedule-change-requests/$requestId/approval',
+        forceRefresh: true);
+    return _map(_map(_api.decode(response))['data']);
+  }
+
+  Future<Map<String, dynamic>> decideScheduleRequest({
+    required int requestId,
+    required bool approve,
+    DateTime? finalDueDate,
+    List<Map<String, dynamic>> finalLines = const [],
+    String? note,
+  }) async {
+    final response = await _api.post(
+        '/api/delivery/schedule-change-requests/$requestId/decide',
+        body: {
+          'approve': approve,
+          'finalDueDate': finalDueDate?.toIso8601String(),
+          'finalLines': finalLines,
+          'note': note,
+        });
+    return _map(_api.decode(response));
   }
 }

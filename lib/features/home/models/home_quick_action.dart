@@ -31,17 +31,6 @@ class HomeQuickAction {
       );
     }
 
-    // إضافة عميل
-    if (permissions.canAdd(FormNames.partiesAdd)) {
-      actions.add(
-        const HomeQuickAction(
-          title: 'إضافة عميل',
-          action: 'add_client',
-          icon: Icons.person_add_alt_1_rounded,
-        ),
-      );
-    }
-
     // إضافة Lead
     if (permissions.canAdd(FormNames.leadsCrm)) {
       actions.add(
@@ -49,17 +38,6 @@ class HomeQuickAction {
           title: 'إضافة Lead',
           action: 'add_lead',
           icon: Icons.person_search_rounded,
-        ),
-      );
-    }
-
-    // إضافة Opportunity
-    if (permissions.canAdd(FormNames.editOpportunity)) {
-      actions.add(
-        const HomeQuickAction(
-          title: 'فرصة جديدة',
-          action: 'add_opportunity',
-          icon: Icons.trending_up_rounded,
         ),
       );
     }

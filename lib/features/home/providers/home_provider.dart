@@ -161,6 +161,28 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isSyncingUnread = false;
+
+  /// إعادة قراءة عدد غير المقروء من الخادم وتحديث الشارة.
+  /// مصدر الحقيقة الوحيد للعدّاد هو الخادم؛ تُستدعى عند عودة المستخدم
+  /// للرئيسية (إغلاق شاشة فوقها) وعند استئناف التطبيق واكتشاف إشعارات جديدة.
+  /// عند فشل الشبكة تبقى القيمة الحالية كما هي (لا تصفير كاذب).
+  Future<void> refreshUnreadCount() async {
+    if (_dashboard == null || _isSyncingUnread) return;
+    _isSyncingUnread = true;
+
+    try {
+      final count = await service.fetchUnreadCount();
+      if (count != null && count != _dashboard!.unreadCount) {
+        updateUnreadCount(count);
+      }
+    } catch (_) {
+      // تجاهل: القيمة الحالية تبقى معروضة حتى المحاولة التالية.
+    } finally {
+      _isSyncingUnread = false;
+    }
+  }
+
   /// مسح الخطأ فقط
   void clearError() {
     if (!_hasError && _errorMessage == null) {

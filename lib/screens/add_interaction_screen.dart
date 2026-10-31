@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
@@ -7,7 +9,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../constants.dart';
 import '../services/icon_utils.dart';
+import '../widgets/design_kit.dart';
 import '../widgets/speech_text_field.dart';
+import '../core/auth/session_service.dart';
 
 class AddInteractionScreen extends StatefulWidget {
   final int userId;
@@ -144,7 +148,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchSources() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/sources'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/sources'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) sources = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching sources: $e');
@@ -153,7 +157,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchStages() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/stages'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/stages'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) stages = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching stages: $e');
@@ -162,7 +166,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchStatuses() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/statuses'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/statuses'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) statuses = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching statuses: $e');
@@ -171,7 +175,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchAdTypes() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/ad-types'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/ad-types'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) adTypes = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching ad types: $e');
@@ -180,7 +184,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchCategories() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/categories'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/categories'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) categories = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching categories: $e');
@@ -189,7 +193,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchLostReasons() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/lost-reasons'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/lost-reasons'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) lostReasons = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching lost reasons: $e');
@@ -198,7 +202,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchTaskTypes() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/task-types'));
+      final res = await http.get(Uri.parse('$baseUrl/api/opportunities/task-types'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) taskTypes = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching task types: $e');
@@ -207,7 +211,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
   Future<void> _fetchEmployees() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/employees'));
+      final res = await http.get(Uri.parse('$baseUrl/api/employees'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) employees = jsonDecode(res.body);
     } catch (e) {
       debugPrint('Error fetching employees: $e');
@@ -216,7 +220,7 @@ class _AddInteractionScreenState extends State<AddInteractionScreen> {
 
 Future<void> _fetchCurrentEmployee() async {
   try {
-    final res = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}/employee'));
+    final res = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}/employee'), headers: SessionService.instance.authHeaders);
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
       if (data['employeeID'] != null) {
@@ -236,7 +240,7 @@ Future<void> _fetchCurrentEmployee() async {
   // جلب تفاصيل الفرصة المحددة مسبقاً
   Future<void> _fetchOpportunityDetails(int oppId) async {
   try {
-    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$oppId'));
+    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/$oppId'), headers: SessionService.instance.authHeaders);
     if (res.statusCode == 200) {
       final opp = jsonDecode(res.body);
       setState(() {
@@ -271,7 +275,7 @@ Future<void> _fetchCurrentEmployee() async {
     
     _searchDebounce = Timer(const Duration(milliseconds: 500), () async {
       try {
-        final res = await http.get(Uri.parse('$baseUrl/api/clients/search?q=$query'));
+        final res = await http.get(Uri.parse('$baseUrl/api/clients/search?q=$query'), headers: SessionService.instance.authHeaders);
         if (res.statusCode == 200) {
           setState(() => searchResults = jsonDecode(res.body));
         }
@@ -300,7 +304,7 @@ Future<void> _fetchCurrentEmployee() async {
   // تحميل بيانات عميل (لو جاي من شاشة تانية)
   Future<void> _loadClientData(int partyId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/clients/$partyId'));
+      final res = await http.get(Uri.parse('$baseUrl/api/clients/$partyId'), headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final client = jsonDecode(res.body);
         _selectClient(client);
@@ -313,7 +317,7 @@ Future<void> _fetchCurrentEmployee() async {
   // التحقق من فرصة مفتوحة
   Future<void> _checkOpenOpportunity(int partyId) async {
   try {
-    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/check-open/$partyId'));
+    final res = await http.get(Uri.parse('$baseUrl/api/opportunities/check-open/$partyId'), headers: SessionService.instance.authHeaders);
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
       setState(() {
@@ -348,8 +352,8 @@ Future<void> _fetchCurrentEmployee() async {
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFFFD700),
-            surface: Color(0xFF1A1A1A),
+            primary: AppColors.gold,
+            surface: AppColors.darkSurface,
           ),
         ),
         child: child!,
@@ -363,8 +367,8 @@ Future<void> _fetchCurrentEmployee() async {
         builder: (context, child) => Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFFFD700),
-              surface: Color(0xFF1A1A1A),
+              primary: AppColors.gold,
+              surface: AppColors.darkSurface,
             ),
           ),
           child: child!,
@@ -424,7 +428,7 @@ Future<void> _fetchCurrentEmployee() async {
             Text(message, style: GoogleFonts.cairo()),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -473,7 +477,7 @@ Future<void> _fetchCurrentEmployee() async {
       
       final res = await http.post(
         Uri.parse('$baseUrl/api/interactions/create'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
       
@@ -490,7 +494,7 @@ Future<void> _fetchCurrentEmployee() async {
                   Expanded(child: Text(data['message'], style: GoogleFonts.cairo())),
                 ],
               ),
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -513,10 +517,10 @@ Future<void> _fetchCurrentEmployee() async {
     bool isLockedClient = widget.preSelectedPartyId != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.darkBackground,
       appBar: _buildAppBar(),
       body: _isLoadingData
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
+          ? const AppLoading()
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -577,13 +581,15 @@ Future<void> _fetchCurrentEmployee() async {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
+      elevation: 0,
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const FaFaIcon(FontAwesomeIcons.plus, color: Color(0xFFFFD700), size: 18),
+          const FaFaIcon(FontAwesomeIcons.plus, color: AppColors.gold, size: 18),
           const SizedBox(width: 10),
-          Text('تسجيل تواصل', style: GoogleFonts.cairo(color: const Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+          Text('تسجيل تواصل', style: GoogleFonts.cairo(color: AppColors.gold, fontWeight: FontWeight.bold)),
         ],
       ),
       centerTitle: true,
@@ -597,7 +603,7 @@ Future<void> _fetchCurrentEmployee() async {
   Widget _buildSectionTitle(String title, dynamic icon) {
     return Row(
       children: [
-        FaIcon(icon, color: const Color(0xFFFFD700), size: 16),
+        FaIcon(icon, color: AppColors.gold, size: 16),
         const SizedBox(width: 8),
         Text(title, style: GoogleFonts.cairo(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
       ],
@@ -608,7 +614,7 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -622,7 +628,7 @@ Future<void> _fetchCurrentEmployee() async {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: !_isNewClient ? const Color(0xFFFFD700) : Colors.transparent,
+                  color: !_isNewClient ? AppColors.gold : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -645,7 +651,7 @@ Future<void> _fetchCurrentEmployee() async {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: _isNewClient ? const Color(0xFFFFD700) : Colors.transparent,
+                  color: _isNewClient ? AppColors.gold : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -685,9 +691,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,7 +719,7 @@ Future<void> _fetchCurrentEmployee() async {
                       )
                     : null,
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
               onChanged: _searchClients,
@@ -724,9 +730,9 @@ Future<void> _fetchCurrentEmployee() async {
               margin: const EdgeInsets.only(top: 8),
               constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
+                color: AppColors.darkSurface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: ListView.builder(
                 shrinkWrap: true,
@@ -735,8 +741,8 @@ Future<void> _fetchCurrentEmployee() async {
                   final client = searchResults[index];
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
-                      child: const FaFaIcon(FontAwesomeIcons.user, color: Color(0xFFFFD700), size: 14),
+                      backgroundColor: AppColors.gold.withValues(alpha: 0.2),
+                      child: const FaFaIcon(FontAwesomeIcons.user, color: AppColors.gold, size: 14),
                     ),
                     title: Text(client['PartyName'], style: GoogleFonts.cairo(color: Colors.white)),
                     subtitle: Text(client['Phone'] ?? '', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)),
@@ -752,13 +758,13 @@ Future<void> _fetchCurrentEmployee() async {
               margin: EdgeInsets.only(top: isLocked ? 0 : 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD700).withOpacity(0.1),
+                color: AppColors.gold.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const FaFaIcon(FontAwesomeIcons.circleCheck, color: Color(0xFFFFD700), size: 16),
+                  const FaFaIcon(FontAwesomeIcons.circleCheck, color: AppColors.gold, size: 16),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -787,9 +793,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -807,13 +813,13 @@ Future<void> _fetchCurrentEmployee() async {
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.15),
+        color: AppColors.warning.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const FaFaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 16),
+          const FaFaIcon(FontAwesomeIcons.triangleExclamation, color: AppColors.warning, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -821,12 +827,12 @@ Future<void> _fetchCurrentEmployee() async {
               children: [
                 Text(
                   'سيتم إضافة التواصل للفرصة الحالية',
-                  style: GoogleFonts.cairo(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                  style: GoogleFonts.cairo(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 if (_openOpportunity != null && _openOpportunity!['InterestedProduct'] != null)
                   Text(
                     'المنتج: ${_openOpportunity!['InterestedProduct']}',
-                    style: GoogleFonts.cairo(color: Colors.orange.withOpacity(0.8), fontSize: 11),
+                    style: GoogleFonts.cairo(color: AppColors.warning.withValues(alpha: 0.8), fontSize: 11),
                   ),
               ],
             ),
@@ -840,9 +846,9 @@ Future<void> _fetchCurrentEmployee() async {
       return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -885,9 +891,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -940,9 +946,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
+        color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: _buildDropdown<int>(
         label: 'سبب الخسارة *',
@@ -961,9 +967,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -973,9 +979,9 @@ Future<void> _fetchCurrentEmployee() async {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Row(
                 children: [
@@ -1030,9 +1036,9 @@ Future<void> _fetchCurrentEmployee() async {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -1071,7 +1077,7 @@ SpeechTextField(
             child: ElevatedButton(
               onPressed: _isLoading ? null : _submitForm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD700),
+                backgroundColor: AppColors.gold,
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -1107,10 +1113,10 @@ SpeechTextField(
           suffixText: suffixText,
           suffixStyle: GoogleFonts.cairo(color: Colors.grey),
           filled: true,
-          fillColor: Colors.white.withOpacity(0.05),
+          fillColor: Colors.white.withValues(alpha: 0.05),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFFD700))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gold)),
         ),
       ),
     );
@@ -1124,16 +1130,16 @@ SpeechTextField(
         items: items,
         onChanged: onChanged,
         style: GoogleFonts.cairo(color: Colors.white),
-        dropdownColor: const Color(0xFF1A1A1A),
+        dropdownColor: AppColors.darkSurface,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: GoogleFonts.cairo(color: Colors.grey),
           prefixIcon: Padding(padding: const EdgeInsets.all(12), child: FaIcon(icon, color: Colors.grey, size: 16)),
           filled: true,
-          fillColor: Colors.white.withOpacity(0.05),
+          fillColor: Colors.white.withValues(alpha: 0.05),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFFD700))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gold)),
         ),
       ),
     );

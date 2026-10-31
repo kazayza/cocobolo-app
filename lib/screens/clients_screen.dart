@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/app_colors.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,7 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import '../services/permission_service.dart';
 import 'add_client_screen.dart';
+import '../core/auth/session_service.dart';
 
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
+import '../services/design_tokens.dart';
 class ClientsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -72,7 +78,7 @@ void _onScroll() {
 
   Future<void> fetchSummary() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/clients/summary'));
+      final res = await http.get(Uri.parse('$baseUrl/api/clients/summary'), headers: SessionService.instance.authHeaders);
       
       // طباعة للتشخيص - سأزيلها لاحقًا
       print('📊 إحصائيات - كود الاستجابة: ${res.statusCode}');
@@ -123,7 +129,7 @@ Future<void> fetchClients({bool refresh = false}) async {
   try {
     final res = await http.get(
       Uri.parse('$baseUrl/api/clients?page=$currentPage&pageSize=$pageSize'),
-    ).timeout(const Duration(seconds: 10));
+     headers: SessionService.instance.authHeaders,).timeout(const Duration(seconds: 10));
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
@@ -176,7 +182,7 @@ Future<void> fetchClients({bool refresh = false}) async {
     final nextPage = currentPage + 1;
     final res = await http.get(
       Uri.parse('$baseUrl/api/clients?page=$nextPage&pageSize=$pageSize'),
-    ).timeout(const Duration(seconds: 10));
+     headers: SessionService.instance.authHeaders,).timeout(const Duration(seconds: 10));
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
@@ -304,14 +310,16 @@ Future<void> fetchClients({bool refresh = false}) async {
 }
 
   void _showSortOptions() {
+  final theme = Theme.of(context);
   showModalBottomSheet(
     context: context,
-    backgroundColor: const Color(0xFF1A1A1A),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    backgroundColor: theme.colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius:
+          BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
     ),
     builder: (context) => Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -320,20 +328,20 @@ Future<void> fetchClients({bool refresh = false}) async {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[600],
+              color: theme.colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             'ترتيب حسب',
             style: GoogleFonts.cairo(
-              color: Colors.white,
+              color: theme.colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           _buildSortOption('newest', 'الأحدث أولاً', Icons.arrow_downward),
           _buildSortOption('oldest', 'الأقدم أولاً', Icons.arrow_upward),
           _buildSortOption('nameAZ', 'الاسم (أ - ي)', Icons.sort_by_alpha),
@@ -347,21 +355,24 @@ Future<void> fetchClients({bool refresh = false}) async {
 
 Widget _buildSortOption(String value, String label, IconData icon) {
   final isSelected = sortBy == value;
+  final theme = Theme.of(context);
 
   return ListTile(
     leading: Icon(
       icon,
-      color: isSelected ? const Color(0xFFE8B923) : Colors.grey[500],
+      color: isSelected
+          ? AppColors.gold
+          : theme.colorScheme.onSurfaceVariant,
     ),
     title: Text(
       label,
       style: GoogleFonts.cairo(
-        color: isSelected ? const Color(0xFFE8B923) : Colors.white,
+        color: isSelected ? AppColors.gold : theme.colorScheme.onSurface,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
     ),
     trailing: isSelected
-        ? const Icon(Icons.check_circle, color: Color(0xFFE8B923))
+        ? Icon(Icons.check_circle, color: AppColors.gold)
         : null,
     onTap: () {
       Navigator.pop(context);
@@ -372,7 +383,7 @@ Widget _buildSortOption(String value, String label, IconData icon) {
       _sortClients();
     },
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadius.all(AppRadius.sm),
     ),
   );
 }
@@ -386,7 +397,7 @@ Widget _buildSortOption(String value, String label, IconData icon) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.cairo()),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }
@@ -441,7 +452,7 @@ void _copyToClipboard(String text) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text('تم نسخ: $text', style: GoogleFonts.cairo()),
-      backgroundColor: Colors.green,
+      backgroundColor: AppColors.success,
       duration: const Duration(seconds: 2),
     ),
   );
@@ -450,7 +461,8 @@ void _copyToClipboard(String text) {
  @override
 Widget build(BuildContext context) {
   return Scaffold(
-    backgroundColor: const Color(0xFF0F0F0F),
+    drawer: buildAppDrawer(currentRoute: 'frm_PartiesList'),
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: _buildAppBar(),
     body: Column(
       children: [
@@ -458,9 +470,7 @@ Widget build(BuildContext context) {
         _buildSearchBar(),
         Expanded(
           child: loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFFFD700)),
-                )
+              ? const AppLoading()
               : errorMessage != null // ✅ جديد - التحقق من الخطأ أولاً
                   ? _buildErrorState()
                   : filteredClients.isEmpty
@@ -474,14 +484,43 @@ Widget build(BuildContext context) {
 }
 
   PreferredSizeWidget _buildAppBar() {
-  return AppBar(
-    title: Text(
-      'العملاء',
-      style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.black),
+  return AppBar( leading: const AppDrawerMenuButton(),
+    backgroundColor: AppColors.navy,
+    foregroundColor: Colors.white,
+    elevation: 0,
+    centerTitle: false,
+    iconTheme: const IconThemeData(color: Colors.white),
+    title: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            Icons.people_rounded,
+            color: AppColors.gold,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'العملاء',
+              style: GoogleFonts.cairo(
+                  fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+            ),
+            Text(
+              'إدارة بيانات العملاء',
+              style: GoogleFonts.cairo(fontSize: 10, color: Colors.white70),
+            ),
+          ],
+        ),
+      ],
     ),
-    backgroundColor: const Color(0xFFE8B923),
-    centerTitle: true,
-    iconTheme: const IconThemeData(color: Colors.black),
     actions: [
       // ✅ زر الترتيب
       IconButton(
@@ -502,42 +541,35 @@ Widget build(BuildContext context) {
     final newToday = summary['newToday'] ?? 0;
     final newThisMonth = summary['newThisMonth'] ?? 0;
     
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF4CAF50).withOpacity(0.2),
-            const Color(0xFF4CAF50).withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page, AppSpacing.lg, AppSpacing.page, AppSpacing.sm),
       child: Row(
         children: [
           Expanded(
-            child: _buildSummaryItem(
-              'إجمالي العملاء',
-              '$totalClients',
-              Icons.people,
+            child: AppStatCard(
+              label: 'إجمالي العملاء',
+              value: '$totalClients',
+              color: AppColors.gold,
+              icon: Icons.people,
             ),
           ),
-          Container(width: 1, height: 50, color: Colors.white24),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _buildSummaryItem(
-              'عملاء اليوم',
-              '$newToday',
-              Icons.person_add,
+            child: AppStatCard(
+              label: 'عملاء اليوم',
+              value: '$newToday',
+              color: AppColors.success,
+              icon: Icons.person_add,
             ),
           ),
-          Container(width: 1, height: 50, color: Colors.white24),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _buildSummaryItem(
-              'هذا الشهر',
-              '$newThisMonth',
-              Icons.calendar_month,
+            child: AppStatCard(
+              label: 'هذا الشهر',
+              value: '$newThisMonth',
+              color: AppColors.info,
+              icon: Icons.calendar_month,
             ),
           ),
         ],
@@ -545,46 +577,25 @@ Widget build(BuildContext context) {
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
   }
 
-  Widget _buildSummaryItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: const Color(0xFF4CAF50), size: 24),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.cairo(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.cairo(
-            color: Colors.grey[400],
-            fontSize: 11,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
   Widget _buildSearchBar() {
+  final theme = Theme.of(context);
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.page, vertical: AppSpacing.sm),
     child: Column(
       children: [
         TextField(
           controller: _searchController,
-          style: GoogleFonts.cairo(color: Colors.white),
+          style: GoogleFonts.cairo(color: theme.colorScheme.onSurface),
           decoration: InputDecoration(
             hintText: 'بحث بالاسم، الهاتف، أو الرقم القومي...',
-            hintStyle: GoogleFonts.cairo(color: Colors.white54),
-            prefixIcon: const Icon(Icons.search, color: Color(0xFFFFD700)),
+            hintStyle:
+                GoogleFonts.cairo(color: theme.colorScheme.onSurfaceVariant),
+            prefixIcon: Icon(Icons.search, color: AppColors.gold),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.white54),
+                    icon: Icon(Icons.clear,
+                        color: theme.colorScheme.onSurfaceVariant),
                     onPressed: () {
                       _searchController.clear();
                       _filterClients('');
@@ -592,10 +603,24 @@ Widget build(BuildContext context) {
                   )
                 : null,
             filled: true,
-            fillColor: Colors.white.withOpacity(0.1),
+            fillColor: theme.colorScheme.surfaceContainerLow,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderRadius: AppRadius.all(AppRadius.lg),
+              borderSide: BorderSide(
+                color: theme.colorScheme.outlineVariant
+                    .withValues(alpha: 0.45),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: AppRadius.all(AppRadius.lg),
+              borderSide: BorderSide(
+                color: theme.colorScheme.outlineVariant
+                    .withValues(alpha: 0.45),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: AppRadius.all(AppRadius.lg),
+              borderSide: BorderSide(color: AppColors.gold),
             ),
           ),
           onChanged: _filterClients,
@@ -612,19 +637,16 @@ Widget build(BuildContext context) {
             _buildFilterChip('month', 'هذا الشهر', Icons.calendar_month),
             const Spacer(),
             // ✅ عداد النتائج
-            Text(
-              '${filteredClients.length}',
-              style: GoogleFonts.cairo(
-                color: const Color(0xFFE8B923),
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
+            AmountText(
+              value: '${filteredClients.length}',
+              size: 14,
+              color: AppColors.gold,
             ),
             const SizedBox(width: 4),
             Text(
               'عميل',
               style: GoogleFonts.cairo(
-                color: Colors.grey[500],
+                color: theme.colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -637,94 +659,29 @@ Widget build(BuildContext context) {
 
   // ✅ الكود الجديد - مع زر إعادة المحاولة
 Widget _buildEmptyState() {
-  return Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.people_outline, size: 80, color: Colors.grey[600]),
-        const SizedBox(height: 20),
-        Text(
-          searchQuery.isEmpty ? 'لا يوجد عملاء' : 'لا توجد نتائج',
-          style: GoogleFonts.cairo(fontSize: 18, color: Colors.grey[400]),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          searchQuery.isEmpty 
-            ? 'اضغط + لإضافة عميل جديد'
-            : 'جرب البحث بكلمة مختلفة',
-          style: GoogleFonts.cairo(fontSize: 14, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 20),
-        // ✅ زر إعادة المحاولة
-        ElevatedButton.icon(
-          onPressed: _refreshAll,
-          icon: const Icon(Icons.refresh, size: 18),
-          label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE8B923),
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ],
-    ),
+  return AppEmpty(
+    icon: Icons.people_outline,
+    message: searchQuery.isEmpty ? 'لا يوجد عملاء' : 'لا توجد نتائج',
+    hint: searchQuery.isEmpty
+        ? 'اضغط + لإضافة عميل جديد'
+        : 'جرب البحث بكلمة مختلفة',
+    onRefresh: _refreshAll,
+    refreshLabel: 'إعادة المحاولة',
   );
 }
 
 
   Widget _buildErrorState() {
-  return Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.cloud_off, size: 80, color: Colors.red[400]),
-          const SizedBox(height: 20),
-          Text(
-            'حدث خطأ',
-            style: GoogleFonts.cairo(
-              fontSize: 20,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            errorMessage!,
-            style: GoogleFonts.cairo(fontSize: 14, color: Colors.grey[400]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _refreshAll,
-            icon: const Icon(Icons.refresh),
-            label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8B923),
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+  return AppError(message: errorMessage!, onRetry: _refreshAll);
 }
 
   Widget _buildClientsList() {
   return RefreshIndicator(
     onRefresh: _refreshAll,
-    color: const Color(0xFFE8B923),
+    color: AppColors.gold,
     child: ListView.builder(
       controller: _scrollController, // ✅ ربط الـ ScrollController
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.page),
       itemCount: filteredClients.length + (loadingMore ? 1 : 0), // ✅ إضافة عنصر للتحميل
       itemBuilder: (context, index) {
         // ✅ لو وصلنا لآخر عنصر وبنحمل المزيد
@@ -740,25 +697,26 @@ Widget _buildEmptyState() {
 }
   
   Widget _buildLoadingMoreIndicator() {
+  final theme = Theme.of(context);
   return Container(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(AppSpacing.lg),
     alignment: Alignment.center,
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
-            color: Color(0xFFE8B923),
+            color: AppColors.gold,
             strokeWidth: 2,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
         Text(
           'جاري تحميل المزيد...',
           style: GoogleFonts.cairo(
-            color: Colors.grey[400],
+            color: theme.colorScheme.onSurfaceVariant,
             fontSize: 14,
           ),
         ),
@@ -770,20 +728,15 @@ Widget _buildEmptyState() {
   Widget _buildClientCard(Map<String, dynamic> client, int index) {
   final phone = client['Phone']?.toString() ?? '';
   final hasPhone = phone.isNotEmpty;
+  final theme = Theme.of(context);
 
-  return Card(
-    color: Colors.white.withOpacity(0.08),
-    margin: const EdgeInsets.only(bottom: 12),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-      side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.2)),
-    ),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _showClientDetails(client),
+  return Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+    child: GestureDetector(
       onLongPress: () => _showClientOptions(client),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        onTap: () => _showClientDetails(client),
         child: Column(
           children: [
             // ✅ الصف الأول: بيانات العميل
@@ -793,21 +746,21 @@ Widget _buildEmptyState() {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.navy,
+                    borderRadius: AppRadius.all(AppRadius.sm),
                   ),
                   child: Center(
                     child: Text(
                       (client['PartyName'] ?? 'ع')[0].toUpperCase(),
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFF4CAF50),
+                        color: AppColors.gold,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: AppSpacing.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,7 +768,7 @@ Widget _buildEmptyState() {
                       Text(
                         client['PartyName'] ?? 'بدون اسم',
                         style: GoogleFonts.cairo(
-                          color: Colors.white,
+                          color: theme.colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -828,17 +781,21 @@ Widget _buildEmptyState() {
                           onLongPress: () => _copyToClipboard(phone),
                           child: Row(
                             children: [
-                              Icon(Icons.phone, size: 14, color: Colors.grey[500]),
+                              Icon(Icons.phone,
+                                  size: 14,
+                                  color: theme.colorScheme.onSurfaceVariant),
                               const SizedBox(width: 4),
                               Text(
                                 phone,
                                 style: GoogleFonts.cairo(
-                                  color: Colors.grey[400],
+                                  color: theme.colorScheme.onSurfaceVariant,
                                   fontSize: 13,
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Icon(Icons.copy, size: 12, color: Colors.grey[600]),
+                              Icon(Icons.copy,
+                                  size: 12,
+                                  color: theme.colorScheme.onSurfaceVariant),
                             ],
                           ),
                         ),
@@ -846,13 +803,15 @@ Widget _buildEmptyState() {
                           client['Address'].toString().isNotEmpty)
                         Row(
                           children: [
-                            Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
+                            Icon(Icons.location_on,
+                                size: 14,
+                                color: theme.colorScheme.onSurfaceVariant),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 client['Address'],
                                 style: GoogleFonts.cairo(
-                                  color: Colors.grey[400],
+                                  color: theme.colorScheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                                 maxLines: 1,
@@ -866,42 +825,34 @@ Widget _buildEmptyState() {
                 ),
               ],
             ),
-            
-            // ✅ الصف الثاني: أزرار Quick Actions
+
+            // ✅ الصف الثاني: إجراءات التواصل
             if (hasPhone) ...[
-              const SizedBox(height: 12),
-              const Divider(color: Colors.white12, height: 1),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
+              Divider(
+                color: theme.colorScheme.outlineVariant
+                    .withValues(alpha: 0.45),
+                height: 1,
+              ),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  // زر الاتصال
-                  Expanded(
-                    child: _buildQuickActionButton(
-                      icon: Icons.phone,
-                      label: 'اتصال',
-                      color: const Color(0xFF4CAF50),
-                      onTap: () => _makePhoneCall(phone),
-                    ),
+                  AppIconChip(
+                    icon: Icons.call_rounded,
+                    color: AppColors.info,
+                    tooltip: 'اتصال',
+                    onTap: () => _makePhoneCall(phone),
                   ),
-                  const SizedBox(width: 8),
-                  // زر الواتساب
-                  Expanded(
-                    child: _buildQuickActionButton(
-                      icon: Icons.chat,
-                      label: 'واتساب',
-                      color: const Color(0xFF25D366),
-                      onTap: () => _openWhatsApp(phone),
-                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  WhatsAppChip(
+                    onTap: () => _openWhatsApp(phone),
                   ),
-                  const SizedBox(width: 8),
-                  // زر النسخ
-                  Expanded(
-                    child: _buildQuickActionButton(
-                      icon: Icons.copy,
-                      label: 'نسخ',
-                      color: const Color(0xFFE8B923),
-                      onTap: () => _copyToClipboard(phone),
-                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  AppIconChip(
+                    icon: Icons.copy,
+                    color: AppColors.gold,
+                    tooltip: 'نسخ',
+                    onTap: () => _copyToClipboard(phone),
                   ),
                 ],
               ),
@@ -916,44 +867,12 @@ Widget _buildEmptyState() {
       .slideX(begin: 0.1, end: 0);
 }
 
-  Widget _buildQuickActionButton({
-  required IconData icon,
-  required String label,
-  required Color color,
-  required VoidCallback onTap,
-}) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(8),
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.cairo(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
   Widget _buildFilterChip(String value, String label, IconData icon) {
   final isSelected = selectedFilter == value;
-  
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final selectedColor = isDark ? AppColors.gold : AppColors.navy;
+
   return GestureDetector(
     onTap: () {
       setState(() {
@@ -962,16 +881,17 @@ Widget _buildEmptyState() {
       _filterClients(searchQuery);
     },
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: 6),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFFE8B923).withOpacity(0.2)
-            : Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
+            ? selectedColor.withValues(alpha: isDark ? 0.2 : 0.12)
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: AppRadius.all(AppRadius.pill),
         border: Border.all(
           color: isSelected
-              ? const Color(0xFFE8B923)
-              : Colors.white.withOpacity(0.1),
+              ? selectedColor
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
         ),
       ),
       child: Row(
@@ -980,13 +900,17 @@ Widget _buildEmptyState() {
           Icon(
             icon,
             size: 14,
-            color: isSelected ? const Color(0xFFE8B923) : Colors.grey[500],
+            color: isSelected
+                ? selectedColor
+                : theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 4),
           Text(
             label,
             style: GoogleFonts.cairo(
-              color: isSelected ? const Color(0xFFE8B923) : Colors.grey[500],
+              color: isSelected
+                  ? selectedColor
+                  : theme.colorScheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -998,11 +922,13 @@ Widget _buildEmptyState() {
 }
 
  void _showClientDetails(Map<String, dynamic> client) {
+  final theme = Theme.of(context);
   showModalBottomSheet(
     context: context,
-    backgroundColor: const Color(0xFF1A1A1A),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    backgroundColor: theme.colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius:
+          BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
     ),
     isScrollControlled: true,
     builder: (context) => DraggableScrollableSheet(
@@ -1013,7 +939,7 @@ Widget _buildEmptyState() {
       builder: (context, scrollController) => SingleChildScrollView(
         controller: scrollController,
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1022,7 +948,7 @@ Widget _buildEmptyState() {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[600],
+                    color: theme.colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1033,14 +959,14 @@ Widget _buildEmptyState() {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
+                    color: AppColors.navy,
+                    borderRadius: AppRadius.all(AppRadius.xxl),
                   ),
                   child: Center(
                     child: Text(
                       (client['PartyName'] ?? 'ع')[0].toUpperCase(),
                       style: GoogleFonts.cairo(
-                        color: const Color(0xFF4CAF50),
+                        color: AppColors.gold,
                         fontSize: 36,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1048,20 +974,20 @@ Widget _buildEmptyState() {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               Center(
                 child: Text(
                   client['PartyName'] ?? '',
                   style: GoogleFonts.cairo(
-                    color: Colors.white,
+                    color: theme.colorScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              const Divider(color: Colors.white24),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.xl),
+              Divider(color: theme.colorScheme.outlineVariant),
+              const SizedBox(height: AppSpacing.lg),
               
               // ===== البيانات المعروضة =====
               _buildDetailRow(Icons.phone, 'الهاتف', client['Phone'] ?? 'غير محدد'),
@@ -1086,7 +1012,7 @@ Widget _buildEmptyState() {
               if (client['Notes'] != null && client['Notes'].toString().isNotEmpty)
                 _buildDetailRow(Icons.notes, 'ملاحظات', client['Notes']),
               
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
               Row(
                 children: [
                   Expanded(
@@ -1108,30 +1034,32 @@ Widget _buildEmptyState() {
                       icon: const Icon(Icons.edit, size: 18),
                       label: Text('تعديل', style: GoogleFonts.cairo()),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD700),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.navy,
+                        padding:
+                            const EdgeInsets.symmetric(vertical: AppSpacing.md),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: AppRadius.all(AppRadius.sm),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
                         // TODO: إضافة وظيفة الاتصال
                       },
-                      icon: const Icon(Icons.phone, size: 18),
+                      icon: const Icon(Icons.call_rounded, size: 18),
                       label: Text('اتصال', style: GoogleFonts.cairo()),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4CAF50),
-                        side: const BorderSide(color: Color(0xFF4CAF50)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: AppColors.success,
+                        side: BorderSide(color: AppColors.success),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: AppSpacing.md),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: AppRadius.all(AppRadius.sm),
                         ),
                       ),
                     ),
@@ -1147,21 +1075,24 @@ Widget _buildEmptyState() {
 }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFFFFD700), size: 20),
-          const SizedBox(width: 12),
+          Icon(icon, color: AppColors.gold, size: 20),
+          const SizedBox(width: AppSpacing.md),
           Text(
             '$label:',
-            style: GoogleFonts.cairo(color: Colors.grey[400], fontSize: 14),
+            style: GoogleFonts.cairo(
+                color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.cairo(color: Colors.white, fontSize: 14),
+              style: GoogleFonts.cairo(
+                  color: theme.colorScheme.onSurface, fontSize: 14),
               textAlign: TextAlign.end,
             ),
           ),
@@ -1172,22 +1103,26 @@ Widget _buildEmptyState() {
 
   void _showClientOptions(Map<String, dynamic> client) {
     final permissions = PermissionService();
+    final theme = Theme.of(context);
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
       ),
       builder: (context) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (permissions.canEdit(FormNames.partiesAdd))
               ListTile(
-                leading: const Icon(Icons.edit, color: Color(0xFFFFD700)),
-                title: Text('تعديل', style: GoogleFonts.cairo(color: Colors.white)),
+                leading: Icon(Icons.edit, color: AppColors.gold),
+                title: Text('تعديل',
+                    style:
+                        GoogleFonts.cairo(color: theme.colorScheme.onSurface)),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -1205,8 +1140,9 @@ Widget _buildEmptyState() {
               ),
             if (permissions.canDelete(FormNames.partiesAdd))
               ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: Text('حذف', style: GoogleFonts.cairo(color: Colors.red)),
+                leading: Icon(Icons.delete, color: AppColors.error),
+                title: Text('حذف',
+                    style: GoogleFonts.cairo(color: AppColors.error)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmDelete(client);
@@ -1215,10 +1151,11 @@ Widget _buildEmptyState() {
             if (!permissions.canEdit(FormNames.partiesAdd) &&
                 !permissions.canDelete(FormNames.partiesAdd))
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(AppSpacing.xl),
                 child: Text(
                   'ليس لديك صلاحيات للتعديل أو الحذف',
-                  style: GoogleFonts.cairo(color: Colors.grey),
+                  style: GoogleFonts.cairo(
+                      color: theme.colorScheme.onSurfaceVariant),
                 ),
               ),
           ],
@@ -1228,29 +1165,37 @@ Widget _buildEmptyState() {
   }
 
   void _confirmDelete(Map<String, dynamic> client) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.all(AppRadius.xl),
+        ),
         title: Text(
           'تأكيد الحذف',
-          style: GoogleFonts.cairo(color: Colors.white),
+          style: GoogleFonts.cairo(color: theme.colorScheme.onSurface),
         ),
         content: Text(
           'هل تريد حذف "${client['PartyName']}"؟',
-          style: GoogleFonts.cairo(color: Colors.grey[300]),
+          style:
+              GoogleFonts.cairo(color: theme.colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+            child: Text('إلغاء',
+                style: GoogleFonts.cairo(
+                    color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await _deleteClient(client['PartyID']);
             },
-            child: Text('حذف', style: GoogleFonts.cairo(color: Colors.red)),
+            child:
+                Text('حذف', style: GoogleFonts.cairo(color: AppColors.error)),
           ),
         ],
       ),
@@ -1259,14 +1204,14 @@ Widget _buildEmptyState() {
 
   Future<void> _deleteClient(int id) async {
     try {
-      final res = await http.delete(Uri.parse('$baseUrl/api/clients/$id'));
+      final res = await http.delete(Uri.parse('$baseUrl/api/clients/$id'), headers: SessionService.instance.authHeaders);
       final result = jsonDecode(res.body);
 
       if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تم الحذف بنجاح', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
         _refreshAll();
@@ -1274,7 +1219,7 @@ Widget _buildEmptyState() {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'فشل في الحذف', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -1282,7 +1227,7 @@ Widget _buildEmptyState() {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('فشل في الحذف', style: GoogleFonts.cairo()),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -1304,11 +1249,12 @@ Widget _buildEmptyState() {
           if (result == true) _refreshAll();
         });
       },
-      backgroundColor: const Color(0xFF4CAF50),
-      icon: const Icon(Icons.person_add, color: Colors.white),
+      backgroundColor: AppColors.gold,
+      foregroundColor: AppColors.navy,
+      icon: Icon(Icons.person_add, color: AppColors.navy),
       label: Text(
         'إضافة عميل',
-        style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold),
+        style: GoogleFonts.cairo(color: AppColors.navy, fontWeight: FontWeight.bold),
       ),
     );
   }

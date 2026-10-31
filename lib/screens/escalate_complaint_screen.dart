@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/app_colors.dart';
 import '../services/complaints_service.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/employee_service.dart';
 import '../models/employee_model.dart';
 import '../services/permission_service.dart';
@@ -60,7 +63,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('فشل تحميل قائمة المدراء: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -73,7 +76,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('يجب اختيار الموظف المراد التصعيد إليه'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -93,7 +96,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('تم تصعيد الشكوى بنجاح'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -102,7 +105,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('فشل تصعيد الشكوى: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -118,7 +121,12 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
     // التحقق من الصلاحية
     if (!permissionService.canEscalateComplaint) {
       return Scaffold(
-        appBar: AppBar(title: const Text('تصعيد شكوى')),
+        appBar: AppBar(
+          title: const Text('تصعيد شكوى'),
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
         body: const Center(
           child: Text('لا تملك صلاحية التصعيد'),
         ),
@@ -128,29 +136,24 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('تصعيد شكوى'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
           : Form(
               key: _formKey,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   // اختيار الموظف المراد التصعيد إليه
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'التصعيد إلى',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const AppSectionHeader(title: 'التصعيد إلى'),
+                        const SizedBox(height: AppSpacing.md),
                           DropdownButtonFormField<int>(
                             value: _selectedEmployeeId,
                             hint: const Text('اختر الموظف'),
@@ -173,28 +176,19 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
                               return null;
                             },
                           ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
 
                   const SizedBox(height: 16),
 
                   // سبب التصعيد
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'سبب التصعيد',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const AppSectionHeader(title: 'سبب التصعيد'),
+                        const SizedBox(height: AppSpacing.md),
                           TextFormField(
                             controller: _reasonController,
                             maxLines: 4,
@@ -209,8 +203,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
                               return null;
                             },
                           ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
 
@@ -220,18 +213,18 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.amber[50],
+                      color: AppColors.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber),
+                      border: Border.all(color: AppColors.warning),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.warning, color: Colors.amber[800]),
+                        Icon(Icons.warning, color: AppStatus.overdue),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'بعد التصعيد، ستكون الشكوى في حالة "مصعدة" ولن يتمكن الموظف الحالي من تعديلها.',
-                            style: TextStyle(color: Colors.amber[800]),
+                            style: TextStyle(color: AppStatus.overdue),
                           ),
                         ),
                       ],
@@ -245,7 +238,7 @@ class _EscalateComplaintScreenState extends State<EscalateComplaintScreen> {
                     onPressed: _escalate,
                     isLoading: _isSaving,
                     text: 'تصعيد الشكوى',
-                    color: Colors.purple,
+                    color: AppStatus.editPending,
                   ),
                 ],
               ),

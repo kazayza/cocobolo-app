@@ -6,6 +6,10 @@ import '../services/pipeline_service.dart';
 import '../services/permission_service.dart';
 import 'opportunity_detail_screen.dart';
 
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/design_kit.dart';
 /// مُنسّق أرقام مشترك
 final NumberFormat _fmtShared = NumberFormat('#,##0');
 
@@ -309,11 +313,11 @@ class _PipelineScreenState extends State<PipelineScreen> {
   }
 
   Color _hexColor(String? hex) {
-    if (hex == null || hex.isEmpty) return const Color(0xFF94A3B8);
+    if (hex == null || hex.isEmpty) return AppColors.neutralLight;
     var h = hex.replaceAll('#', '');
     if (h.length == 6) h = 'FF$h';
     final v = int.tryParse(h, radix: 16);
-    return v != null ? Color(v) : const Color(0xFF94A3B8);
+    return v != null ? Color(v) : AppColors.neutralLight;
   }
 
   @override
@@ -322,8 +326,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
+      drawer: buildAppDrawer(currentRoute: 'frmSalesPipeline'),
+      appBar: AppBar( leading: const AppDrawerMenuButton(),
         title: const Text('مراحل البيع'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -333,7 +341,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+          ? const AppLoading()
           : _error != null
               ? _buildError(theme)
               : Column(
@@ -352,23 +360,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
   }
 
   Widget _buildError(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded,
-              size: 60, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(_error!, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
-    );
+    return AppError(message: _error!, onRetry: _load);
   }
 
   // ═══════════ كروت KPI ═══════════
@@ -401,18 +393,18 @@ class _PipelineScreenState extends State<PipelineScreen> {
         child: Row(
           children: [
             _kpiCard('الفرص', '${_fmt(totalCount)}', Icons.lightbulb_rounded,
-                const Color(0xFF2563EB), theme),
+                AppColors.info, theme),
             _kpiCard('القيمة', '${_fmtMoney(totalValue)}',
-                Icons.attach_money_rounded, const Color(0xFFF59E0B), theme),
+                Icons.attach_money_rounded, AppColors.warning, theme),
             _kpiCard('مكسب', '${_fmt(wonCount)}', Icons.emoji_events_rounded,
-                const Color(0xFF43A047), theme),
+                AppColors.success, theme),
             _kpiCard('خسارة', '${_fmt(lostCount)}', Icons.trending_down_rounded,
-                const Color(0xFFEF4444), theme),
+                AppColors.error, theme),
             _kpiCard('متأخرة', '${_fmt(overdue)}',
-                Icons.notification_important_rounded, const Color(0xFFEF4444),
+                Icons.notification_important_rounded, AppColors.error,
                 theme),
             _kpiCard('متابعة اليوم', '${_fmt(todayFollow)}',
-                Icons.event_available_rounded, const Color(0xFF8B5CF6), theme),
+                Icons.event_available_rounded, AppStatus.editPending, theme),
           ],
         ),
       ),
@@ -421,49 +413,13 @@ class _PipelineScreenState extends State<PipelineScreen> {
 
   Widget _kpiCard(String label, String value, IconData icon, Color color,
       ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 15, color: color),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: AppStatCard(
+        label: label,
+        value: value,
+        color: color,
+        icon: icon,
       ),
     );
   }
@@ -563,7 +519,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                     onSubmitted: (_) => _onFilterChanged(),
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: isDark ? Colors.white : AppColors.navyDark,
                     ),
                     decoration: InputDecoration(
                       hintText: 'بحث باسم العميل أو الهاتف أو المنتج...',
@@ -688,12 +644,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           decoration: BoxDecoration(
                             color: _overdueOnly
-                                ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                                ? AppColors.error.withValues(alpha: 0.15)
                                 : theme.colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: _overdueOnly
-                                  ? const Color(0xFFEF4444)
+                                  ? AppColors.error
                                   : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
                             ),
                           ),
@@ -704,7 +660,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                 Icons.notification_important_rounded,
                                 size: 13,
                                 color: _overdueOnly
-                                    ? const Color(0xFFEF4444)
+                                    ? AppColors.error
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
@@ -714,7 +670,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                   color: _overdueOnly
-                                      ? const Color(0xFFEF4444)
+                                      ? AppColors.error
                                       : theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
@@ -733,12 +689,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           decoration: BoxDecoration(
                             color: _hasFollowUpOnly
-                                ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                                ? AppStatus.editPending.withValues(alpha: 0.15)
                                 : theme.colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: _hasFollowUpOnly
-                                  ? const Color(0xFF8B5CF6)
+                                  ? AppStatus.editPending
                                   : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
                             ),
                           ),
@@ -749,7 +705,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                 Icons.event_available_rounded,
                                 size: 13,
                                 color: _hasFollowUpOnly
-                                    ? const Color(0xFF8B5CF6)
+                                    ? AppStatus.editPending
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
@@ -759,7 +715,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                   color: _hasFollowUpOnly
-                                      ? const Color(0xFF8B5CF6)
+                                      ? AppStatus.editPending
                                       : theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
@@ -1316,7 +1272,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
     final isLost = stageId == 4;
     final isNI = stageId == 5;
     final isOverdue = card['IsOverdue'] == true;
-    final cardColor = isOverdue ? const Color(0xFFEF4444) : laneColor;
+    final cardColor = isOverdue ? AppColors.error : laneColor;
     final days = (card['LifecycleDays'] as num?)?.toInt() ?? 0;
     final followUp = card['NextFollowUpDate'] != null
         ? DateTime.tryParse(card['NextFollowUpDate'].toString())
@@ -1375,60 +1331,24 @@ class _PipelineScreenState extends State<PipelineScreen> {
                         ),
                       ),
                       if (isOverdue) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: const Text(
-                            'متأخر',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFEF4444),
-                            ),
-                          ),
+                        const StatusBadge(
+                          label: 'متأخر',
+                          color: AppColors.error,
+                          small: true,
                         ),
                         const SizedBox(width: 4),
                       ],
                       if (isLost) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6B7280)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: const Text(
-                            'خسارة',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
+                        const StatusBadge(
+                          label: 'خسارة',
+                          color: AppColors.neutral,
+                          small: true,
                         ),
                       ] else if (isNI) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: const Text(
-                            'غير مهتم',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFF59E0B),
-                            ),
-                          ),
+                        const StatusBadge(
+                          label: 'غير مهتم',
+                          color: AppColors.warning,
+                          small: true,
                         ),
                       ],
                     ],
@@ -1445,12 +1365,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
                         if ((card['SourceName'] ?? '').toString().isNotEmpty)
                           _chip(
                             (card['SourceName'] ?? '').toString(),
-                            const Color(0xFF0EA5E9),
+                            AppColors.infoLight,
                           ),
                         if ((card['InterestedProduct'] ?? '').toString().isNotEmpty)
                           _chip(
                             (card['InterestedProduct'] ?? '').toString(),
-                            const Color(0xFF8B5CF6),
+                            AppStatus.editPending,
                           ),
                       ],
                     ),
@@ -1486,13 +1406,10 @@ class _PipelineScreenState extends State<PipelineScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          '${_fmtMoney(card['ExpectedValue'] ?? 0)} ج.م',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            color: cardColor,
-                          ),
+                        child: AmountText(
+                          value: '${_fmtMoney(card['ExpectedValue'] ?? 0)} ج.م',
+                          size: 13,
+                          color: cardColor,
                         ),
                       ),
                       if (isOverdue && followUp != null)
@@ -1501,7 +1418,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                           style: const TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFFEF4444),
+                            color: AppColors.error,
                           ),
                         ),
                     ],
@@ -1518,7 +1435,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: days > 7
-                                ? const Color(0xFFEF4444)
+                                ? AppColors.error
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
                         ),

@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import '../services/recovery_service.dart';
 import '../services/permission_service.dart';
@@ -11,6 +13,7 @@ import 'opportunity_detail_screen.dart';
 import 'client_card_screen.dart';
 import 'lost_recovery_report_screen.dart';
 
+import '../widgets/app_drawer.dart';
 /// استرداد الفرص الخاسرة - مطابق 100% لبلازور LostRecovery.razor (1521 سطر)
 /// Workflow: الفرص اللي وصلت خسارة/غير مهتم (4,5) تروح لخدمة العملاء يحاولوا يرجعوها
 class LostRecoveryScreen extends StatefulWidget {
@@ -443,13 +446,13 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
   }
 
   Color _hexToColor(String? hex) {
-    if (hex == null || hex.isEmpty) return const Color(0xFF94A3B8);
+    if (hex == null || hex.isEmpty) return AppColors.neutralLight;
     var h = hex.replaceAll('#', '');
     if (h.length == 6) h = 'FF$h';
     try {
       return Color(int.parse(h, radix: 16));
     } catch (_) {
-      return const Color(0xFF94A3B8);
+      return AppColors.neutralLight;
     }
   }
 
@@ -458,15 +461,16 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        drawer: buildAppDrawer(currentRoute: 'frm_LostRecovery'),
+        backgroundColor: AppColors.background(_isDark),
         body: Stack(
           children: [
             NestedScrollView(
               headerSliverBuilder: (ctx, inner) => [
-                SliverAppBar(
+                SliverAppBar( leading: const AppDrawerMenuButton(),
                   pinned: true,
                   expandedHeight: 235,
-                  backgroundColor: const Color(0xFF312E81),
+                  backgroundColor: AppColors.navy,
                   foregroundColor: Colors.white,
                   title: Text('استرداد الفرص الخاسرة',
                       style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
@@ -494,7 +498,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                         Container(
                           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: const Color(0xFF065F46), borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: AppStatus.profit, borderRadius: BorderRadius.circular(12)),
                           child: Row(children: [
                             Expanded(child: Text(_successMsg!, style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
                             InkWell(onTap: () => setState(() => _successMsg = null), child: const Icon(Icons.close, color: Colors.white, size: 16)),
@@ -506,11 +510,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                           child: Container(
                             margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFECACA))),
+                            decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
                             child: Row(children: [
-                              const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C), size: 18),
+                              const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 18),
                               const SizedBox(width: 8),
-                              Expanded(child: Text(_errorMsg!, style: GoogleFonts.cairo(color: const Color(0xFFB91C1C), fontSize: 12, fontWeight: FontWeight.bold))),
+                              Expanded(child: Text(_errorMsg!, style: GoogleFonts.cairo(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold))),
                             ]),
                           ),
                         ),
@@ -518,11 +522,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                         Container(
                           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFBFDBFE))),
+                          decoration: BoxDecoration(color: AppColors.info.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.info.withValues(alpha: 0.3))),
                           child: Row(children: [
                             const Icon(
                               Icons.notification_important_outlined,
-                              color: Color(0xFF1D4ED8),
+                              color: AppColors.info,
                               size: 19,
                             ),
                             const SizedBox(width: 8),
@@ -530,7 +534,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                               child: Text(
                                 'يوجد $_pendingNew فرصة خاسرة جديدة بانتظار الاستقبال',
                                 style: GoogleFonts.cairo(
-                                  color: const Color(0xFF1D4ED8),
+                                  color: AppColors.info,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
@@ -538,14 +542,14 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                             ),
                             const SizedBox(width: 8),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              style: ElevatedButton.styleFrom(backgroundColor: AppStatus.profit, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                               onPressed: () async {
                                 setState(() => _pendingNew = 0);
                                 await _bootstrap();
                               },
                               child: Text('استقبال الآن', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold)),
                             ),
-                            IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _pendingNew = 0), color: const Color(0xFF1D4ED8)),
+                            IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _pendingNew = 0), color: AppColors.info),
                           ]),
                         ),
                       _buildKpis(),
@@ -554,11 +558,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                         Container(
                           margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFC7D2FE), style: BorderStyle.solid)),
+                          decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppStatus.editPending.withValues(alpha: 0.3), style: BorderStyle.solid)),
                           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)),
                             const SizedBox(width: 8),
-                            Text('جارٍ البحث وتحديث القائمة...', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                            Text('جارٍ البحث وتحديث القائمة...', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.neutral)),
                           ]),
                         ),
                     ],
@@ -566,7 +570,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                 ),
               ],
               body: _loading
-                  ? Center(child: CircularProgressIndicator(color: AppColors.gold))
+                  ? const AppLoading()
                   : _items.isEmpty
                       ? _buildEmpty()
                       : RefreshIndicator(
@@ -638,7 +642,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.navy, const Color(0xFF1E3A5F), const Color(0xFF1E40AF), AppColors.navy.withOpacity(0.85)],
+          colors: [AppColors.navy, AppColors.navyLight, AppColors.info, AppColors.navy.withValues(alpha: 0.85)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -646,9 +650,9 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
       child: Stack(
         children: [
           // Decorative circles - هوية فلاتر navy+gold
-          Positioned(top: -30, right: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), shape: BoxShape.circle))),
-          Positioned(bottom: -30, left: 10, child: Container(width: 140, height: 140, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.08), shape: BoxShape.circle))),
-          Positioned(top: 20, left: 80, child: Container(width: 60, height: 60, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.05), shape: BoxShape.circle))),
+          Positioned(top: -30, right: -20, child: Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle))),
+          Positioned(bottom: -30, left: 10, child: Container(width: 140, height: 140, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), shape: BoxShape.circle))),
+          Positioned(top: 20, left: 80, child: Container(width: 60, height: 60, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.05), shape: BoxShape.circle))),
           SafeArea(
             bottom: false,
             child: Padding(
@@ -659,10 +663,10 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
+                      color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withOpacity(0.18)),
-                      boxShadow: [BoxShadow(color: AppColors.gold.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                      boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))],
                     ),
                     child: Center(child: Icon(Icons.restart_alt_rounded, color: AppColors.gold, size: 28)),
                   ),
@@ -670,7 +674,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Container(width: 8, height: 8, decoration: BoxDecoration(color: const Color(0xFF34D399), shape: BoxShape.circle, boxShadow: [BoxShadow(color: const Color(0xFF34D399).withOpacity(0.5), blurRadius: 6)])),
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.successLight, shape: BoxShape.circle, boxShadow: [BoxShadow(color: AppColors.successLight.withValues(alpha: 0.5), blurRadius: 6)])),
                         const SizedBox(width: 6),
                         Text('وحدة متابعة العملاء', style: GoogleFonts.cairo(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
                       ]),
@@ -712,10 +716,10 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         color: bg == Colors.white
-            ? Colors.white.withOpacity(0.12)
-            : bg.withOpacity(0.15),
+            ? Colors.white.withValues(alpha: 0.12)
+            : bg.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withOpacity(0.20)),
+        border: Border.all(color: fg.withValues(alpha: 0.20)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -737,12 +741,12 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
 
   Widget _buildKpis() {
     return Container(
-      color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      color: AppColors.background(_isDark),
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
-          _kpiCard(Icons.trending_down_rounded, '${_stats['LostCount']}', 'خاسرة بانتظار المتابعة', const Color(0xFFEF4444), _kind == 'all' && !_unassignedOnly && !_uncontactedOnly && !_candidateOnly && !_lateOnly && !_mineOnly, () {
+          _kpiCard(Icons.trending_down_rounded, '${_stats['LostCount']}', 'خاسرة بانتظار المتابعة', AppColors.error, _kind == 'all' && !_unassignedOnly && !_uncontactedOnly && !_candidateOnly && !_lateOnly && !_mineOnly, () {
             setState(() {
               _kind = 'all';
               _candidateOnly = false;
@@ -753,21 +757,21 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
             });
             _applyFilters();
           }),
-          _kpiCard(Icons.payments_outlined, _money(_stats['LostValue']), 'إجمالي القيمة', const Color(0xFF4F46E5), false, () {
+          _kpiCard(Icons.payments_outlined, _money(_stats['LostValue']), 'إجمالي القيمة', AppStatus.editPending, false, () {
             setState(() => _sortBy = 'value');
             _applyFilters();
           }),
-          _kpiCard(Icons.pending_actions_rounded, '${_stats['UnassignedCount']}', 'بانتظار التوزيع', const Color(0xFFD97706), _unassignedOnly, () {
+          _kpiCard(Icons.pending_actions_rounded, '${_stats['UnassignedCount']}', 'بانتظار التوزيع', AppStatus.overdue, _unassignedOnly, () {
             setState(() {
               _unassignedOnly = !_unassignedOnly;
               if (_unassignedOnly) _uncontactedOnly = false;
             });
             _applyFilters();
           }),
-          _kpiCard(Icons.restart_alt_rounded, '${_stats['RevivedThisMonth']}', 'استُرد هذا الشهر', const Color(0xFF059669), false, () {
+          _kpiCard(Icons.restart_alt_rounded, '${_stats['RevivedThisMonth']}', 'استُرد هذا الشهر', AppStatus.profit, false, () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => LostRecoveryReportScreen(userId: widget.userId, username: widget.username)));
           }),
-          _kpiCard(Icons.phone_outlined, '${_stats['UncontactedCount']}', 'لم يُتواصل بعد', const Color(0xFFDB2777), _uncontactedOnly, () {
+          _kpiCard(Icons.phone_outlined, '${_stats['UncontactedCount']}', 'لم يُتواصل بعد', AppStatus.editPending, _uncontactedOnly, () {
             setState(() {
               _uncontactedOnly = !_uncontactedOnly;
               if (_uncontactedOnly) _unassignedOnly = false;
@@ -790,19 +794,19 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
           width: 150,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: selected ? c.withOpacity(_isDark ? 0.22 : 0.14) : (_isDark ? const Color(0xFF1E293B) : Colors.white),
+            color: selected ? c.withValues(alpha: _isDark ? 0.22 : 0.14) : AppColors.card(_isDark),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: selected ? c : (_isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)), width: selected ? 1.6 : 1),
-            boxShadow: selected ? [BoxShadow(color: c.withOpacity(0.22), blurRadius: 10, offset: const Offset(0, 4))] : null,
+            border: Border.all(color: selected ? c : AppColors.divider(_isDark), width: selected ? 1.6 : 1),
+            boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.22), blurRadius: 10, offset: const Offset(0, 4))] : null,
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Container(width: 36, height: 36, decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: c, size: 19)),
+              Container(width: 36, height: 36, decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: c, size: 19)),
               const Spacer(),
               if (selected) Icon(Icons.check_circle_rounded, size: 16, color: c),
             ]),
             const SizedBox(height: 10),
-            Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.w900, color: _isDark ? Colors.white : const Color(0xFF0F172A))),
+            AmountText(value: val, size: 15, color: AppColors.text(_isDark)),
             const SizedBox(height: 2),
             Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
           ]),
@@ -815,7 +819,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withOpacity(0.06)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))]),
+      decoration: BoxDecoration(color: AppColors.card(_isDark), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black.withValues(alpha: 0.06)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))]),
       child: Column(children: [
         Row(children: [
           Expanded(
@@ -838,7 +842,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                     : null,
                 isDense: true,
                 filled: true,
-                fillColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                fillColor: AppColors.inputFill(_isDark),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
@@ -847,7 +851,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12)),
             child: DropdownButton<String>(
               value: _sortBy,
               underline: const SizedBox.shrink(),
@@ -884,9 +888,9 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFC7D2FE), style: BorderStyle.solid)),
+            decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppStatus.editPending.withValues(alpha: 0.3), style: BorderStyle.solid)),
             child: Row(children: [
-              Text('تاريخ الإغلاق', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF4338CA))),
+              Text('تاريخ الإغلاق', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: AppStatus.editPending)),
               const SizedBox(width: 8),
               Text('من', style: GoogleFonts.cairo(fontSize: 11)),
               const SizedBox(width: 6),
@@ -895,7 +899,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   final d = await showDatePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDate: _closedFrom ?? DateTime.now());
                   if (d != null) { setState(() => _closedFrom = d); _applyFilters(); }
                 },
-                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDBE3F3))), child: Text(_closedFrom == null ? 'اختر' : DateFormat('yyyy/MM/dd').format(_closedFrom!), style: GoogleFonts.cairo(fontSize: 11))),
+                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.lightDivider)), child: Text(_closedFrom == null ? 'اختر' : DateFormat('yyyy/MM/dd').format(_closedFrom!), style: GoogleFonts.cairo(fontSize: 11))),
               ),
               const SizedBox(width: 8),
               Text('إلى', style: GoogleFonts.cairo(fontSize: 11)),
@@ -905,11 +909,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   final d = await showDatePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDate: _closedTo ?? DateTime.now());
                   if (d != null) { setState(() => _closedTo = d); _applyFilters(); }
                 },
-                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDBE3F3))), child: Text(_closedTo == null ? 'اختر' : DateFormat('yyyy/MM/dd').format(_closedTo!), style: GoogleFonts.cairo(fontSize: 11))),
+                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.lightDivider)), child: Text(_closedTo == null ? 'اختر' : DateFormat('yyyy/MM/dd').format(_closedTo!), style: GoogleFonts.cairo(fontSize: 11))),
               ),
               const Spacer(),
               if (_closedFrom != null || _closedTo != null)
-                InkWell(onTap: () { setState(() { _closedFrom = null; _closedTo = null; }); _applyFilters(); }, child: Text('مسح التواريخ', style: GoogleFonts.cairo(fontSize: 11, color: Colors.red))),
+                InkWell(onTap: () { setState(() { _closedFrom = null; _closedTo = null; }); _applyFilters(); }, child: Text('مسح التواريخ', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.error))),
               IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _showDate = false)),
             ]),
           ),
@@ -921,25 +925,25 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
   Widget _chip(String label, bool selected, VoidCallback onTap, {bool isSpecial = false, bool isLate = false, bool isClear = false}) {
     Color bg, fg, border;
     if (isClear) {
-      bg = const Color(0xFFFEE2E2);
-      fg = const Color(0xFFB91C1C);
-      border = const Color(0xFFFCA5A5);
+      bg = AppColors.error.withValues(alpha: 0.15);
+      fg = AppColors.error;
+      border = AppColors.errorLight;
     } else if (isLate && selected) {
-      bg = const Color(0xFFF59E0B);
+      bg = AppColors.warning;
       fg = Colors.white;
       border = Colors.transparent;
     } else if (selected) {
-      bg = const Color(0xFF4F46E5);
+      bg = AppStatus.editPending;
       fg = Colors.white;
       border = Colors.transparent;
     } else if (isSpecial) {
-      bg = const Color(0xFFD1FAE5);
-      fg = const Color(0xFF047857);
-      border = const Color(0xFFA7F3D0);
+      bg = AppStatus.profit.withValues(alpha: 0.15);
+      fg = AppStatus.profit;
+      border = AppStatus.profit.withValues(alpha: 0.3);
     } else {
-      bg = _isDark ? const Color(0xFF1E293B) : Colors.white;
-      fg = const Color(0xFF475569);
-      border = const Color(0xFFDBE3F3);
+      bg = AppColors.card(_isDark);
+      fg = AppColors.neutral;
+      border = AppColors.lightDivider;
     }
 
     return Padding(
@@ -962,11 +966,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 80, height: 80, decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.12), shape: BoxShape.circle), child: Icon(Icons.search_off_rounded, size: 40, color: AppColors.gold)),
+            Container(width: 80, height: 80, decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.12), shape: BoxShape.circle), child: Icon(Icons.search_off_rounded, size: 40, color: AppColors.gold)),
             const SizedBox(height: 16),
             Text('لا توجد نتائج مطابقة للبحث أو الفلاتر الحالية', style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text('جرّب تعديل كلمات البحث أو إلغاء بعض الفلاتر', style: GoogleFonts.cairo(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+            Text('جرّب تعديل كلمات البحث أو إلغاء بعض الفلاتر', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.neutral), textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: _clearAllFilters, child: Text('مسح الفلاتر والبحث', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold))),
           ]),
@@ -977,11 +981,11 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 80, height: 80, decoration: BoxDecoration(color: const Color(0xFF4F46E5).withOpacity(0.12), shape: BoxShape.circle), child: const Icon(Icons.inbox_rounded, size: 40, color: Color(0xFF4F46E5))),
+          Container(width: 80, height: 80, decoration: BoxDecoration(color: AppStatus.editPending.withValues(alpha: 0.12), shape: BoxShape.circle), child: const Icon(Icons.inbox_rounded, size: 40, color: AppStatus.editPending)),
           const SizedBox(height: 16),
           Text('لا توجد فرص خاسرة مطابقة', style: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          Text('لو فيه فرصة اتقفلت بخسارة هتظهر هنا تلقائياً وبيتواصل معاها فريق خدمة العملاء', style: GoogleFonts.cairo(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+          Text('لو فيه فرصة اتقفلت بخسارة هتظهر هنا تلقائياً وبيتواصل معاها فريق خدمة العملاء', style: GoogleFonts.cairo(fontSize: 12, color: AppColors.neutral), textAlign: TextAlign.center),
           const SizedBox(height: 16),
           OutlinedButton.icon(style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: _bootstrap, icon: const Icon(Icons.refresh_rounded), label: Text('فحص الخسائر الجديدة', style: GoogleFonts.cairo())),
         ]),
@@ -1002,9 +1006,9 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: const Color(0xFFFEF3C7).withOpacity(_isDark ? 0.15 : 1), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+                decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: _isDark ? 0.15 : 1), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
                 child: Row(children: [
-                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.phone_in_talk_rounded, color: Colors.orange, size: 20)),
+                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.phone_in_talk_rounded, color: AppColors.warning, size: 20)),
                   const SizedBox(width: 10),
                   Expanded(child: Text('تسجيل محاولة تواصل', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 15))),
                   IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() { _showContact = false; _sel = null; })),
@@ -1015,7 +1019,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withOpacity(0.06))),
+                    decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
                     child: Row(children: [
                       Expanded(child: Text('${_sel!['ClientName']} • #OP-${_sel!['OpportunityId']} • مغلق منذ ${_sel!['DaysSinceClosed']} يوم', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold))),
                     ]),
@@ -1049,7 +1053,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   ),
                   if (_outcome == 'رفض نهائي') ...[
                     const SizedBox(height: 10),
-                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.22))), child: Row(children: [Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700), const SizedBox(width: 6), Expanded(child: Text('تنبيه: باختيار \"رفض نهائي\" تُغلق فرصة الاسترداد نهائياً ولا تظهر في القائمة مرة أخرى', style: GoogleFonts.cairo(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.bold)))])),
+                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.error.withValues(alpha: 0.22))), child: Row(children: [Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error), const SizedBox(width: 6), Expanded(child: Text('تنبيه: باختيار \"رفض نهائي\" تُغلق فرصة الاسترداد نهائياً ولا تظهر في القائمة مرة أخرى', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.bold)))])),
                   ],
                   const SizedBox(height: 12),
                   Text('موعد المتابعة القادمة (اختياري)', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12)),
@@ -1063,13 +1067,13 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   ),
                   if (_errorMsg != null) ...[
                     const SizedBox(height: 12),
-                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: Text(_errorMsg!, style: GoogleFonts.cairo(color: Colors.red.shade700, fontSize: 12))),
+                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)), child: Text(_errorMsg!, style: GoogleFonts.cairo(color: AppColors.error, fontSize: 12))),
                   ],
                   const SizedBox(height: 16),
                   Row(children: [
                     Expanded(child: OutlinedButton(onPressed: () => setState(() { _showContact = false; _sel = null; }), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: Text('إلغاء', style: GoogleFonts.cairo()))),
                     const SizedBox(width: 10),
-                    Expanded(child: ElevatedButton(onPressed: _busy ? null : _submitContact, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('حفظ المحاولة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)))),
+                    Expanded(child: ElevatedButton(onPressed: _busy ? null : _submitContact, style: ElevatedButton.styleFrom(backgroundColor: AppStatus.overdue, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('حفظ المحاولة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)))),
                   ]),
                 ]),
               ),
@@ -1093,9 +1097,9 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF059669).withOpacity(0.12), const Color(0xFF10B981).withOpacity(0.08)]), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [AppStatus.profit.withValues(alpha: 0.12), AppColors.successLight.withValues(alpha: 0.08)]), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
                 child: Row(children: [
-                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF059669).withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.restart_alt_rounded, color: Color(0xFF059669), size: 20)),
+                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppStatus.profit.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.restart_alt_rounded, color: AppStatus.profit, size: 20)),
                   const SizedBox(width: 10),
                   Expanded(child: Text('العميل راجع — إعادة تفعيل', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 15))),
                   IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() { _showRevive = false; _sel = null; })),
@@ -1104,14 +1108,14 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFA7F3D0))), child: Text('${_sel!['ClientName']} عاد بعد خسارة #OP-${_sel!['OpportunityId']} بقيمة ${_money(_sel!['ExpectedValue'])}', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF065F46)))),
+                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppStatus.profit.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppStatus.profit.withValues(alpha: 0.3))), child: Text('${_sel!['ClientName']} عاد بعد خسارة #OP-${_sel!['OpportunityId']} بقيمة ${_money(_sel!['ExpectedValue'])}', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold, color: AppStatus.profit))),
                   const SizedBox(height: 14),
                   Row(children: [
                     Expanded(
                       child: InkWell(
                         onTap: () => setState(() => _same = true),
                         borderRadius: BorderRadius.circular(12),
-                        child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _same ? const Color(0xFF059669).withOpacity(0.12) : AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: _same ? const Color(0xFF059669) : Colors.black12)), child: Column(children: [Icon(Icons.refresh_rounded, color: _same ? const Color(0xFF059669) : Colors.grey), const SizedBox(height: 6), Text('نفس الفرصة', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), Text('نفس الاحتياج والمنتج', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey))])),
+                        child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _same ? AppStatus.profit.withValues(alpha: 0.12) : AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: _same ? AppStatus.profit : Colors.black12)), child: Column(children: [Icon(Icons.refresh_rounded, color: _same ? AppStatus.profit : AppColors.neutral), const SizedBox(height: 6), Text('نفس الفرصة', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), Text('نفس الاحتياج والمنتج', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral))])),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1119,7 +1123,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                       child: InkWell(
                         onTap: () => setState(() => _same = false),
                         borderRadius: BorderRadius.circular(12),
-                        child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: !_same ? const Color(0xFF4F46E5).withOpacity(0.12) : AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: !_same ? const Color(0xFF4F46E5) : Colors.black12)), child: Column(children: [Icon(Icons.add_circle_outline_rounded, color: !_same ? const Color(0xFF4F46E5) : Colors.grey), const SizedBox(height: 6), Text('فرصة جديدة', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), Text('احتياج مختلف', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey))])),
+                        child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: !_same ? AppStatus.editPending.withValues(alpha: 0.12) : AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: !_same ? AppStatus.editPending : Colors.black12)), child: Column(children: [Icon(Icons.add_circle_outline_rounded, color: !_same ? AppStatus.editPending : AppColors.neutral), const SizedBox(height: 6), Text('فرصة جديدة', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)), Text('احتياج مختلف', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral))])),
                       ),
                     ),
                   ]),
@@ -1158,13 +1162,13 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                   TextField(controller: _revNotesCtrl, maxLines: 2, style: GoogleFonts.cairo(fontSize: 13), decoration: InputDecoration(hintText: 'أي تفاصيل عن اتفاق العودة...', hintStyle: GoogleFonts.cairo(fontSize: 11), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
                   if (_errorMsg != null) ...[
                     const SizedBox(height: 12),
-                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: Text(_errorMsg!, style: GoogleFonts.cairo(color: Colors.red.shade700, fontSize: 12))),
+                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)), child: Text(_errorMsg!, style: GoogleFonts.cairo(color: AppColors.error, fontSize: 12))),
                   ],
                   const SizedBox(height: 16),
                   Row(children: [
                     Expanded(child: OutlinedButton(onPressed: () => setState(() { _showRevive = false; _sel = null; }), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: Text('إلغاء', style: GoogleFonts.cairo()))),
                     const SizedBox(width: 10),
-                    Expanded(child: ElevatedButton(onPressed: _busy ? null : _submitRevive, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(_same ? 'تفعيل الفرصة' : 'إنشاء فرصة جديدة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)))),
+                    Expanded(child: ElevatedButton(onPressed: _busy ? null : _submitRevive, style: ElevatedButton.styleFrom(backgroundColor: AppStatus.profit, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)), child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(_same ? 'تفعيل الفرصة' : 'إنشاء فرصة جديدة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)))),
                   ]),
                 ]),
               ),
@@ -1187,9 +1191,9 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
           child: Column(children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.navy.withOpacity(0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+              decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: 0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
               child: Row(children: [
-                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.navy.withOpacity(0.12), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.history_rounded, color: AppColors.navy, size: 20)),
+                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: Icon(Icons.history_rounded, color: AppColors.navy, size: 20)),
                 const SizedBox(width: 10),
                 Expanded(child: Text('سجل التواصل بعد الخسارة', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 14))),
                 IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() { _showHistory = false; _sel = null; })),
@@ -1203,7 +1207,7 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
               child: _busy
                   ? Center(child: CircularProgressIndicator(color: AppColors.gold))
                   : _history.isEmpty
-                      ? Center(child: Text('لا توجد محاولات تواصل مسجلة بعد الخسارة حتى الآن', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 12)))
+                      ? Center(child: Text('لا توجد محاولات تواصل مسجلة بعد الخسارة حتى الآن', style: GoogleFonts.cairo(color: AppColors.neutral, fontSize: 12)))
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                           itemCount: _history.length,
@@ -1212,14 +1216,14 @@ class _LostRecoveryScreenState extends State<LostRecoveryScreen> {
                             return Container(
                               margin: const EdgeInsets.only(bottom: 10),
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withOpacity(0.06))),
+                              decoration: BoxDecoration(color: AppColors.inputFill(_isDark), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black.withValues(alpha: 0.06))),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
                                   Text(h['Date'] != null ? DateFormat('yyyy/MM/dd HH:mm').format(DateTime.tryParse(h['Date'].toString())?.toLocal() ?? DateTime.now()) : '—', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary(_isDark))),
                                   const SizedBox(width: 8),
-                                  if (h['Channel'] != null) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFF4F46E5).withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Text('${h['Channel']}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF4F46E5)))),
+                                  if (h['Channel'] != null) StatusBadge(label: '${h['Channel']}', color: AppStatus.editPending, small: true),
                                   const Spacer(),
-                                  Text('${h['EmployeeName'] ?? ''}', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
+                                  Text('${h['EmployeeName'] ?? ''}', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
                                 ]),
                                 const SizedBox(height: 6),
                                 Text('${h['Summary'] ?? ''}', style: GoogleFonts.cairo(fontSize: 13, height: 1.4)),
@@ -1294,10 +1298,10 @@ class _RecoveryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: AppColors.card(isDark),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isCandidate ? const Color(0xFFA7F3D0) : Colors.black.withOpacity(0.06), width: isCandidate ? 1.5 : 1),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.20 : 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: isCandidate ? AppStatus.profit.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.06), width: isCandidate ? 1.5 : 1),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -1306,25 +1310,25 @@ class _RecoveryCard extends StatelessWidget {
             Container(
               width: 54,
               height: 54,
-              decoration: BoxDecoration(color: stageColor.withOpacity(0.18), borderRadius: BorderRadius.circular(14)),
+              decoration: BoxDecoration(color: stageColor.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(14)),
               child: Center(child: Text(initials, style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w900, color: stageColor))),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  Text(clientName, style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                  if (isCandidate) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(20)), child: Text('⭐ قابل للاسترداد', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF047857)))),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: isNotInterested ? const Color(0xFFE2E8F0) : const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(20)), child: Text(stageName, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: isNotInterested ? const Color(0xFF475569) : const Color(0xFFB91C1C)))),
-                  if (phone.isNotEmpty) InkWell(onTap: onCall, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(20)), child: Text(phone, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF4F46E5))))),
+                  Text(clientName, style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.text(isDark))),
+                  if (isCandidate) StatusBadge(label: '⭐ قابل للاسترداد', color: AppStatus.profit, small: true),
+                  StatusBadge(label: stageName, color: isNotInterested ? AppColors.neutral : AppColors.error, small: true),
+                  if (phone.isNotEmpty) InkWell(onTap: onCall, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: AppStatus.editPending.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(20)), child: Text(phone, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: AppStatus.editPending)))),
                 ]),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 4, children: [
-                  InkWell(onTap: onOpenOpp, child: Text('#OP-${item['OpportunityId']} ↗', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF4F46E5), decoration: TextDecoration.underline, decorationStyle: TextDecorationStyle.dashed))),
-                  Text('•', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
-                  Text('مغلق منذ $days يوم', style: GoogleFonts.cairo(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                  InkWell(onTap: onOpenOpp, child: Text('#OP-${item['OpportunityId']} ↗', style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w800, color: AppStatus.editPending, decoration: TextDecoration.underline, decorationStyle: TextDecorationStyle.dashed))),
+                  Text('•', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
+                  Text('مغلق منذ $days يوم', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral, fontWeight: FontWeight.w600)),
                   if (closedAt != null) ...[
-                    Text('•', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
+                    Text('•', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
                     Text(() {
                       try {
                         final dt = DateTime.tryParse(closedAt.toString());
@@ -1332,22 +1336,22 @@ class _RecoveryCard extends StatelessWidget {
                       } catch (_) {
                         return '';
                       }
-                    }(), style: GoogleFonts.cairo(fontSize: 11, color: const Color(0xFF64748B))),
+                    }(), style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
                   ],
                   if (prevEmp.isNotEmpty) ...[
-                    Text('•', style: GoogleFonts.cairo(fontSize: 11, color: Colors.grey)),
-                    Text('المندوب: $prevEmp', style: GoogleFonts.cairo(fontSize: 11, color: const Color(0xFF64748B))),
+                    Text('•', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
+                    Text('المندوب: $prevEmp', style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral)),
                   ],
                 ]),
                 const SizedBox(height: 8),
                 Wrap(spacing: 6, runSpacing: 4, children: [
-                  if (lostReason.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(8)), child: Text('السبب: $lostReason', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF92400E)))),
-                  if (lostNotes.isNotEmpty) Container(constraints: const BoxConstraints(maxWidth: 260), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDBE3F3), style: BorderStyle.solid)), child: Text(lostNotes, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10, color: const Color(0xFF475569)))),
+                  if (lostReason.isNotEmpty) StatusBadge(label: 'السبب: $lostReason', color: AppStatus.overdue, small: true),
+                  if (lostNotes.isNotEmpty) Container(constraints: const BoxConstraints(maxWidth: 260), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.lightDivider, style: BorderStyle.solid)), child: Text(lostNotes, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral))),
                 ]),
                 if (lastCsSummary.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black.withOpacity(0.06))), child: Row(children: [
-                    Text('آخر تواصل بعد الخسارة:', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                  Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.inputFill(isDark), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black.withValues(alpha: 0.06))), child: Row(children: [
+                    Text('آخر تواصل بعد الخسارة:', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.neutral)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(lastCsSummary.length > 60 ? '${lastCsSummary.substring(0, 60)}...' : lastCsSummary, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w700))),
                     if (lastCsDate != null) ...[
@@ -1359,10 +1363,10 @@ class _RecoveryCard extends StatelessWidget {
                         } catch (_) {
                           return '';
                         }
-                      }(), style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey)),
+                      }(), style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
                     ],
                     if (lastCsBy.isNotEmpty) ...[
-                      Text(' • $lastCsBy', style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey)),
+                      Text(' • $lastCsBy', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
                     ],
                   ])),
                 ],
@@ -1370,42 +1374,35 @@ class _RecoveryCard extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(money(value), style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-              Text('قيمة متوقعة', style: GoogleFonts.cairo(fontSize: 10, color: const Color(0xFF64748B))),
+              AmountText(value: money(value), size: 13, color: AppColors.text(isDark)),
+              Text('قيمة متوقعة', style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
               if (nextFollow != null) ...[
                 const SizedBox(height: 6),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isOverdue ? const Color(0xFFFEE2E2) : const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(20)), child: Text('${() { try { final dt = DateTime.tryParse(nextFollow.toString()); return dt == null ? '' : DateFormat('yyyy/MM/dd').format(dt); } catch (_) { return ''; } }()}${isOverdue ? ' • متأخرة' : ''}', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: isOverdue ? const Color(0xFFB91C1C) : const Color(0xFF4F46E5)))),
+                StatusBadge(label: '${() { try { final dt = DateTime.tryParse(nextFollow.toString()); return dt == null ? '' : DateFormat('yyyy/MM/dd').format(dt); } catch (_) { return ''; } }()}${isOverdue ? ' • متأخرة' : ''}', color: isOverdue ? AppColors.error : AppStatus.editPending, small: true),
               ],
               const SizedBox(height: 6),
-              recEmp.isNotEmpty ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(20)), child: Text(recEmp, style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF047857)))) : Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(20)), child: Text('سيُتابع تلقائياً', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF92400E)))),
+              StatusBadge(label: recEmp.isNotEmpty ? recEmp : 'سيُتابع تلقائياً', color: recEmp.isNotEmpty ? AppStatus.profit : AppStatus.overdue, small: true),
               const SizedBox(height: 8),
               Row(mainAxisSize: MainAxisSize.min, children: [
-                _smallIconBtn(Icons.phone_rounded, const Color(0xFF4F46E5), onCall),
+                AppIconChip(icon: Icons.call_rounded, color: AppStatus.editPending, onTap: onCall),
                 const SizedBox(width: 4),
-                _smallIconBtn(Icons.chat_rounded, const Color(0xFF25D366), onWa),
+                WhatsAppChip(onTap: onWa),
                 const SizedBox(width: 4),
-                _smallIconBtn(Icons.person_rounded, const Color(0xFFD97706), onOpenClient),
+                AppIconChip(icon: Icons.person_rounded, color: AppStatus.overdue, onTap: onOpenClient),
                 const SizedBox(width: 4),
-                _smallIconBtn(Icons.history_rounded, const Color(0xFFDB2777), onHistory),
+                AppIconChip(icon: Icons.history_rounded, color: AppStatus.editPending, onTap: onHistory),
               ]),
             ]),
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            if (onContact != null) Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: onContact, icon: const Icon(Icons.edit_note_rounded, size: 18), label: Text('سجّل محاولة تواصل', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)))),
+            if (onContact != null) Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppStatus.overdue, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: onContact, icon: const Icon(Icons.edit_note_rounded, size: 18), label: Text('سجّل محاولة تواصل', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)))),
             if (onContact != null && onRevive != null) const SizedBox(width: 10),
-            if (onRevive != null) Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: onRevive, icon: const Icon(Icons.restart_alt_rounded, size: 18), label: Text('العميل راجع — استرداد', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)))),
+            if (onRevive != null) Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppStatus.profit, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: onRevive, icon: const Icon(Icons.restart_alt_rounded, size: 18), label: Text('العميل راجع — استرداد', style: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.bold)))),
           ]),
         ]),
       ),
     );
   }
 
-  Widget _smallIconBtn(IconData icon, Color c, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(width: 32, height: 32, decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: c.withOpacity(0.22))), child: Icon(icon, size: 16, color: c)),
-    );
-  }
 }

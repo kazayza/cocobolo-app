@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/permission_service.dart';
 import '../services/notification_service.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
+import 'design_kit.dart';
 import '../features/home/widgets/profile_avatar.dart';
 import '../screens/login_screen.dart';
 import '../services/update_service.dart';
@@ -51,17 +53,20 @@ import '../screens/attendance_screen.dart';
 import '../screens/add_employee_screen.dart';
 import '../screens/employee_shifts_screen.dart';
 import '../screens/all_shifts_screen.dart';
+import '../screens/shifts_management_screen.dart';
+import '../screens/penalties_screen.dart';
 import '../screens/my_schedule_screen.dart';
 import '../screens/exemptions_screen.dart';
 import '../screens/attendance_report_screen.dart';
 import '../screens/permissions_list_screen.dart';
 import '../screens/complaints_screen.dart';
 import '../screens/hr/payroll_list_screen.dart';
-import '../screens/hr/payslip_screen.dart';
+import '../screens/hr/my_payslips_screen.dart';
 import '../screens/hr/loans_screen.dart';
 import '../screens/hr/hr_dashboard_screen.dart';
 import '../screens/hr/off_payroll_screen.dart';
 import '../screens/delivery_tracking_screen.dart';
+import '../screens/delivery_maintenance_screen.dart';
 import '../screens/purchase_receipts_screen.dart';
 import '../screens/additional_charges_screen.dart';
 import '../screens/customer_care_screen.dart';
@@ -69,6 +74,10 @@ import '../screens/customer_care_history_screen.dart';
 import '../screens/executive_cockpit_screen.dart';
 import '../screens/cashbox_transactions_screen.dart';
 import '../screens/cashbox_manual_screen.dart';
+import '../screens/cashbox_summary_screen.dart';
+import '../screens/cashbox_review_screen.dart';
+import '../screens/financial_reports_screen.dart';
+import '../screens/payments_screen.dart';
 import '../screens/cashbox/cashbox_dashboard_screen.dart';
 import '../screens/leads_screen.dart';
 import '../screens/followups_screen.dart';
@@ -95,6 +104,36 @@ class AppDrawer extends StatefulWidget {
   State<AppDrawer> createState() => _AppDrawerState();
 }
 
+/// درج جاهز لأي شاشة رئيسية — يقرأ بيانات المستخدم من جلسة الدخول
+/// الحالية (نفس ما تمرره الرئيسية يدويًا) حتى لا تحتاج كل شاشة لتمريرها.
+AppDrawer buildAppDrawer({required String currentRoute}) {
+  final auth = AuthProvider();
+  return AppDrawer(
+    userId: auth.userId ?? 0,
+    username: auth.username ?? '',
+    fullName: auth.fullName,
+    currentRoute: currentRoute,
+  );
+}
+
+/// زر فتح القائمة الجانبية الموحد — يوضع في `leading` شريط عنوان أي
+/// شاشة رئيسية (وجهة من وجهات الدرج نفسه) ليصل المستخدم للقائمة
+/// بضغطة واحدة من أي مكان.
+class AppDrawerMenuButton extends StatelessWidget {
+  final Color? color;
+
+  const AppDrawerMenuButton({super.key, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.menu_rounded, color: color),
+      tooltip: 'القائمة',
+      onPressed: () => Scaffold.of(context).openDrawer(),
+    );
+  }
+}
+
 class _AppDrawerState extends State<AppDrawer> {
   late final PermissionService _perms;
   late final List<MenuItem> _visibleItems;
@@ -118,6 +157,11 @@ class _AppDrawerState extends State<AppDrawer> {
     super.initState();
     _perms = PermissionService();
     _cacheMenuItems();
+    // الأقسام مطوية عند فتح الدرج؛ يُفتح فقط قسم الشاشة الحالية —
+    // يُزرع فهرسه وحده في مجموعة التوسيع قبل أول بناء فيقرأه
+    // ExpansionTile عبر initiallyExpanded، ويبقى الفتح/الطي
+    // اليدوي داخل الجلسة عبر onExpansionChanged كما كان.
+    _seedCurrentSection();
     _searchController.addListener(_onSearchChanged);
     _loadAppVersion();
     _loadUnseenNewSections();
@@ -159,7 +203,7 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _onSearchChanged() {
-    setState(() => _searchQuery = _searchController.text.toLowerCase());
+    setState(() => _searchQuery = _normalizeArabic(_searchController.text));
   }
 
   void _cacheMenuItems() {
@@ -179,15 +223,83 @@ class _AppDrawerState extends State<AppDrawer> {
         .toList();
   }
 
+  /// هل ينتمي مسار الشاشة الحالية إلى عنصر القائمة هذا؟ العناصر
+  /// التي تستضيف شاشات موحّدة تملك أيضًا مسارات الشاشات التي
+  /// حلّت محلها (إدارة الشيفتات تستضيف المتابعة وشيفتات الموظفين،
+  /// وقائمة الموظفين تستضيف إضافة موظف بعد حذف مدخلها المنفصل).
+  bool _routeBelongsToItem(String itemFormName, String route) {
+    if (itemFormName == route) return true;
+    if (itemFormName == FormNames.shiftsManagement) {
+      return route == FormNames.employeeShifts || route == FormNames.allShifts;
+    }
+    if (itemFormName == FormNames.employeesList) {
+      return route == FormNames.employeesAdd;
+    }
+    return false;
+  }
+
+  /// زرع قسم الشاشة الحالية وحده في مجموعة التوسيع عند فتح الدرج؛
+  /// بلا مطابقة تبقى كل الأقسام مطوية.
+  void _seedCurrentSection() {
+    for (var i = 0; i < _visibleItems.length; i++) {
+      final ownsCurrent = _visibleItems[i].children.any(
+            (sub) =>
+                !sub.isHeader &&
+                _routeBelongsToItem(sub.formName, widget.currentRoute),
+          );
+      if (ownsCurrent) {
+        _expandedSections.add(i);
+        break;
+      }
+    }
+  }
+
   bool _canViewMenu(String formName) {
     final perms = PermissionService();
-    // HR الجديد — يظهر للأدمن ومدير HR ومدير الحسابات والمدير العام حتى لو الصلاحية غير مفعلة بعد
-    if (formName == FormNames.payrollList ||
-        formName == FormNames.payslip ||
-        formName == FormNames.loansPage ||
-        formName == FormNames.hrDashboard ||
-        formName == FormNames.offPayroll) {
-      return perms.canSeeAllHR || perms.isAdmin || perms.isAccountManager || perms.isGeneralManager;
+    // HR — بوابات مرآة لصفحات بلازور لكل وحدة (لا كتلة أدوار واحدة):
+    // الكتلة القديمة كانت تحجب الرواتب والسلف وخارج الراتب واللوحة
+    // كليًا عن دور «المحاسب» (Accountant) وعن صيغة «AccountsManager»
+    // وعن كل حامل مطالبة، لأنها لم تعرف إلا مدير الحسابات بصيغته
+    // الأولى ولم تسأل عن المطالبات إطلاقًا.
+    if (formName == FormNames.payrollList) {
+      // سجل المرتبات: عائلة بلازور كاملة (تشمل المحاسب) أو المطالبة،
+      // ويبقى المدير العام ظاهرًا له كما استقر في التطبيق.
+      return perms.canViewPayrollModule ||
+          perms.canSeeAllHR ||
+          perms.isGeneralManager;
+    }
+    if (formName == FormNames.payslip) {
+      // قسيمتي: خدمة ذاتية — كل حساب مرتبط بموظف يرى قسائمه،
+      // ومديرو الرواتب يرون الكل (الشاشة والخادم يفرضان النطاق).
+      return perms.canViewPayrollModule ||
+          perms.canSeeAllHR ||
+          perms.isGeneralManager ||
+          perms.employeeId != null;
+    }
+    if (formName == FormNames.loansPage) {
+      // السلف: مطالبتها frmEmployeeLoans:View (بوابة بلازور الوحيدة)
+      // مع بقاء ظهورها لمديري الموارد/الحسابات كما هو مستقر.
+      return perms.canViewLoansModule ||
+          perms.canSeeAllHR ||
+          perms.isAdmin ||
+          perms.isAccountManager ||
+          perms.isGeneralManager;
+    }
+    if (formName == FormNames.hrDashboard) {
+      return perms.canViewHrDashboard ||
+          perms.canSeeAllHR ||
+          perms.isAdmin ||
+          perms.isAccountManager;
+    }
+    if (formName == FormNames.offPayroll) {
+      return perms.canEnterOffPayrollModule ||
+          perms.canSeeAllHR ||
+          perms.isGeneralManager;
+    }
+    if (formName == FormNames.dailyExemptions) {
+      // الاستثناءات: مديروها أو حامل المطالبة أو الموظف المرتبط
+      // (نطاقه هو فقط) — مرآة صفحتي بلازور معًا.
+      return perms.canViewExemptions;
     }
     if (formName == 'frmCrmTasksLegacy') {
       // Legacy CRM tasks list: same audience as daily tasks / opportunities
@@ -229,8 +341,42 @@ class _AppDrawerState extends State<AppDrawer> {
     if (formName == FormNames.executiveCockpit) {
       return perms.canViewExecutiveCockpit;
     }
+    // التقارير المالية: بوابات بلازور الحقيقية للقوائم الثلاث
+    // (frmIncomeStatement / frm_CashFlowNew / frmCashBoxDashboard /
+    // rpt_IncomeStatement) — الأسماء القديمة هنا كانت مخترعة وغير قابلة للمنح.
+    if (formName == FormNames.financialReports) {
+      return perms.isAdmin ||
+          perms.isAccountManager ||
+          perms.canView('frmIncomeStatement') ||
+          perms.canView('frm_CashFlowNew') ||
+          perms.canView('rpt_IncomeStatement') ||
+          perms.canView(FormNames.cashBoxDashboard);
+    }
+    // ملخص الخزينة: نفس جمهور مؤشرات/حركات الخزينة
+    if (formName == FormNames.cashBoxSummary) {
+      return perms.isAdmin ||
+          perms.isAccountManager ||
+          perms.canView(FormNames.cashBoxDashboard) ||
+          perms.canView(FormNames.cashBoxTransaction);
+    }
+    // مراجعة الخزينة: مطابقة لبوابة الخادم (Item 27)
+    if (formName == FormNames.cashBoxReview) {
+      return perms.isAdmin ||
+          perms.isAccountManager ||
+          perms.isAccount ||
+          perms.canView('frmCashBoxReview');
+    }
     if (formName == FormNames.invoiceDeliveryStatus) {
       return perms.canViewDelivery;
+    }
+    // صيانة التسليمات: مطابقة لبوابة الخادم (canViewMaintenance)
+    if (formName == FormNames.deliveryMaintenance) {
+      return perms.isAdmin ||
+          perms.isAccountManager ||
+          perms.isProductionManager ||
+          perms.isFactoryManager ||
+          perms.isDeliveryOfficer ||
+          perms.canView(formName);
     }
     if (formName == FormNames.purchaseReceiptStatus) {
       return perms.canViewPurchaseReceipts;
@@ -267,6 +413,21 @@ class _AppDrawerState extends State<AppDrawer> {
       return perms.isAdmin || perms.isAccountManager || perms.canView(formName);
     }
 
+    // إدارة الشيفتات الموحّدة: نفس جمهور المدخلين القديمين معًا —
+    // تظهر لمن كان يرى «شيفتات الموظفين» أو «متابعة الشيفتات».
+    // الجزاءات: بوابة مركّبة على نمط مداخل HR الجديدة — مطالبة
+    // الشاشة الجديدة أو توقيع مباشر أو أحد أدوار الإدارة ذات الصلة،
+    // حتى لا يختفي المدخل عن المديرين قبل زرع المطالبات؛ الخادم
+    // يحدّد نطاق القائمة ويفرض الإنشاء/الاعتماد فعليًا.
+    if (formName == FormNames.employeePenalties) {
+      return perms.canViewPenalties;
+    }
+
+    if (formName == FormNames.shiftsManagement) {
+      return perms.canView(FormNames.employeeShifts) ||
+          perms.canView(FormNames.allShifts);
+    }
+
     // الاسترداد والتكليفات تظهر حسب Policy الأدوار وليس Claim العرض فقط.
     if (formName == FormNames.lostRecovery ||
         formName == FormNames.lostRecoveryReport) {
@@ -300,13 +461,28 @@ class _AppDrawerState extends State<AppDrawer> {
     }
   }
 
+  /// تطبيع عربي موحّد لبحث القائمة — نفس خوارزمية بحث قائمة الأسعار
+  /// في التطبيق: حذف التشكيل والتطويل، توحيد الألف (أإآ←ا) والهاء
+  /// (ة←ه) والياء (ى←ي)، حتى يجد البحث العناوين مهما اختلف الإملاء
+  /// (مثال: «فواتير» تجد «الفواتير»، و«الاسعار» تجد «الأسعار»).
+  static String _normalizeArabic(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '')
+        .replaceAll(RegExp('[أإآ]'), 'ا')
+        .replaceAll('ة', 'ه')
+        .replaceAll('ى', 'ي')
+        .replaceAll(RegExp(r'[^\u0600-\u06FFa-z0-9]'), '');
+  }
+
   List<MenuItem> get _filteredItems {
     if (_searchQuery.isEmpty) return _visibleItems;
     return _visibleItems.where((item) {
-      if (item.title.toLowerCase().contains(_searchQuery)) return true;
+      if (_normalizeArabic(item.title).contains(_searchQuery)) return true;
       return item.children.any(
         (sub) =>
-            sub.title.toLowerCase().contains(_searchQuery) &&
+            !sub.isHeader &&
+            _normalizeArabic(sub.title).contains(_searchQuery) &&
             _canViewMenu(sub.formName),
       );
     }).toList();
@@ -324,8 +500,8 @@ class _AppDrawerState extends State<AppDrawer> {
       width: screenWidth * 0.78,
       child: Drawer(
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF0D1A2A)
-            : Colors.white,
+            ? AppColors.navyDark
+            : AppColors.lightSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.horizontal(left: Radius.circular(0)),
         ),
@@ -364,11 +540,7 @@ class _AppDrawerState extends State<AppDrawer> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: const [
-            AppColors.navyDark,
-            AppColors.navy,
-            AppColors.navyLight,
-          ],
+          colors: AppGradients.identityHeader,
         ),
       ),
       child: Column(
@@ -463,9 +635,9 @@ class _AppDrawerState extends State<AppDrawer> {
                 Text(
                   widget.fullName ?? widget.username,
                   style: GoogleFonts.cairo(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white
-                        : const Color(0xFF0F172A),
+                    color: AppColors.text(
+                      Theme.of(context).brightness == Brightness.dark,
+                    ),
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
@@ -511,7 +683,7 @@ class _AppDrawerState extends State<AppDrawer> {
         _QuickAction(
           icon: Icons.person_add_rounded,
           label: 'عميل',
-          color: const Color(0xFF4CAF50),
+          color: AppColors.gold,
           onTap: () {
             Navigator.pop(context);
             Navigator.push(
@@ -531,7 +703,7 @@ class _AppDrawerState extends State<AppDrawer> {
         _QuickAction(
           icon: Icons.lightbulb_outline,
           label: 'فرصة',
-          color: const Color(0xFFFF9800),
+          color: AppColors.gold,
           onTap: () {
             Navigator.pop(context);
             Navigator.push(
@@ -553,7 +725,7 @@ class _AppDrawerState extends State<AppDrawer> {
         _QuickAction(
           icon: Icons.receipt_long_rounded,
           label: 'مصروف',
-          color: const Color(0xFFE91E63),
+          color: AppColors.gold,
           onTap: () {
             Navigator.pop(context);
             Navigator.push(
@@ -585,6 +757,7 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Widget _buildQuickActionButton(_QuickAction action) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: action.onTap,
       child: Container(
@@ -601,7 +774,7 @@ class _AppDrawerState extends State<AppDrawer> {
             Text(
               '+ ${action.label}',
               style: GoogleFonts.cairo(
-                color: action.color,
+                color: isDark ? action.color : AppColors.goldDark,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
@@ -679,46 +852,10 @@ class _AppDrawerState extends State<AppDrawer> {
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildEmptySearch() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.04),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.search_off_rounded,
-              size: 36,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'لا توجد نتائج',
-            style: GoogleFonts.cairo(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'جرب كلمة بحث مختلفة',
-            style: GoogleFonts.cairo(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+    return const AppEmpty(
+      message: 'لا توجد نتائج',
+      hint: 'جرّب كلمة بحث مختلفة',
+      icon: Icons.search_off_rounded,
     );
   }
 
@@ -739,11 +876,16 @@ class _AppDrawerState extends State<AppDrawer> {
 
   Widget _buildSection(MenuItem item, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final searching = _searchQuery.isNotEmpty;
+    // مطابقة عنوان القسم نفسه تجلب كل عناصره (وليس المطابقة فقط).
+    final titleMatches =
+        searching && _normalizeArabic(item.title).contains(_searchQuery);
+
     final visibleChildren = item.children.where((sub) {
-      if (sub.isHeader) return _searchQuery.isEmpty;
-      return _canViewMenu(sub.formName) &&
-          (_searchQuery.isEmpty ||
-              sub.title.toLowerCase().contains(_searchQuery));
+      if (sub.isHeader) return !searching || titleMatches;
+      if (!_canViewMenu(sub.formName)) return false;
+      if (!searching || titleMatches) return true;
+      return _normalizeArabic(sub.title).contains(_searchQuery);
     }).toList();
 
     if (visibleChildren.isEmpty) return const SizedBox.shrink();
@@ -755,12 +897,12 @@ class _AppDrawerState extends State<AppDrawer> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isExpanded
-            ? item.color.withValues(alpha: 0.08)
+            ? AppColors.gold.withValues(alpha: 0.08)
             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isExpanded
-              ? item.color.withValues(alpha: 0.20)
+              ? AppColors.gold.withValues(alpha: 0.20)
               : Theme.of(
                   context,
                 ).colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -769,8 +911,18 @@ class _AppDrawerState extends State<AppDrawer> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          // المفتاح يتغيّر عند الدخول/الخروج من وضع البحث حتى تُعاد
+          // تهيئة البلاطة وتُقرأ initiallyExpanded من جديد — فتظهر
+          // الأقسام المطابقة مفتوحة أثناء البحث كما في V2.
+          key: ValueKey<String>(
+            'drawer-section-${item.title}-$searching',
+          ),
           initiallyExpanded: isExpanded,
           onExpansionChanged: (expanded) {
+            // أثناء البحث تكون فهارس القائمة المُصفّاة غير فهارس
+            // القائمة الكاملة؛ لا نكتبها في مجموعة التوسيع حتى لا
+            // تتلوّث حالة أقسام أخرى بعد مسح البحث.
+            if (searching) return;
             setState(() {
               if (expanded) {
                 _expandedSections.add(index);
@@ -788,10 +940,20 @@ class _AppDrawerState extends State<AppDrawer> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: item.color.withOpacity(0.12),
+                  color: isExpanded
+                      ? AppColors.gold.withValues(alpha: 0.12)
+                      : AppColors.textSecondary(
+                          isDark,
+                        ).withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(item.icon, color: item.color, size: 18),
+                child: Icon(
+                  item.icon,
+                  color: isExpanded
+                      ? AppColors.gold
+                      : AppColors.textSecondary(isDark),
+                  size: 18,
+                ),
               ),
               if (_unseenNewSections.contains(item.title))
                 Positioned(
@@ -829,7 +991,9 @@ class _AppDrawerState extends State<AppDrawer> {
             style: GoogleFonts.cairo(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: isExpanded ? item.color : AppColors.text(isDark),
+              color: isExpanded
+                  ? (isDark ? AppColors.gold : AppColors.goldDark)
+                  : AppColors.text(isDark),
             ),
           ),
           subtitle: Text(
@@ -845,19 +1009,23 @@ class _AppDrawerState extends State<AppDrawer> {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: item.color.withOpacity(0.1),
+                color: isExpanded
+                    ? AppColors.gold.withValues(alpha: 0.12)
+                    : AppColors.textSecondary(isDark).withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
                 Icons.keyboard_arrow_down_rounded,
-                color: item.color,
+                color: isExpanded
+                    ? AppColors.gold
+                    : AppColors.textSecondary(isDark),
                 size: 16,
               ),
             ),
           ),
           childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
           children: visibleChildren
-              .map((sub) => _buildSubItem(sub, item.color))
+              .map((sub) => _buildSubItem(sub, AppColors.gold))
               .toList(),
         ),
       ),
@@ -900,7 +1068,8 @@ class _AppDrawerState extends State<AppDrawer> {
       );
     }
 
-    final isActive = widget.currentRoute == sub.formName;
+    final isActive = _routeBelongsToItem(sub.formName, widget.currentRoute);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(top: 4),
@@ -936,13 +1105,16 @@ class _AppDrawerState extends State<AppDrawer> {
                   decoration: BoxDecoration(
                     color: isActive
                         ? sectionColor.withOpacity(0.15)
-                        : sectionColor.withOpacity(0.06),
+                        : AppColors.textSecondary(
+                            isDark,
+                          ).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     sub.icon,
-                    color:
-                        isActive ? sectionColor : sectionColor.withOpacity(0.6),
+                    color: isActive
+                        ? sectionColor
+                        : AppColors.textSecondary(isDark),
                     size: 15,
                   ),
                 ),
@@ -954,10 +1126,8 @@ class _AppDrawerState extends State<AppDrawer> {
                       fontSize: 12,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                       color: isActive
-                          ? sectionColor
-                          : Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF94A3B8)
-                              : const Color(0xFF334155),
+                          ? (isDark ? sectionColor : AppColors.goldDark)
+                          : AppColors.textSecondary(isDark),
                     ),
                   ),
                 ),
@@ -1175,8 +1345,8 @@ class _AppDrawerState extends State<AppDrawer> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF13273F)
-            : Colors.white,
+            ? AppColors.navy
+            : AppColors.lightSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -1301,23 +1471,10 @@ class _AppDrawerState extends State<AppDrawer> {
     }
   }
 
+  // لون شارة الدور في الترويسة: ذهبي الهوية لجميع الأدوار (الشارة فوق
+  // تدرّج كحلي في الوضعين، فالذهبي يعمل في النهاري والليلي معًا).
   Color _getRoleColor() {
-    switch (_perms.role?.toLowerCase()) {
-      case 'admin':
-        return const Color(0xFFFFD700);
-      case 'salesmanager':
-        return const Color(0xFF4CAF50);
-      case 'sales':
-        return const Color(0xFF2196F3);
-      case 'accountmanager':
-        return const Color(0xFF9C27B0);
-      case 'account':
-        return const Color(0xFF00BCD4);
-      case 'social':
-        return const Color(0xFFFF6F61);
-      default:
-        return const Color(0xFF607D8B);
-    }
+    return AppColors.gold;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1457,6 +1614,12 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
+      case 'frm_FinancialReports':
+        screen = FinancialReportsScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frmCRM_Dashboard':
         screen = CrmDashboardScreen(
           userId: widget.userId,
@@ -1576,6 +1739,18 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
+      case 'frm_ShiftsManagement':
+        screen = ShiftsManagementScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_EmployeePenalties':
+        screen = PenaltiesScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frm_MySchedule':
         screen = MyScheduleScreen(
           userId: widget.userId,
@@ -1601,7 +1776,7 @@ class _AppDrawerState extends State<AppDrawer> {
         );
         break;
       case 'frm_Payslip':
-        screen = PayrollListScreen(
+        screen = MyPayslipsScreen(
           userId: widget.userId,
           username: widget.username,
         );
@@ -1652,6 +1827,12 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
+      case 'frmDeliveryMaintenance':
+        screen = DeliveryMaintenanceScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
       case 'frm_PurchaseReceiptStatus':
         screen = PurchaseReceiptsScreen(
           userId: widget.userId,
@@ -1677,8 +1858,20 @@ class _AppDrawerState extends State<AppDrawer> {
           username: widget.username,
         );
         break;
-      case 'frm_CashBoxDashboard':
+      case 'frmCashBoxSummary':
+        screen = CashboxSummaryScreen(username: widget.username);
+        break;
+      case 'frmCashBoxReview':
+        screen = CashboxReviewScreen(username: widget.username);
+        break;
+      case 'frmCashBoxDashboard':
         screen = CashBoxDashboardScreen(
+          userId: widget.userId,
+          username: widget.username,
+        );
+        break;
+      case 'frm_Payments':
+        screen = PaymentsScreen(
           userId: widget.userId,
           username: widget.username,
         );
@@ -1763,7 +1956,7 @@ class _AppDrawerState extends State<AppDrawer> {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF2A2A2A),
+          backgroundColor: AppColors.navyDark,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),

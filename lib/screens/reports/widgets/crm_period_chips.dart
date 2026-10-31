@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
 
 class CrmPeriodChips extends StatelessWidget {
   final String selectedPeriod;
@@ -27,11 +28,11 @@ class CrmPeriodChips extends StatelessWidget {
       children: [
         // === شريط الفترات ===
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Row(
               children: [
                 _buildChip('اليوم', 'today', Icons.today),
@@ -49,13 +50,13 @@ class CrmPeriodChips extends StatelessWidget {
         // === عرض الفترة المختارة ===
         if (dateFrom != null && dateTo != null)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.gold.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.all(AppRadius.xs),
                 border: Border.all(
                   color: AppColors.gold.withOpacity(0.2),
                 ),
@@ -105,14 +106,14 @@ class CrmPeriodChips extends StatelessWidget {
         onTap: () => onPeriodChanged(period),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: AppSpacing.sm),
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.gold
                 : isDark
                     ? AppColors.darkCard
                     : AppColors.lightCard,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.all(AppRadius.pill),
             border: Border.all(
               color: isSelected
                   ? AppColors.gold
@@ -135,7 +136,7 @@ class CrmPeriodChips extends StatelessWidget {
                 icon,
                 size: 14,
                 color: isSelected
-                    ? Colors.black
+                    ? AppColors.navy
                     : AppColors.textSecondary(isDark),
               ),
               const SizedBox(width: 6),
@@ -143,7 +144,7 @@ class CrmPeriodChips extends StatelessWidget {
                 label,
                 style: GoogleFonts.cairo(
                   color: isSelected
-                      ? Colors.black
+                      ? AppColors.navy
                       : AppColors.textSecondary(isDark),
                   fontSize: 12,
                   fontWeight:
@@ -167,14 +168,14 @@ class CrmPeriodChips extends StatelessWidget {
         onTap: onCustomDatePick,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: AppSpacing.sm),
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.gold
                 : isDark
                     ? AppColors.darkCard
                     : AppColors.lightCard,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.all(AppRadius.pill),
             border: Border.all(
               color: isSelected
                   ? AppColors.gold
@@ -198,7 +199,7 @@ class CrmPeriodChips extends StatelessWidget {
                 Icons.edit_calendar,
                 size: 14,
                 color: isSelected
-                    ? Colors.black
+                    ? AppColors.navy
                     : AppColors.textSecondary(isDark),
               ),
               const SizedBox(width: 6),
@@ -206,7 +207,7 @@ class CrmPeriodChips extends StatelessWidget {
                 'مخصص',
                 style: GoogleFonts.cairo(
                   color: isSelected
-                      ? Colors.black
+                      ? AppColors.navy
                       : AppColors.textSecondary(isDark),
                   fontSize: 12,
                   fontWeight:

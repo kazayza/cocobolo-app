@@ -7,10 +7,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../constants.dart';
 import '../../services/app_colors.dart';
+import '../../services/design_tokens.dart';
+import '../../widgets/design_kit.dart';
 import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
+import '../../core/auth/session_service.dart';
 
+import '../../widgets/app_drawer.dart';
 class StockTransactionsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -158,7 +162,7 @@ class _StockTransactionsScreenState extends State<StockTransactionsScreen> {
       Uri.parse('$baseUrl/api/products').replace(
         queryParameters: {'search': query.trim()},
       ),
-    );
+     headers: SessionService.instance.authHeaders,);
     if (response.statusCode != 200) return const [];
     final decoded = jsonDecode(response.body);
     if (decoded is List) return decoded;
@@ -190,7 +194,7 @@ class _StockTransactionsScreenState extends State<StockTransactionsScreen> {
               width: 44,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: AppColors.neutralLight,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -282,11 +286,12 @@ class _StockTransactionsScreenState extends State<StockTransactionsScreen> {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
-        backgroundColor:
-            _isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB),
-        appBar: AppBar(
+        drawer: buildAppDrawer(currentRoute: 'frm_StockTransactions'),
+        backgroundColor: AppColors.background(_isDark),
+        appBar: AppBar( leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
+          elevation: 0,
           title: Text(
             'حركة المخزون',
             style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
@@ -322,13 +327,13 @@ class _StockTransactionsScreenState extends State<StockTransactionsScreen> {
                     icon: Icons.south_rounded,
                     label: 'كميات داخلة',
                     value: '$_inQuantity',
-                    color: const Color(0xFF6EE7B7),
+                    color: AppColors.successLight,
                   ),
                   InventoryHeroStat(
                     icon: Icons.north_rounded,
                     label: 'كميات خارجة',
                     value: '$_outQuantity',
-                    color: const Color(0xFFFCA5A5),
+                    color: AppColors.errorLight,
                   ),
                   InventoryHeroStat(
                     icon: Icons.balance_rounded,
@@ -341,17 +346,13 @@ class _StockTransactionsScreenState extends State<StockTransactionsScreen> {
               const SizedBox(height: 14),
               _filters(),
               const SizedBox(height: 14),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.all(48),
-                  child: Center(child: CircularProgressIndicator()),
-                )
+              if (_loading) const AppLoading()
               else if (_error != null)
                 InventorySection(
                   title: 'تعذر تحميل الحركات',
                   subtitle: _error,
                   icon: Icons.error_outline_rounded,
-                  color: Colors.red,
+                  color: AppColors.error,
                   child: FilledButton.icon(
                     onPressed: _bootstrap,
                     icon: const Icon(Icons.refresh_rounded),
@@ -660,7 +661,7 @@ class _TransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = ThemeService().isDarkMode;
     final incoming = '${item['TransactionType']}' == 'In';
-    final color = incoming ? const Color(0xFF059669) : const Color(0xFFDC2626);
+    final color = incoming ? AppStatus.profit : AppColors.error;
     final date = DateTime.tryParse('${item['TransactionDate'] ?? ''}');
     final branch = '${item['BranchNameAr'] ?? item['BranchName'] ?? ''}';
     final notes = '${item['Notes'] ?? ''}'.trim();
@@ -729,13 +730,10 @@ class _TransactionCard extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    Text(
-                      '${_int(item['Quantity'])}',
-                      style: GoogleFonts.cairo(
-                        color: color,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    AmountText(
+                      value: '${_int(item['Quantity'])}',
+                      color: color,
+                      size: 16,
                     ),
                     Text(
                       incoming ? 'دخول' : 'خروج',
@@ -751,7 +749,7 @@ class _TransactionCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 9),
-          Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+          Divider(height: 1, color: AppColors.divider(dark)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -779,8 +777,8 @@ class _TransactionCard extends StatelessWidget {
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 color: dark
-                    ? const Color(0xFF111C2D)
-                    : const Color(0xFFF8FAFC),
+                    ? AppColors.darkSurface
+                    : AppColors.lightBackground,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(notes, style: GoogleFonts.cairo(fontSize: 10.5)),
@@ -795,9 +793,9 @@ class _TransactionCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: Colors.grey),
+        Icon(icon, size: 12, color: AppColors.neutral),
         const SizedBox(width: 3),
-        Text(text, style: GoogleFonts.cairo(fontSize: 10, color: Colors.grey)),
+        Text(text, style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral)),
       ],
     );
   }

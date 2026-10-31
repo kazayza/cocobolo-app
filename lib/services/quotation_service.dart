@@ -108,6 +108,15 @@ class QuotationService {
     return _map(_api.decode(response));
   }
 
+  /// توليد رابط مشاركة عام جديد موقّع من الخادم (Item 21)
+  Future<Map<String, dynamic>> getShareLink(int id, {int? days}) async {
+    final response = await _api.post(
+      '/api/quotations/$id/share-link',
+      body: <String, dynamic>{'days': days},
+    );
+    return _map(_map(_api.decode(response))['data']);
+  }
+
   Future<Map<String, dynamic>> delete(int id) async {
     final response = await _api.delete('/api/quotations/$id');
     return _map(_api.decode(response));

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/app_colors.dart';
 import 'package:provider/provider.dart';
 
 import '../../../providers/auth_provider.dart';
@@ -361,11 +362,11 @@ class _BellButton extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE53935),
+                  color: AppColors.error,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE53935).withValues(alpha: 0.6),
+                      color: AppColors.error.withValues(alpha: 0.6),
                       blurRadius: 6,
                     ),
                   ],

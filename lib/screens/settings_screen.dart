@@ -10,12 +10,16 @@ import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import '../core/auth/session_service.dart';
 import '../providers/auth_provider.dart';
+import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import '../services/profile_avatar_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/design_kit.dart';
 import '../services/update_service.dart';
 import 'change_password_screen.dart';
 import 'login_screen.dart';
 
+import '../widgets/app_drawer.dart';
 /// ─────────────────────────────────────────────────────────────
 ///  الإعدادات — إعادة تصميم بهوية COCOBOLO (Navy × Gold)
 ///  - Theme-aware بالكامل (نهاري / ليلي)
@@ -118,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
@@ -206,13 +210,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      drawer: buildAppDrawer(currentRoute: 'settings'),
       body: CustomScrollView(
         slivers: [
           // ── الترويسة المتدرجة ──────────────────────────
-          SliverAppBar(
+          SliverAppBar( leading: const AppDrawerMenuButton(),
             expandedHeight: 110,
             pinned: true,
-            backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+            backgroundColor: isDark ? AppColors.navy : Colors.white,
             foregroundColor: isDark ? Colors.white : HomeAccent.navy,
             elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
@@ -311,6 +316,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   const SizedBox(height: 20),
 
+                  // ── الخط: النوع والحجم ───────────────────
+                  _buildFontSection(),
+
+                  const SizedBox(height: 20),
+
                   // ── معلومات ─────────────────────────────
                   _buildSection(
                     title: 'معلومات',
@@ -340,23 +350,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: 'التحقق من التحديثات',
                         color: const Color(0xFF3B82F6),
                         onTap: _checkForUpdates,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ── الصلاحيات ───────────────────────────
-                  _buildSection(
-                    title: 'الصلاحيات',
-                    icon: Icons.security_rounded,
-                    color: HomeAccent.pink,
-                    children: [
-                      _buildNavigationTile(
-                        icon: Icons.admin_panel_settings_rounded,
-                        title: 'عرض الصلاحيات',
-                        color: HomeAccent.pink,
-                        onTap: () => _showPermissionsDialog(),
                       ),
                     ],
                   ),
@@ -546,6 +539,147 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // البلاطات
   // ═══════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════
+  // قسم الخط — نوع الخط وحجمه (يُحفظ في ThemeService ويُطبق فورًا
+  // على التطبيق كله عبر main.dart). مبني بمكوّنات نظام التصميم.
+  // ═══════════════════════════════════════════════════════════
+  Widget _buildFontSection() {
+    final themeService = ThemeService();
+    final theme = Theme.of(context);
+    final outline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.5);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppSectionHeader(
+            title: 'الخط',
+            subtitle: 'نوع الخط وحجمه في التطبيق كله',
+            icon: Icons.text_fields_rounded,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // ── نوع الخط: كل خيار معروض بخطه نفسه ──
+          Text('نوع الخط', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          for (final option in ThemeService.fontOptions) ...[
+            Builder(builder: (context) {
+              final selected = themeService.fontFamily == option.family;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: InkWell(
+                  borderRadius: AppRadius.all(AppRadius.md),
+                  onTap: () async {
+                    await ThemeService().setFontFamily(option.family);
+                    if (mounted) setState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.md,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: AppRadius.all(AppRadius.md),
+                      border: Border.all(
+                        color: selected ? AppColors.gold : outline,
+                        width: selected ? 2 : 1,
+                      ),
+                      color: selected
+                          ? AppColors.gold.withValues(alpha: 0.08)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option.name,
+                            style: AppTextTheme.style(
+                              option.family,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'نص تجريبي 123',
+                          style: AppTextTheme.style(
+                            option.family,
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Icon(
+                          selected
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                          color: selected
+                              ? AppColors.gold
+                              : theme.colorScheme.outline,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+
+          const SizedBox(height: AppSpacing.sm),
+
+          // ── حجم الخط: ثلاث درجات، نص كل درجة بحجمها الفعلي ──
+          Text('حجم الخط', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (var i = 0; i < ThemeService.fontScaleOptions.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Builder(builder: (context) {
+                    final option = ThemeService.fontScaleOptions[i];
+                    final selected = themeService.fontScaleIndex == i;
+                    return InkWell(
+                      borderRadius: AppRadius.all(AppRadius.md),
+                      onTap: () async {
+                        await ThemeService().setFontScaleIndex(i);
+                        if (mounted) setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.md,
+                        ),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: AppRadius.all(AppRadius.md),
+                          border: Border.all(
+                            color: selected ? AppColors.gold : outline,
+                            width: selected ? 2 : 1,
+                          ),
+                          color: selected
+                              ? AppColors.gold.withValues(alpha: 0.08)
+                              : null,
+                        ),
+                        child: Text(
+                          option.name,
+                          style: TextStyle(
+                            fontSize: 14 * option.factor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSwitchTile({
     required IconData icon,
     required String title,
@@ -722,7 +856,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+      backgroundColor: isDark ? AppColors.navy : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -862,7 +996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
@@ -966,7 +1100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
@@ -1050,7 +1184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text(
           'الأسئلة الشائعة',
@@ -1107,7 +1241,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text(
           'تواصل مع الدعم الفني',
@@ -1177,7 +1311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text('$feature - قريباً! 🚀'),
           ],
         ),
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -1192,7 +1326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
@@ -1369,7 +1503,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
+        backgroundColor: isDark ? AppColors.navy : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
@@ -1481,179 +1615,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showPermissionsDialog() {
-    final permissions = PermissionService().allPermissions;
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF13273F) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: HomeAccent.pink.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.security_rounded,
-                color: HomeAccent.pink,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'الصلاحيات',
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: HomeAccent.gold.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '${permissions.length}',
-                style: const TextStyle(
-                  color: HomeAccent.gold,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 350,
-          child: permissions.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.lock_outline,
-                        size: 48,
-                        color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'لا توجد صلاحيات',
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: permissions.length,
-                  itemBuilder: (context, index) {
-                    final entry = permissions.entries.elementAt(index);
-                    final perm = entry.value;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: scheme.onSurface.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: scheme.onSurface.withValues(alpha: 0.06),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            perm.permissionName,
-                            style: TextStyle(
-                              color: scheme.onSurface,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              _buildPermBadge(
-                                'عرض',
-                                perm.canView,
-                                const Color(0xFF2196F3),
-                              ),
-                              _buildPermBadge(
-                                'إضافة',
-                                perm.canAdd,
-                                const Color(0xFF4CAF50),
-                              ),
-                              _buildPermBadge(
-                                'تعديل',
-                                perm.canEdit,
-                                const Color(0xFFFF9800),
-                              ),
-                              _buildPermBadge(
-                                'حذف',
-                                perm.canDelete,
-                                const Color(0xFFE91E63),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'إغلاق',
-              style: TextStyle(
-                color: HomeAccent.gold,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPermBadge(String label, bool enabled, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: enabled
-            ? color.withValues(alpha: 0.15)
-            : Colors.grey.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: enabled
-              ? color.withValues(alpha: 0.3)
-              : Colors.grey.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: enabled ? color : Colors.grey.shade600,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
 }
 
 /// زر إجراء في شيت الصورة الشخصية (معرض / كاميرا)

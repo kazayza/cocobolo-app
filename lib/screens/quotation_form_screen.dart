@@ -9,7 +9,9 @@ import '../constants.dart';
 import '../core/network/api_client.dart';
 import '../services/app_colors.dart';
 import '../services/app_text_styles.dart';
+import '../services/design_tokens.dart';
 import '../services/quotation_service.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 
 class QuotationFormScreen extends StatefulWidget {
@@ -440,7 +442,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.all(AppRadius.xs),
                 ),
                 child: const Icon(
                   Icons.request_quote_rounded,
@@ -470,11 +472,13 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
           ),
           actions: <Widget>[
             Container(
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              margin: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.sm + 2, horizontal: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.xs),
               decoration: BoxDecoration(
                 color: AppColors.gold,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: AppRadius.all(AppRadius.pill),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -491,8 +495,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
         bottomNavigationBar:
             (_loading || _error != null) ? null : _buildStickyBottomBar(),
         body: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.gold))
+            ? const AppLoading()
             : _error != null
                 ? _errorState()
                 : _formBody(),
@@ -501,49 +504,23 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   }
 
   Widget _errorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.error_outline_rounded,
-                color: AppColors.error, size: 54),
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(color: _secondaryTextColor),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _bootstrap,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
-            ),
-          ],
-        ),
-      ),
-    );
+    return AppError(message: _error!, onRetry: _bootstrap);
   }
 
   Widget _formBody() {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 36),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
       children: <Widget>[
         _buildHeroDashboard(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.lg),
         _buildPartyAndOpportunityCard(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.lg),
         _buildWarehouseCard(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.lg),
         _buildItemsModernSection(),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.lg),
         _buildReceiptTotalsCard(),
       ],
     );
@@ -554,15 +531,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[
-            AppColors.navy,
-            Color(0xFF1E293B),
-          ],
+        gradient: LinearGradient(
+          colors: AppGradients.identityCard,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: AppColors.navy.withValues(alpha: 0.25),
@@ -589,14 +563,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: <Widget>[
-                      Text(
-                        _money(_grand),
-                        style: GoogleFonts.cairo(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.gold,
-                          height: 1.1,
-                        ),
+                      AmountText(
+                        value: _money(_grand),
+                        size: 28,
+                        color: AppColors.gold,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -616,7 +586,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.all(AppRadius.lg),
                   border:
                       Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
@@ -641,7 +611,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           Row(
             children: <Widget>[
               Expanded(
@@ -706,14 +676,15 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadius.all(AppRadius.sm),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm + 2, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: isHighlighted
               ? AppColors.gold.withValues(alpha: 0.16)
               : Colors.white.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
           border: Border.all(
             color: isHighlighted
                 ? AppColors.gold.withValues(alpha: 0.45)
@@ -761,25 +732,22 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   Widget _buildPartyAndOpportunityCard() {
     final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      color: surface,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          const AppSectionHeader(
+            title: 'العميل والفرصة البيعية',
+            icon: Icons.person_search_rounded,
+          ),
+          const SizedBox(height: AppSpacing.lg),
           if (_partyId == null)
             InkWell(
               onTap: _selectParty,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppRadius.all(AppRadius.lg),
               child: Row(
                 children: <Widget>[
                   Container(
@@ -792,7 +760,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                           AppColors.gold.withValues(alpha: 0.08),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: AppRadius.all(AppRadius.lg),
                     ),
                     child: const Icon(Icons.person_search_rounded,
                         color: AppColors.navy, size: 24),
@@ -823,7 +791,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.navy,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppRadius.all(AppRadius.sm),
                     ),
                     child: Text(
                       'اختيار',
@@ -848,7 +816,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppColors.navy,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: AppRadius.all(AppRadius.lg),
                       ),
                       child: Text(
                         _safeInitial(_partyName),
@@ -878,7 +846,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                               ),
                               const SizedBox(width: 6),
                               const Icon(Icons.verified_rounded,
-                                  color: Colors.green, size: 16),
+                                  color: AppColors.success, size: 16),
                             ],
                           ),
                           if (_partyPhone?.isNotEmpty == true)
@@ -899,7 +867,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                             AppColors.gold.withValues(alpha: 0.15),
                         foregroundColor: AppColors.navy,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: AppRadius.all(AppRadius.xs)),
                       ),
                       onPressed: _selectParty,
                       icon: const Icon(Icons.swap_horiz_rounded, size: 16),
@@ -972,21 +940,20 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   // 3️⃣ شريط تحديد المخزن (Warehouse Compact Card)
   Widget _buildWarehouseCard() {
     final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+    return AppCard(
+      color: surface,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const AppSectionHeader(
+            title: 'المخزن',
+            icon: Icons.warehouse_rounded,
           ),
-        ],
-      ),
-      child: DropdownButtonFormField<int?>(
-        initialValue: _warehouseId,
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<int?>(
+            initialValue: _warehouseId,
         isExpanded: true,
         dropdownColor: _cardColor,
         decoration: _modernInputDecoration(
@@ -1011,10 +978,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
             );
           }),
         ],
-        onChanged: (int? value) async {
-          setState(() => _warehouseId = value);
-          if (_partyId != null) await _loadProducts();
-        },
+            onChanged: (int? value) async {
+              setState(() => _warehouseId = value);
+              if (_partyId != null) await _loadProducts();
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1023,90 +992,53 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   Widget _buildItemsModernSection() {
     final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      color: surface,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: AppRadius.xxl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.inventory_2_rounded,
-                    color: AppColors.navy, size: 20),
+          AppSectionHeader(
+            title: 'بنود وأصناف عرض السعر',
+            subtitle: _items.isEmpty
+                ? 'لم تتم إضافة أصناف للعرض بعد'
+                : 'إجمالي ${_items.length} صنف بقيمة ${_money(_total)} ج',
+            icon: Icons.inventory_2_rounded,
+            trailing: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.navy,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
+                shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.all(AppRadius.sm)),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'بنود وأصناف عرض السعر',
-                      style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14.5,
-                          color: _textColor),
-                    ),
-                    Text(
-                      _items.isEmpty
-                          ? 'لم تتم إضافة أصناف للعرض بعد'
-                          : 'إجمالي ${_items.length} صنف بقيمة ${_money(_total)} ج',
-                      style: GoogleFonts.cairo(
-                          fontSize: 11, color: _secondaryTextColor),
-                    ),
-                  ],
-                ),
+              onPressed: _pickProduct,
+              icon: const Icon(Icons.add_circle_outline_rounded,
+                  size: 17, color: AppColors.gold),
+              label: Text(
+                'إضافة صنف',
+                style: GoogleFonts.cairo(
+                    fontSize: 12, fontWeight: FontWeight.bold),
               ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.navy,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _pickProduct,
-                icon: const Icon(Icons.add_circle_outline_rounded,
-                    size: 17, color: AppColors.gold),
-                label: Text(
-                  'إضافة صنف',
-                  style: GoogleFonts.cairo(
-                      fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md + 2),
           if (_items.isEmpty)
             InkWell(
               onTap: _pickProduct,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppRadius.all(AppRadius.lg),
               child: Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.xxl, horizontal: AppSpacing.lg),
                 decoration: BoxDecoration(
                   color: _isDark
                       ? Colors.white.withValues(alpha: 0.02)
                       : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.all(AppRadius.lg),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.35),
                   ),
@@ -1135,7 +1067,8 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppSpacing.md),
               itemBuilder: (_, int idx) =>
                   _buildBentoQuotationItemCard(_items[idx], idx),
             ),
@@ -1146,12 +1079,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
 
   Widget _buildBentoQuotationItemCard(_QuotationItem item, int idx) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: _isDark
             ? Colors.white.withValues(alpha: 0.03)
             : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(color: AppColors.divider(_isDark)),
       ),
       child: Column(
@@ -1165,7 +1098,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.navy,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.all(AppRadius.xs),
                 ),
                 child: Text(
                   '#${idx + 1}',
@@ -1248,7 +1181,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   color: _isDark ? const Color(0xFF0F172A) : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                   border: Border.all(color: AppColors.divider(_isDark)),
                 ),
                 child: Row(
@@ -1305,7 +1238,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _isDark ? const Color(0xFF0F172A) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadius.all(AppRadius.sm),
                     border: Border.all(color: AppColors.divider(_isDark)),
                   ),
                   child: Column(
@@ -1342,7 +1275,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.all(AppRadius.sm),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -1350,13 +1283,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     Text('الإجمالي',
                         style: GoogleFonts.cairo(
                             fontSize: 9.5, color: _secondaryTextColor)),
-                    Text(
-                      '${_money(item.total)} ج',
-                      style: GoogleFonts.cairo(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.goldDark,
-                      ),
+                    AmountText(
+                      value: '${_money(item.total)} ج',
+                      size: 13.5,
+                      color: AppColors.goldDark,
                     ),
                   ],
                 ),
@@ -1369,21 +1299,11 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   }
 
   Widget _buildBadge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.cairo(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: _isDark ? AppColors.gold : color,
-        ),
-      ),
-    );
+    // في الوضع الداكن يبقى الكحلي غير مقروء كشارة، فيُعرض بالذهبي كما كان.
+    final effective = _isDark && color == AppColors.navy
+        ? AppColors.gold
+        : color;
+    return StatusBadge(label: label, color: effective, small: true);
   }
 
   Widget _buildStepBtn({
@@ -1393,15 +1313,15 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppRadius.all(AppRadius.xs),
       child: Container(
         width: 28,
         height: 28,
         decoration: BoxDecoration(
           color: isPlus
               ? AppColors.gold.withValues(alpha: 0.2)
-              : Colors.grey.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
+              : AppColors.neutral.withValues(alpha: 0.12),
+          borderRadius: AppRadius.all(AppRadius.xs),
         ),
         child: Icon(
           icon,
@@ -1417,10 +1337,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
     final surface = _isDark ? const Color(0xFF1E293B) : Colors.white;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppSpacing.lg + 2),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadius.all(AppRadius.xxl),
         border: Border.all(
             color: AppColors.gold.withValues(alpha: 0.35), width: 1.2),
         boxShadow: <BoxShadow>[
@@ -1434,19 +1354,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Icon(Icons.calculate_rounded,
-                  color: AppColors.gold, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'ملخص عرض السعر والخصومات',
-                style: GoogleFonts.cairo(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    color: _textColor),
-              ),
-            ],
+          const AppSectionHeader(
+            title: 'ملخص عرض السعر والخصومات',
+            icon: Icons.calculate_rounded,
           ),
           const SizedBox(height: 14),
           Row(
@@ -1455,12 +1365,11 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
               Text('إجمالي قيمة الأصناف',
                   style: GoogleFonts.cairo(
                       fontSize: 12.5, color: _secondaryTextColor)),
-              Text(
-                '${_money(_total)} ج.م',
-                style: GoogleFonts.cairo(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: _textColor),
+              AmountText(
+                value: '${_money(_total)} ج.م',
+                size: 14,
+                weight: FontWeight.w800,
+                color: _textColor,
               ),
             ],
           ),
@@ -1486,7 +1395,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.navy,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadius.all(AppRadius.md),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1499,13 +1408,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     fontSize: 13.5,
                   ),
                 ),
-                Text(
-                  '${_money(_grand)} ج.م',
-                  style: GoogleFonts.cairo(
-                    color: AppColors.gold,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
+                AmountText(
+                  value: '${_money(_grand)} ج.م',
+                  size: 18,
+                  color: AppColors.gold,
                 ),
               ],
             ),
@@ -1527,7 +1433,8 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
 
   Widget _buildStickyBottomBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm + 2, AppSpacing.lg, AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: _isDark ? const Color(0xFF1E293B) : Colors.white,
         boxShadow: <BoxShadow>[
@@ -1552,45 +1459,46 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                     style: GoogleFonts.cairo(
                         fontSize: 11, color: _secondaryTextColor),
                   ),
-                  Text(
-                    '${_money(_grand)} ج.م',
-                    style: GoogleFonts.cairo(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: _isDark ? AppColors.gold : AppColors.navy,
-                    ),
+                  AmountText(
+                    value: '${_money(_grand)} ج.م',
+                    size: 18,
+                    color: _isDark ? AppColors.gold : AppColors.navy,
                   ),
                 ],
               ),
             ),
             SizedBox(
               height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.navy,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 26),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
+              child: _saving
+                  ? FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.navy,
+                        disabledBackgroundColor: AppColors.gold,
+                        disabledForegroundColor: AppColors.navy,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.all(AppRadius.lg)),
+                      ),
+                      onPressed: null,
+                      icon: const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.check_circle_rounded,
-                        color: AppColors.gold),
-                label: Text(
-                  _saving
-                      ? 'جاري الحفظ...'
-                      : (_isEdit ? 'حفظ التعديلات' : 'اعتماد وحفظ العرض'),
-                  style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.w900, fontSize: 14),
-                ),
-              ),
+                            strokeWidth: 2, color: AppColors.navy),
+                      ),
+                      label: Text(
+                        'جاري الحفظ...',
+                        style: GoogleFonts.cairo(
+                            fontWeight: FontWeight.w900, fontSize: 14),
+                      ),
+                    )
+                  : GoldButton(
+                      label: _isEdit ? 'حفظ التعديلات' : 'اعتماد وحفظ العرض',
+                      icon: Icons.check_circle_rounded,
+                      onPressed: _save,
+                    ),
             ),
           ],
         ),
@@ -1608,15 +1516,15 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
           ? Colors.white.withValues(alpha: 0.03)
           : const Color(0xFFF8FAFC),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.all(AppRadius.md),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.all(AppRadius.md),
         borderSide: BorderSide(color: AppColors.divider(_isDark)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.all(AppRadius.md),
         borderSide: const BorderSide(color: AppColors.gold, width: 1.4),
       ),
     );

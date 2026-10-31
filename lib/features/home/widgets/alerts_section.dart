@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
+import '../../../services/app_colors.dart';
 import 'package:provider/provider.dart';
 
+import '../../../providers/auth_provider.dart';
+import '../../../screens/exemptions_screen.dart';
+import '../../../screens/followups_screen.dart';
+import '../../../screens/products_screen.dart';
 import '../../../services/permission_service.dart';
 import '../models/home_dashboard_config.dart';
 import '../providers/home_provider.dart';
 import 'home_accent.dart';
 import 'section_header.dart';
 
-/// التنبيهات — درجات خطورة ملونة + فلترة حسب الصلاحيات
+/// التنبيهات — درجات خطورة ملونة + فلترة حسب الصلاحيات.
+/// كل بلاطة تنبيه قابلة للضغط وتفتح شاشة إدارة مصدر عدّادها:
+/// المتابعات المتأخرة → شاشة المتابعات، المخزون المنخفض → شاشة
+/// المنتجات، و«طلبات تحتاج اعتماد» → شاشة الاستثناءات (طلبات
+/// الموظفين المعلّقة هي ما ينتظر اعتماد المدراء فعليًا).
+/// الوجهات تحتاج معرّف المستخدم فقط — لا ربط بموظف — فتعمل
+/// لحساب المسؤول غير المرتبط كما للمرتبط.
 class AlertsSection extends StatelessWidget {
   final HomeDashboardConfig config;
 
@@ -16,6 +27,12 @@ class AlertsSection extends StatelessWidget {
   static int _toInt(dynamic v) {
     if (v is num) return v.toInt();
     return int.tryParse(v?.toString() ?? '') ?? 0;
+  }
+
+  static void _open(BuildContext context, Widget screen) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => screen),
+    );
   }
 
   @override
@@ -30,6 +47,10 @@ class AlertsSection extends StatelessWidget {
         config.hasCard('crm');
     final canInventory = config.hasCard('inventory');
 
+    final auth = AuthProvider();
+    final userId = auth.userId;
+    final username = auth.username ?? '';
+
     final tiles = <_AlertData>[];
 
     // متابعات متأخرة — درجة صفراء
@@ -42,6 +63,12 @@ class AlertsSection extends StatelessWidget {
             title: 'متابعات متأخرة',
             value: overdue,
             color: const Color(0xFFFFA000),
+            onTap: userId == null
+                ? null
+                : () => _open(
+                      context,
+                      FollowUpsScreen(userId: userId, username: username),
+                    ),
           ),
         );
       }
@@ -57,6 +84,12 @@ class AlertsSection extends StatelessWidget {
             title: 'أصناف منخفضة المخزون',
             value: lowStock,
             color: const Color(0xFFF4511E),
+            onTap: userId == null
+                ? null
+                : () => _open(
+                      context,
+                      ProductsScreen(userId: userId, username: username),
+                    ),
           ),
         );
       }
@@ -71,7 +104,13 @@ class AlertsSection extends StatelessWidget {
             icon: Icons.pending_actions_rounded,
             title: 'طلبات تحتاج اعتماد',
             value: pending,
-            color: const Color(0xFFE53935),
+            color: AppColors.error,
+            onTap: userId == null
+                ? null
+                : () => _open(
+                      context,
+                      ExemptionsScreen(userId: userId, username: username),
+                    ),
           ),
         );
       }
@@ -79,7 +118,7 @@ class AlertsSection extends StatelessWidget {
 
     // ── لا توجد تنبيهات ────────────────────────────────
     if (tiles.isEmpty) {
-      const ok = Color(0xFF43A047);
+      const ok = AppColors.success;
       return Card(
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -138,12 +177,14 @@ class _AlertData {
   final String title;
   final int value;
   final Color color;
+  final VoidCallback? onTap;
 
   const _AlertData({
     required this.icon,
     required this.title,
     required this.value,
     required this.color,
+    this.onTap,
   });
 }
 
@@ -158,37 +199,57 @@ class _AlertTile extends StatelessWidget {
       elevation: 0,
       margin: EdgeInsets.zero,
       color: HomeAccent.tintedSurface(context, data.color),
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: HomeAccent.border(context, data.color)),
       ),
-      child: ListTile(
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: data.color.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(data.icon, color: data.color, size: 22),
-        ),
-        title: Text(
-          data.title,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: data.color.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '${data.value}',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: data.color,
-              fontSize: 13,
+      child: InkWell(
+        onTap: data.onTap,
+        child: ListTile(
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: data.color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(data.icon, color: data.color, size: 22),
+          ),
+          title: Text(
+            data.title,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${data.value}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: data.color,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (data.onTap != null) ...[
+                const SizedBox(width: 2),
+                Icon(
+                  Directionality.of(context) == TextDirection.rtl
+                      ? Icons.chevron_left_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ],
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants.dart';
+import '../core/auth/session_service.dart';
 
 class PipelineService {
 
@@ -26,7 +27,7 @@ class PipelineService {
       final uri = Uri.parse('$baseUrl/api/opportunities/pipeline-summary')
           .replace(queryParameters: params.isNotEmpty ? params : null);
 
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -66,7 +67,7 @@ class PipelineService {
       final uri = Uri.parse('$baseUrl/api/opportunities/kanban')
           .replace(queryParameters: params.isNotEmpty ? params : null);
 
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['data'] is Map) {
@@ -118,7 +119,7 @@ class PipelineService {
       final uri = Uri.parse('$baseUrl/api/opportunities')
           .replace(queryParameters: params);
 
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: SessionService.instance.authHeaders);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -138,7 +139,7 @@ class PipelineService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/interactions/opportunity/$opportunityId'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -160,7 +161,7 @@ class PipelineService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/opportunities/$opportunityId/stage'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {...SessionService.instance.authHeaders, 'Content-Type': 'application/json'},
         body: jsonEncode({
           'stageId': stageId,
           'updatedBy': updatedBy,
@@ -184,7 +185,7 @@ class PipelineService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/employees'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -202,7 +203,7 @@ class PipelineService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/sources'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -220,7 +221,7 @@ class PipelineService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/ad-types'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -238,7 +239,7 @@ class PipelineService {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/stages'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -258,7 +259,7 @@ static Future<List<dynamic>> searchClients(String query) async {
 
     final res = await http.get(
       Uri.parse('$baseUrl/api/opportunities/search-clients?q=${Uri.encodeComponent(query)}'),
-    );
+     headers: SessionService.instance.authHeaders,);
 
     if (res.statusCode == 200) {
       return jsonDecode(res.body);
@@ -276,7 +277,7 @@ static Future<Map<String, dynamic>?> getNextTask(int partyId) async {
   try {
     final res = await http.get(
       Uri.parse('$baseUrl/api/tasks?assignedTo=0&status=Pending&partyId=$partyId'),
-    );
+     headers: SessionService.instance.authHeaders,);
 
     if (res.statusCode == 200) {
       final list = jsonDecode(res.body);
@@ -299,7 +300,7 @@ static Future<Map<String, dynamic>?> getNextTask(int partyId) async {
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/opportunities/$id'),
-      );
+       headers: SessionService.instance.authHeaders,);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);

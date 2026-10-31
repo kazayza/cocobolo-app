@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../services/app_colors.dart';
+import '../../../services/design_tokens.dart';
 import '../../../models/dashboard_model.dart';
 
 class CrmFilterBar extends StatelessWidget {
@@ -31,14 +32,14 @@ class CrmFilterBar extends StatelessWidget {
     if (activeFilters.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: isDark
               ? AppColors.darkCard.withOpacity(0.5)
               : AppColors.lightCard,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.all(AppRadius.sm),
           border: Border.all(
             color: AppColors.gold.withOpacity(0.3),
           ),
@@ -76,22 +77,22 @@ class CrmFilterBar extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: AppRadius.all(AppRadius.xs),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.close,
-                      color: Colors.red[400],
+                      color: AppColors.errorLight,
                       size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'مسح',
                       style: GoogleFonts.cairo(
-                        color: Colors.red[400],
+                        color: AppColors.errorLight,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -113,7 +114,7 @@ class CrmFilterBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: filter.color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.all(AppRadius.lg),
         border: Border.all(
           color: filter.color.withOpacity(0.3),
         ),

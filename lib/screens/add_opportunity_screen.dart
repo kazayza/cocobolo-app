@@ -9,7 +9,9 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 import '../core/network/api_client.dart';
 import '../services/app_colors.dart';
+import '../services/design_tokens.dart';
 import '../services/permission_service.dart';
+import '../widgets/design_kit.dart';
 import '../services/theme_service.dart';
 import '../widgets/speech_text_field.dart';
 
@@ -847,12 +849,12 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.12),
+                  color: AppColors.warning.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.approval_rounded,
-                  color: Colors.orange,
+                  color: AppColors.warning,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1058,7 +1060,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             ],
           ),
           backgroundColor:
-              isError ? Colors.red.shade700 : Colors.green.shade700,
+              isError ? AppColors.error : AppColors.success,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -1137,19 +1139,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
 
   Widget _buildBody() {
     if (_isLoadingData) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const CircularProgressIndicator(color: AppColors.gold),
-            const SizedBox(height: 16),
-            Text(
-              'جاري تجهيز بيانات الفرصة...',
-              style: GoogleFonts.cairo(color: _secondaryTextColor),
-            ),
-          ],
-        ),
-      );
+      return const AppLoading(message: 'جاري تجهيز بيانات الفرصة...');
     }
 
     if (_loadError != null) {
@@ -1180,7 +1170,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                   ? 'العميل المرتبط بالفرصة الحالية'
                   : 'يتم البحث تلقائياً باستخدام رقم الهاتف',
               icon: Icons.person_rounded,
-              accent: const Color(0xFF4D8DFF),
+              accent: AppColors.infoLight,
               child: _buildClientSection(),
               animationDelay: 50,
             ),
@@ -1199,7 +1189,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                 title: 'المتابعة القادمة',
                 subtitle: 'نوع المهمة والموعد مطلوبان للمرحلة الحالية',
                 icon: Icons.event_available_rounded,
-                accent: const Color(0xFF22A06B),
+                accent: AppColors.success,
                 child: _buildFollowUpSection(),
                 animationDelay: 150,
               ),
@@ -1210,7 +1200,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                 title: 'بيانات الإغلاق',
                 subtitle: 'حدد سبب الخسارة أو عدم الاهتمام بوضوح',
                 icon: Icons.do_not_disturb_on_rounded,
-                accent: Colors.red.shade600,
+                accent: AppColors.error,
                 child: _buildLostSection(),
                 animationDelay: 180,
               ),
@@ -1220,7 +1210,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
               title: 'ملخص التواصل',
               subtitle: 'سجل ما تم وتوجيهات المتابعة باستخدام الكتابة أو الصوت',
               icon: Icons.notes_rounded,
-              accent: const Color(0xFF8B5CF6),
+              accent: AppStatus.editPending,
               child: _buildNotesSection(),
               animationDelay: 220,
             ),
@@ -1241,8 +1231,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             color: _surfaceColor,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.red.withOpacity(0.25)),
+            borderRadius: AppRadius.all(AppRadius.xxl),
+            border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1251,12 +1241,12 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.12),
+                  color: AppColors.error.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.cloud_off_rounded,
-                  color: Colors.red.shade400,
+                  color: AppColors.errorLight,
                   size: 30,
                 ),
               ),
@@ -1312,10 +1302,10 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: AppRadius.all(AppRadius.xxl),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.navy.withOpacity(0.24),
+            color: AppColors.navy.withValues(alpha: 0.24),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1330,7 +1320,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
               width: 135,
               height: 135,
               decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(0.08),
+                color: AppColors.gold.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
             ),
@@ -1344,10 +1334,10 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.gold.withOpacity(0.16),
+                      color: AppColors.gold.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.gold.withOpacity(0.35),
+                        color: AppColors.gold.withValues(alpha: 0.35),
                       ),
                     ),
                     child: const Icon(
@@ -1383,13 +1373,13 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                     _buildHeroStatusChip(
                       'تم البيع',
                       Icons.verified_rounded,
-                      const Color(0xFF4ADE80),
+                      AppColors.successLight,
                     )
                   else if (_isLostStage)
                     _buildHeroStatusChip(
                       'إغلاق',
                       Icons.lock_rounded,
-                      const Color(0xFFFCA5A5),
+                      AppColors.errorLight,
                     ),
                 ],
               ),
@@ -1445,9 +1435,9 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1572,14 +1562,14 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                         color: selected
                             ? stageColor
                             : completed
-                                ? stageColor.withOpacity(0.16)
+                                ? stageColor.withValues(alpha: 0.16)
                                 : AppColors.inputFill(_isDark),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selected
                               ? stageColor
                               : completed
-                                  ? stageColor.withOpacity(0.35)
+                                  ? stageColor.withValues(alpha: 0.35)
                                   : AppColors.divider(_isDark),
                         ),
                       ),
@@ -1644,25 +1634,15 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     required Widget child,
     required int animationDelay,
   }) {
-    return Container(
+    return AppCard(
+      color: _surfaceColor,
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: _surfaceColor,
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: AppColors.divider(_isDark)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(_isDark ? 0.12 : 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      radius: AppRadius.xl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           _buildSectionTitle(title, subtitle, icon, accent),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           child,
         ],
       ),
@@ -1678,52 +1658,11 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     IconData icon,
     Color accent,
   ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: accent, size: 21),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                title,
-                style: GoogleFonts.cairo(
-                  color: _textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: GoogleFonts.cairo(
-                  color: _secondaryTextColor,
-                  fontSize: 10.5,
-                  height: 1.35,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          width: 4,
-          height: 24,
-          decoration: BoxDecoration(
-            color: accent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ],
+    return AppSectionHeader(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      accent: accent,
     );
   }
 
@@ -1843,17 +1782,17 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF22A06B).withOpacity(0.10),
+        color: AppColors.success.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF22A06B).withOpacity(0.30),
+          color: AppColors.success.withValues(alpha: 0.30),
         ),
       ),
       child: Row(
         children: <Widget>[
           const Icon(
             Icons.verified_user_rounded,
-            color: Color(0xFF22A06B),
+            color: AppColors.success,
             size: 20,
           ),
           const SizedBox(width: 9),
@@ -1864,8 +1803,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                   : 'تم العثور على العميل وسيتم ربط التواصل والفرصة بملفه الحالي',
               style: GoogleFonts.cairo(
                 color: _isDark
-                    ? const Color(0xFF8CE0BB)
-                    : const Color(0xFF137A4F),
+                    ? AppColors.successLight
+                    : AppColors.success,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
                 height: 1.45,
@@ -1888,9 +1827,9 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
-          color: AppColors.gold.withOpacity(0.10),
+          color: AppColors.gold.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.gold.withOpacity(0.32)),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.32)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2100,8 +2039,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
               : '${DateFormat('yyyy/MM/dd').format(selectedFollowUpDate!)}  ${selectedFollowUpTime?.format(context) ?? ''}',
           icon: Icons.event_note_rounded,
           accent: selectedFollowUpDate == null
-              ? Colors.orange.shade700
-              : const Color(0xFF22A06B),
+              ? AppStatus.overdue
+              : AppColors.success,
           onTap: _pickFollowUpDate,
           trailing: selectedFollowUpDate == null
               ? null
@@ -2119,7 +2058,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
               children: <Widget>[
                 Icon(
                   Icons.error_outline_rounded,
-                  color: Colors.orange.shade700,
+                  color: AppStatus.overdue,
                   size: 17,
                 ),
                 const SizedBox(width: 7),
@@ -2127,7 +2066,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                   child: Text(
                     'موعد المتابعة مطلوب ما دامت الفرصة في مرحلة مفتوحة.',
                     style: GoogleFonts.cairo(
-                      color: Colors.orange.shade700,
+                      color: AppStatus.overdue,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2147,12 +2086,12 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: (_canDirectCloseOpportunity ? Colors.red : Colors.orange)
-                .withOpacity(0.09),
+            color: (_canDirectCloseOpportunity ? AppColors.error : AppColors.warning)
+                .withValues(alpha: 0.09),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: (_canDirectCloseOpportunity ? Colors.red : Colors.orange)
-                  .withOpacity(0.26),
+              color: (_canDirectCloseOpportunity ? AppColors.error : AppColors.warning)
+                  .withValues(alpha: 0.26),
             ),
           ),
           child: Row(
@@ -2162,8 +2101,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                     ? Icons.info_outline_rounded
                     : Icons.approval_rounded,
                 color: _canDirectCloseOpportunity
-                    ? Colors.red.shade400
-                    : Colors.orange.shade700,
+                    ? AppColors.errorLight
+                    : AppStatus.overdue,
                 size: 20,
               ),
               const SizedBox(width: 9),
@@ -2174,8 +2113,8 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                       : 'سيتم حفظ البيانات وإرسال طلب اعتماد للإدارة، ولن تتغير المرحلة قبل الموافقة.',
                   style: GoogleFonts.cairo(
                     color: _canDirectCloseOpportunity
-                        ? Colors.red.shade400
-                        : Colors.orange.shade700,
+                        ? AppColors.errorLight
+                        : AppStatus.overdue,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     height: 1.45,
@@ -2272,7 +2211,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
           decoration: BoxDecoration(
             color: AppColors.inputFill(_isDark),
             borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: accent.withOpacity(0.30)),
+            border: Border.all(color: accent.withValues(alpha: 0.30)),
           ),
           child: Row(
             children: <Widget>[
@@ -2280,7 +2219,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: accent.withOpacity(0.11),
+                  color: accent.withValues(alpha: 0.11),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: accent, size: 19),
@@ -2358,17 +2297,17 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
       enabledBorder: border,
       disabledBorder: border.copyWith(
         borderSide: BorderSide(
-          color: AppColors.divider(_isDark).withOpacity(0.55),
+          color: AppColors.divider(_isDark).withValues(alpha: 0.55),
         ),
       ),
       focusedBorder: border.copyWith(
         borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
       ),
       errorBorder: border.copyWith(
-        borderSide: BorderSide(color: Colors.red.shade500),
+        borderSide: BorderSide(color: AppColors.error),
       ),
       focusedErrorBorder: border.copyWith(
-        borderSide: BorderSide(color: Colors.red.shade500, width: 1.5),
+        borderSide: BorderSide(color: AppColors.error, width: 1.5),
       ),
     );
   }
@@ -2459,7 +2398,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
     final bool isApprovalAction =
         _isLostStage && !_canDirectCloseOpportunity;
     final Color buttonColor =
-        isApprovalAction ? Colors.orange.shade700 : AppColors.navy;
+        isApprovalAction ? AppStatus.overdue : AppColors.navy;
     final String label = _isLoading
         ? 'جاري الحفظ...'
         : isApprovalAction
@@ -2478,7 +2417,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: buttonColor,
               foregroundColor: Colors.white,
-              disabledBackgroundColor: buttonColor.withOpacity(0.55),
+              disabledBackgroundColor: buttonColor.withValues(alpha: 0.55),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -2516,7 +2455,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
               children: <Widget>[
                 const Icon(
                   Icons.verified_rounded,
-                  color: Color(0xFF22A06B),
+                  color: AppColors.success,
                   size: 16,
                 ),
                 const SizedBox(width: 6),
@@ -2525,7 +2464,7 @@ class _AddOpportunityScreenState extends State<AddOpportunityScreen> {
                     'مرحلة تم البيع تُحفظ مباشرة ولا تحتاج طلب اعتماد.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.cairo(
-                      color: const Color(0xFF22A06B),
+                      color: AppColors.success,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                     ),
