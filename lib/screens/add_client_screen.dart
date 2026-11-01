@@ -48,7 +48,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
   final _clientSearchController = TextEditingController();
   final _parentSearchController = TextEditingController();
 
-  // القوائم المنسدلة — من جداول بلازور نفسها عبر وحدة العملاء
+  //   القوائم المنسدلة — من جداول بلازور نفسها عبر وحدة العملاء
   List<dynamic> referralSources = [];
   List<dynamic> partyTypes = [];
   List<dynamic> salesStages = [];
