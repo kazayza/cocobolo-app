@@ -10,8 +10,8 @@ import '../../services/inventory_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/inventory_design.dart';
 import 'stock_entry_screen.dart';
-
 import '../../widgets/app_drawer.dart';
+
 class StockLevelsScreen extends StatefulWidget {
   final int userId;
   final String username;
@@ -40,7 +40,7 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
 
   bool get _isDark => ThemeService().isDarkMode;
 
-  List<Map<String, dynamic>> get _rows {
+  List get _rows {
     final query = _searchController.text.trim().toLowerCase();
     return _levels
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -73,6 +73,12 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
       .length;
   int get _outCount =>
       _levels.where((row) => _toInt(row['Quantity']) == 0).length;
+
+  bool get _hasActiveFilters =>
+      _branchId != null ||
+      _warehouseId != null ||
+      _stockFilter != 'all' ||
+      _searchController.text.isNotEmpty;
 
   @override
   void initState() {
@@ -174,18 +180,21 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final rows = _rows;
+
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Scaffold(
         drawer: buildAppDrawer(currentRoute: 'frm_StockLevels'),
         backgroundColor: AppColors.background(_isDark),
-        appBar: AppBar( leading: const AppDrawerMenuButton(),
+        appBar: AppBar(
+          leading: const AppDrawerMenuButton(),
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
           elevation: 0,
           title: Text(
             'أرصدة المخزون',
-            style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800, fontSize: 18),
           ),
           actions: [
             IconButton(
@@ -195,174 +204,220 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
             ),
           ],
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: AppColors.navy,
+          foregroundColor: Colors.white,
+          elevation: 3,
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => StockEntryScreen(
+                  userId: widget.userId,
+                  username: widget.username,
+                ),
+              ),
+            );
+            _loadLevels();
+          },
+          icon: const Icon(Icons.add_box_rounded, color: AppColors.gold),
+          label: Text(
+            'إضافة رصيد',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+          ),
+        ),
         body: RefreshIndicator(
           color: AppColors.gold,
           onRefresh: _loadLevels,
-          child: ListView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
-            children: [
-              InventoryHero(
-                icon: Icons.inventory_rounded,
-                title: 'أرصدة المخزون الحالية',
-                subtitle:
-                    'عرض الرصيد الفعلي لكل منتج حسب الفرع والمخزن مع تنبيه النواقص.',
-                action: IconButton.filledTonal(
-                  tooltip: 'إضافة رصيد',
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StockEntryScreen(
-                          userId: widget.userId,
-                          username: widget.username,
+            slivers: [
+              // ── شريط الإحصائيات التفاعلي والفلاتر السريعة ─────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // كروت فلترة تفاعلية بنقرة واحدة
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _InteractiveStatChip(
+                              label: 'الكل',
+                              value: '${_levels.length}',
+                              subValue: '${NumberFormat('#,###').format(_totalQuantity)} وحدة',
+                              icon: Icons.inventory_2_rounded,
+                              activeColor: AppColors.navy,
+                              isSelected: _stockFilter == 'all',
+                              onTap: () => setState(() => _stockFilter = 'all'),
+                            ),
+                            const SizedBox(width: 8),
+                            _InteractiveStatChip(
+                              label: 'متاح',
+                              value: '$_availableCount',
+                              icon: Icons.check_circle_rounded,
+                              activeColor: AppStatus.profit,
+                              isSelected: _stockFilter == 'available',
+                              onTap: () => setState(() => _stockFilter = 'available'),
+                            ),
+                            const SizedBox(width: 8),
+                            _InteractiveStatChip(
+                              label: 'منخفض',
+                              value: '$_lowCount',
+                              icon: Icons.warning_amber_rounded,
+                              activeColor: AppColors.warning,
+                              isSelected: _stockFilter == 'low',
+                              onTap: () => setState(() => _stockFilter = 'low'),
+                            ),
+                            const SizedBox(width: 8),
+                            _InteractiveStatChip(
+                              label: 'نفد',
+                              value: '$_outCount',
+                              icon: Icons.remove_circle_outline_rounded,
+                              activeColor: AppColors.error,
+                              isSelected: _stockFilter == 'out',
+                              onTap: () => setState(() => _stockFilter = 'out'),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                    _loadLevels();
-                  },
-                  icon: const Icon(Icons.add_box_rounded),
-                ),
-                stats: [
-                  InventoryHeroStat(
-                    icon: Icons.category_rounded,
-                    label: 'منتجات',
-                    value: '${_levels.length}',
-                    color: Colors.white,
-                  ),
-                  InventoryHeroStat(
-                    icon: Icons.inventory_2_rounded,
-                    label: 'إجمالي الوحدات',
-                    value: NumberFormat('#,###').format(_totalQuantity),
-                    color: AppColors.gold,
-                  ),
-                  InventoryHeroStat(
-                    icon: Icons.warning_amber_rounded,
-                    label: 'رصيد منخفض',
-                    value: '$_lowCount',
-                    color: AppColors.warning,
-                  ),
-                  InventoryHeroStat(
-                    icon: Icons.remove_shopping_cart_rounded,
-                    label: 'نفد الرصيد',
-                    value: '$_outCount',
-                    color: AppColors.errorLight,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              InventorySection(
-                title: 'البحث والتصفية',
-                subtitle: 'حدد موقع المخزون أو ابحث باسم المنتج أو الكود.',
-                icon: Icons.tune_rounded,
-                color: AppColors.gold,
-                trailing: TextButton.icon(
-                  onPressed: _resetFilters,
-                  icon: const Icon(Icons.restart_alt_rounded, size: 17),
-                  label: Text('إعادة ضبط', style: GoogleFonts.cairo()),
-                ),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _searchController,
-                      onChanged: _onSearch,
-                      decoration: inventoryInputDecoration(
-                        context,
-                        label: 'بحث',
-                        hint: 'اسم المنتج، الوصف أو الكود',
-                        icon: Icons.search_rounded,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact = constraints.maxWidth < 620;
-                        final fields = [
-                          _branchDropdown(),
-                          _warehouseDropdown(),
-                        ];
-                        if (compact) {
-                          return Column(
-                            children: [
-                              fields[0],
-                              const SizedBox(height: 10),
-                              fields[1],
-                            ],
-                          );
-                        }
-                        return Row(
+                      const SizedBox(height: 12),
+
+                      // صندوق التصفية والبحث المدمج
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.card(_isDark),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Column(
                           children: [
-                            Expanded(child: fields[0]),
-                            const SizedBox(width: 10),
-                            Expanded(child: fields[1]),
+                            TextField(
+                              controller: _searchController,
+                              onChanged: _onSearch,
+                              style: GoogleFonts.cairo(fontSize: 13),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: 'ابحث باسم المنتج، الكود أو المخزن...',
+                                hintStyle: GoogleFonts.cairo(fontSize: 12),
+                                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear_rounded, size: 18),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() {});
+                                        },
+                                      )
+                                    : null,
+                                filled: true,
+                                fillColor: _isDark
+                                    ? Colors.white.withValues(alpha: 0.04)
+                                    : const Color(0xFFF6F8FA),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(child: _branchDropdown()),
+                                const SizedBox(width: 8),
+                                Expanded(child: _warehouseDropdown()),
+                                if (_hasActiveFilters) ...[
+                                  const SizedBox(width: 6),
+                                  IconButton.filledTonal(
+                                    tooltip: 'إعادة ضبط الفلاتر',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                                      foregroundColor: AppColors.error,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    onPressed: _resetFilters,
+                                    icon: const Icon(Icons.filter_alt_off_rounded, size: 20),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'all',
-                            label: Text('الكل'),
-                            icon: Icon(Icons.select_all_rounded),
-                          ),
-                          ButtonSegment(
-                            value: 'available',
-                            label: Text('متاح'),
-                            icon: Icon(Icons.check_circle_outline_rounded),
-                          ),
-                          ButtonSegment(
-                            value: 'low',
-                            label: Text('منخفض'),
-                            icon: Icon(Icons.warning_amber_rounded),
-                          ),
-                          ButtonSegment(
-                            value: 'out',
-                            label: Text('نفد'),
-                            icon: Icon(Icons.remove_circle_outline_rounded),
-                          ),
-                        ],
-                        selected: {_stockFilter},
-                        onSelectionChanged: (value) {
-                          setState(() => _stockFilter = value.first);
-                        },
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+
+                      // ترويسة النتائج
+                      if (!_loading && _error == null && rows.isNotEmpty)
+                        Row(
+                          children: [
+                            Text(
+                              'قائمة المنتجات',
+                              style: GoogleFonts.cairo(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.navy.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${rows.length} سجل',
+                                style: GoogleFonts.cairo(
+                                  color: AppColors.navy,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
-              if (_loading) const AppLoading()
+
+              // ── حالة التحميل أو الخطأ أو القائمة ─────────────────
+              if (_loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: AppLoading()),
+                )
               else if (_error != null)
-                _errorCard()
-              else if (_rows.isEmpty)
-                _emptyCard()
-              else ...[
-                Row(
-                  children: [
-                    Text(
-                      'نتائج الأرصدة',
-                      style: GoogleFonts.cairo(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: _errorCard(),
+                  ),
+                )
+              else if (rows.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: _emptyCard(),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 80),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _StockLevelCard(row: rows[index]),
+                      childCount: rows.length,
                     ),
-                    const Spacer(),
-                    Text(
-                      '${_rows.length} سجل',
-                      style: GoogleFonts.cairo(
-                        color: AppColors.textSecondary(_isDark),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                ..._rows.map((row) => _StockLevelCard(row: row)),
-              ],
             ],
           ),
         ),
@@ -374,22 +429,33 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
     return DropdownButtonFormField<int?>(
       value: _branchId,
       isExpanded: true,
-      decoration: inventoryInputDecoration(
-        context,
-        label: 'الفرع',
-        icon: Icons.business_rounded,
+      style: GoogleFonts.cairo(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        prefixIcon: const Icon(Icons.business_rounded, size: 18),
+        filled: true,
+        fillColor: _isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F8FA),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
       ),
       items: [
         DropdownMenuItem<int?>(
           value: null,
-          child: Text('كل الفروع', style: GoogleFonts.cairo()),
+          child: Text('كل الفروع', style: GoogleFonts.cairo(fontSize: 12)),
         ),
         ..._branches.map(
           (branch) => DropdownMenuItem<int?>(
             value: branch['BranchId'] ?? branch['BranchID'],
             child: Text(
               branch['BranchNameAr'] ?? branch['BranchName'] ?? '',
-              style: GoogleFonts.cairo(),
+              style: GoogleFonts.cairo(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -402,22 +468,33 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
     return DropdownButtonFormField<int?>(
       value: _warehouseId,
       isExpanded: true,
-      decoration: inventoryInputDecoration(
-        context,
-        label: 'المخزن',
-        icon: Icons.warehouse_rounded,
+      style: GoogleFonts.cairo(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        prefixIcon: const Icon(Icons.warehouse_rounded, size: 18),
+        filled: true,
+        fillColor: _isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F8FA),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
       ),
       items: [
         DropdownMenuItem<int?>(
           value: null,
-          child: Text('كل المخازن', style: GoogleFonts.cairo()),
+          child: Text('كل المخازن', style: GoogleFonts.cairo(fontSize: 12)),
         ),
         ..._warehouses.map(
           (warehouse) => DropdownMenuItem<int?>(
             value: warehouse['WarehouseID'] ?? warehouse['WarehouseId'],
             child: Text(
               warehouse['WarehouseName'] ?? '',
-              style: GoogleFonts.cairo(),
+              style: GoogleFonts.cairo(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -430,33 +507,160 @@ class _StockLevelsScreenState extends State<StockLevelsScreen> {
   }
 
   Widget _errorCard() {
-    return InventorySection(
-      title: 'تعذر تحميل الأرصدة',
-      subtitle: _error,
-      icon: Icons.error_outline_rounded,
-      color: AppColors.error,
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: FilledButton.icon(
-          onPressed: _bootstrap,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('إعادة المحاولة'),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            'تعذر تحميل الأرصدة',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w700, color: AppColors.error),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              _error!,
+              style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: _bootstrap,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: Text('إعادة المحاولة', style: GoogleFonts.cairo()),
+          ),
+        ],
       ),
     );
   }
 
   Widget _emptyCard() {
-    return InventorySection(
-      title: 'لا توجد أرصدة مطابقة',
-      subtitle: 'غيّر الفلاتر أو أضف رصيدًا للمخزن المختار.',
-      icon: Icons.inventory_2_outlined,
-      color: AppColors.gold,
-      child: const SizedBox.shrink(),
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: AppColors.card(_isDark),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 50, color: AppColors.neutral.withValues(alpha: 0.4)),
+          const SizedBox(height: 10),
+          Text(
+            'لا توجد منتجات مطابقة للبحث أو الفلتر',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'جرّب تغيير خيارات البحث أو إعادة ضبط الفلاتر.',
+            style: GoogleFonts.cairo(fontSize: 11, color: AppColors.neutral),
+          ),
+        ],
+      ),
     );
   }
 }
 
+// ── شريحة الإحصائية التفاعلية ──────────────────────────────────────
+class _InteractiveStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? subValue;
+  final IconData icon;
+  final Color activeColor;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _InteractiveStatChip({
+    required this.label,
+    required this.value,
+    this.subValue,
+    required this.icon,
+    required this.activeColor,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ThemeService().isDarkMode;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: isDark ? 0.25 : 0.12)
+              : AppColors.card(isDark),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? activeColor : Theme.of(context).dividerColor.withValues(alpha: 0.1),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: (isSelected ? activeColor : AppColors.neutral).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 16, color: isSelected ? activeColor : AppColors.neutral),
+            ),
+            const SizedBox(width: 9),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.cairo(
+                        fontSize: 11,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? activeColor : null,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      value,
+                      style: GoogleFonts.cairo(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: isSelected ? activeColor : null,
+                      ),
+                    ),
+                  ],
+                ),
+                if (subValue != null)
+                  Text(
+                    subValue!,
+                    style: GoogleFonts.cairo(
+                      fontSize: 9.5,
+                      color: AppColors.neutral,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── بطاقة عرض رصيد المنتج ──────────────────────────────────────────
 class _StockLevelCard extends StatelessWidget {
   final Map<String, dynamic> row;
 
@@ -469,114 +673,145 @@ class _StockLevelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = ThemeService().isDarkMode;
     final quantity = _int(row['Quantity']);
-    final color = quantity == 0
+    final isOut = quantity == 0;
+    final isLow = quantity > 0 && quantity <= 5;
+
+    final color = isOut
         ? AppColors.error
-        : quantity <= 5
-            ? AppStatus.overdue
+        : isLow
+            ? AppColors.warning
             : AppStatus.profit;
+
+    final statusText = isOut
+        ? 'نفد'
+        : isLow
+            ? 'منخفض'
+            : 'متاح';
+
     final lastUpdated = DateTime.tryParse('${row['LastUpdatedAt'] ?? ''}');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.all(13),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.card(dark),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isOut
+              ? AppColors.error.withValues(alpha: 0.25)
+              : Theme.of(context).dividerColor.withValues(alpha: 0.08),
+        ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(Icons.inventory_2_rounded, color: color, size: 23),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  row['ProductName'] ?? 'منتج بدون اسم',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.cairo(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // مؤشر لوني جانبي للحالة
+            Container(
+              width: 5,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
                 ),
-                const SizedBox(height: 3),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 3,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // تفاصيل المنتج
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _info(Icons.tag_rounded, '#${row['ProductID']}'),
-                    _info(
-                      Icons.warehouse_rounded,
-                      row['WarehouseName'] ?? '—',
-                    ),
-                    if ((row['BranchNameAr'] ?? '').toString().isNotEmpty)
-                      _info(Icons.business_rounded, row['BranchNameAr']),
-                    if (lastUpdated != null)
-                      _info(
-                        Icons.update_rounded,
-                        DateFormat('yyyy/MM/dd HH:mm').format(lastUpdated),
+                    Text(
+                      row['ProductName'] ?? 'منتج بدون اسم',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.cairo(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
                       ),
+                    ),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        _tag(Icons.tag_rounded, '#${row['ProductID']}'),
+                        _tag(Icons.warehouse_rounded, row['WarehouseName'] ?? '—'),
+                        if ((row['BranchNameAr'] ?? '').toString().isNotEmpty)
+                          _tag(Icons.business_rounded, row['BranchNameAr']),
+                        if (lastUpdated != null)
+                          _tag(
+                            Icons.access_time_rounded,
+                            DateFormat('dd/MM HH:mm').format(lastUpdated),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            constraints: const BoxConstraints(minWidth: 62),
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Column(
-              children: [
-                AmountText(
-                  value: NumberFormat('#,###').format(quantity),
-                  color: color,
-                  size: 18,
-                ),
-                Text(
-                  quantity == 0
-                      ? 'نفد'
-                      : quantity <= 5
-                          ? 'منخفض'
-                          : 'متاح',
-                  style: GoogleFonts.cairo(
-                    color: color,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
+            // صندوق الكمية والبادج
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              constraints: const BoxConstraints(minWidth: 68),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    NumberFormat('#,###').format(quantity),
+                    style: GoogleFonts.cairo(
+                      color: color,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-              ],
+                  Text(
+                    statusText,
+                    style: GoogleFonts.cairo(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _info(IconData icon, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: AppColors.neutral),
-        const SizedBox(width: 3),
-        Text(
-          text,
-          style: GoogleFonts.cairo(fontSize: 10, color: AppColors.neutral),
-        ),
-      ],
+  Widget _tag(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.neutral.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: AppColors.neutral),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: GoogleFonts.cairo(
+              fontSize: 10,
+              color: AppColors.neutral,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

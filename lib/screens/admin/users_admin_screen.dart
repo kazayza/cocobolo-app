@@ -124,7 +124,7 @@ class _UsersAdminScreenState extends State<UsersAdminScreen> {
           targetUser: user,
         ),
       ),
-    );
+    ).then((_) => _loadUsers()); 
   }
 
   Future<void> _confirmDelete(AdminUser user) async {
@@ -342,8 +342,16 @@ class _UserCard extends StatelessWidget {
         return HomeAccent.teal;
       case 'socialmanager':
         return HomeAccent.pink;
+      case 'customerservice':
+        return const Color(0xFF00BCD4);
+      case 'productionmanager':
+      case 'factorymanager':
+        return const Color(0xFFFF9800);
       case 'factory':
         return AppColors.warning;
+      case 'deliveryofficer':
+      case 'delivery':
+        return const Color(0xFF26A69A); // لون مميز للتوصيل
       case 'sales':
         return AppColors.info;
       case 'account':
@@ -372,12 +380,22 @@ class _UserCard extends StatelessWidget {
         return 'مدير حسابات';
       case 'hrmanager':
         return 'مدير الموارد البشرية';
+      case 'deliveryofficer':
+        return 'مسؤول توصيل';
+      case 'delivery':
+        return 'توصيل / دليفري';
       case 'socialmanager':
         return 'مدير السوشيال ميديا';
+      case 'customerservice': // 👈 تم تحويلها إلى lowercase لتعمل دائماً
+        return 'مسؤول خدمة العملاء';
+      case 'productionmanager': // 👈 تم تحويلها إلى lowercase
+        return 'مدير الإنتاج';
+      case 'factorymanager':
+        return 'مدير المصنع';
       case 'factory':
         return 'المصنع';
       case 'sales':
-        return 'مندوب مبيعات';
+        return 'مسؤول مبيعات';
       case 'account':
         return 'محاسب';
       case 'social':
@@ -388,6 +406,8 @@ class _UserCard extends StatelessWidget {
         return 'متصفح سوشيال ميديا';
       case 'b2b':
         return 'بوابة B2B';
+      case 'user':
+        return 'مستخدم';
       default:
         return role ?? 'مستخدم';
     }

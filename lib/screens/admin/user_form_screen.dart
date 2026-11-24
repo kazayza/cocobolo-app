@@ -37,24 +37,27 @@ class _UserFormScreenState extends State<UserFormScreen> {
   late final TextEditingController _password;
   late final TextEditingController _email;
 
-  String _role = 'User';
+String _role = 'User';
   bool _isActive = true;
   bool _isSaving = false;
 
   // ربط الموظف
-  List<Map<String, dynamic>> _employees = [];
+  List<dynamic> _employees = [];
   int? _employeeId;
   bool _loadingEmployees = false;
 
   static const List<({String value, String label})> _roles = [
     (value: 'Admin', label: 'مدير النظام'),
     (value: 'GeneralManager', label: 'مدير عام'),
-    (value: 'SalesManager', label: 'مدير مبيعات'),
     (value: 'AccountManager', label: 'مدير حسابات'),
     (value: 'HrManager', label: 'مدير الموارد البشرية'),
     (value: 'SocialManager', label: 'مدير السوشيال ميديا'),
-    (value: 'Factory', label: 'المصنع'),
-    (value: 'Sales', label: 'مندوب مبيعات'),
+    (value: 'CustomerService', label: 'مسؤول خدمة العملاء'),
+    (value: 'ProductionManager', label: 'مدير الإنتاج'),
+    (value: 'DeliveryOfficer', label: 'مسؤول توصيل'), 
+    (value: 'Delivery', label: 'توصيل / دليفري'),
+    (value: 'factory', label: 'المصنع'),
+    (value: 'Sales', label: 'مسؤول مبيعات'),
     (value: 'Account', label: 'محاسب'),
     (value: 'Social', label: 'مسؤول سوشيال ميديا'),
     (value: 'Viewer', label: 'مشاهد (عرض فقط)'),
@@ -75,7 +78,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
     _isActive = u?.isActive ?? true;
     _employeeId = u?.employeeId;
 
-    // تحميل الموظفين النشطين (لربط المستخدم بموظف)
     _loadEmployees();
   }
 
@@ -135,20 +137,16 @@ class _UserFormScreenState extends State<UserFormScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result['message'] ?? 'تمت العملية'),
-        backgroundColor: success
-            ? AppColors.success
-            : AppColors.error,
+        backgroundColor: success ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
 
     if (success) {
-      // ── لو مستخدم جديد → نسأل عن تحديد الصلاحيات ─────
       if (!_isEdit) {
         final newUserId =
             (result['data'] is Map ? result['data']['userId'] : null) as int?;
 
-        // حتى لو مفيش userId راجع من الـ API، نكمل عادي
         final goToPermissions = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -187,7 +185,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
             isActive: _isActive,
           );
           final navigator = Navigator.of(context);
-          navigator.pop(true); // نقفل الفورم (بقيمة true)
+          navigator.pop(true);
           navigator.push(
             MaterialPageRoute(
               builder: (_) => UserPermissionsScreen(
@@ -209,6 +207,23 @@ class _UserFormScreenState extends State<UserFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // تجهيز قائمة الأدوار مع التأكد من وجود الدور الحالي حتى لو لم يكن في القائمة الثابتة
+    final availableRoles = List<({String value, String label})>.from(_roles);
+    if (!availableRoles.any((r) => r.value == _role)) {
+      availableRoles.insert(0, (value: _role, label: '$_role (مخصص)'));
+    }
+
+    // استخراج معرّفات الموظفين المتاحة للتأكد من وجود _employeeId فيها
+    final availableEmployeeIds = _employees
+        .map((e) => (e['EmployeeID'] ?? e['employeeID']) as int?)
+        .whereType<int>()
+        .toSet();
+
+    final safeEmployeeValue =
+        (_employeeId != null && availableEmployeeIds.contains(_employeeId))
+            ? _employeeId
+            : null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'),
@@ -229,7 +244,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
             const SizedBox(height: AppSpacing.md),
             TextFormField(
               controller: _username,
-              enabled: !_isEdit, // لا يمكن تعديل اسم المستخدم
+              enabled: !_isEdit,
               decoration: _inputDecoration(
                 label: 'اسم المستخدم *',
                 icon: Icons.person_rounded,
@@ -301,7 +316,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
             // ── ربط الموظف ────────────────────────────────
             DropdownButtonFormField<int?>(
-              initialValue: _employeeId,
+              value: safeEmployeeValue, // حماية من انهيار عدم وجود الموظف بالقائمة
               decoration: _inputDecoration(
                 label: 'ربط الموظف',
                 icon: Icons.badge_rounded,
@@ -338,16 +353,20 @@ class _UserFormScreenState extends State<UserFormScreen> {
             _SectionTitle(icon: Icons.shield_rounded, title: 'الدور والحالة'),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
-              initialValue: _role,
+              value: _role, // استخدام value بدلاً من initialValue لتحديث الواجهة دائماً
               decoration: _inputDecoration(
                 label: 'الدور الوظيفي *',
                 icon: Icons.workspace_premium_rounded,
               ),
               items: [
-                for (final r in _roles)
+                for (final r in availableRoles)
                   DropdownMenuItem(value: r.value, child: Text(r.label)),
               ],
-              onChanged: (v) => setState(() => _role = v ?? 'User'),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _role = v);
+                }
+              },
             ),
             const SizedBox(height: 14),
             // حالة الحساب
@@ -360,9 +379,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     _isActive
                         ? Icons.check_circle_rounded
                         : Icons.cancel_rounded,
-                    color: _isActive
-                        ? AppColors.success
-                        : AppColors.error,
+                    color: _isActive ? AppColors.success : AppColors.error,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -374,7 +391,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
                       ),
                     ),
                   ),
-                  // Toggle
                   GestureDetector(
                     onTap: () => setState(() => _isActive = !_isActive),
                     child: AnimatedContainer(
